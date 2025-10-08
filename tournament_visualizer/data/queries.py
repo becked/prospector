@@ -933,6 +933,193 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_law_progression_by_match(self, match_id: Optional[int] = None) -> pd.DataFrame:
+        """Get law progression for players, showing when they reached 4 and 7 laws.
+
+        Args:
+            match_id: Optional match_id to filter (None for all matches)
+
+        Returns:
+            DataFrame with columns: match_id, player_id, player_name, civilization,
+                                    turn_to_4_laws, turn_to_7_laws, total_laws
+        """
+        match_filter = "AND e.match_id = ?" if match_id else ""
+
+        query = f"""
+        WITH law_events AS (
+            SELECT
+                e.match_id,
+                e.player_id,
+                e.turn_number,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.match_id, e.player_id
+                    ORDER BY e.turn_number
+                ) as law_number
+            FROM events e
+            WHERE e.event_type = 'LAW_ADOPTED'
+                AND e.player_id IS NOT NULL
+                {match_filter}
+        ),
+        milestones AS (
+            SELECT
+                match_id,
+                player_id,
+                MAX(CASE WHEN law_number = 4 THEN turn_number END) as turn_to_4_laws,
+                MAX(CASE WHEN law_number = 7 THEN turn_number END) as turn_to_7_laws,
+                MAX(law_number) as total_laws
+            FROM law_events
+            GROUP BY match_id, player_id
+        )
+        SELECT
+            m.match_id,
+            m.player_id,
+            p.player_name,
+            p.civilization,
+            m.turn_to_4_laws,
+            m.turn_to_7_laws,
+            m.total_laws
+        FROM milestones m
+        JOIN players p ON m.match_id = p.match_id AND m.player_id = p.player_id
+        ORDER BY m.match_id, m.player_id
+        """
+
+        params = [match_id] if match_id else []
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_tech_timeline_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get chronological tech discoveries for a match.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: match_id, player_id, player_name, turn_number,
+                                    tech_name, tech_sequence
+        """
+        query = """
+        SELECT
+            e.match_id,
+            e.player_id,
+            p.player_name,
+            e.turn_number,
+            json_extract(e.event_data, '$.tech') as tech_name,
+            ROW_NUMBER() OVER (
+                PARTITION BY e.match_id, e.player_id
+                ORDER BY e.turn_number
+            ) as tech_sequence
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.event_type = 'TECH_DISCOVERED'
+            AND e.match_id = ?
+        ORDER BY e.player_id, e.turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_tech_count_by_turn(self, match_id: int) -> pd.DataFrame:
+        """Get cumulative tech count by turn for each player.
+
+        Useful for racing line charts showing tech progression over time.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: player_id, player_name, turn_number, cumulative_techs
+        """
+        query = """
+        WITH tech_events AS (
+            SELECT
+                e.player_id,
+                p.player_name,
+                e.turn_number,
+                COUNT(*) OVER (
+                    PARTITION BY e.player_id
+                    ORDER BY e.turn_number
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as cumulative_techs
+            FROM events e
+            JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+            WHERE e.event_type = 'TECH_DISCOVERED'
+                AND e.match_id = ?
+        )
+        SELECT DISTINCT
+            player_id,
+            player_name,
+            turn_number,
+            cumulative_techs
+        FROM tech_events
+        ORDER BY player_id, turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_techs_at_law_milestone(self, match_id: int, milestone: int = 4) -> pd.DataFrame:
+        """Get list of techs each player had when reaching a law milestone.
+
+        Args:
+            match_id: Match ID to analyze
+            milestone: Law milestone (4 or 7)
+
+        Returns:
+            DataFrame with columns: player_id, player_name, milestone_turn,
+                                    tech_count, tech_list
+        """
+        query = """
+        WITH law_milestones AS (
+            SELECT
+                e.match_id,
+                e.player_id,
+                p.player_name,
+                e.turn_number as milestone_turn,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.match_id, e.player_id
+                    ORDER BY e.turn_number
+                ) as law_number
+            FROM events e
+            JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+            WHERE e.event_type = 'LAW_ADOPTED'
+                AND e.match_id = ?
+        ),
+        milestone_turns AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                milestone_turn
+            FROM law_milestones
+            WHERE law_number = ?
+        ),
+        techs_at_milestone AS (
+            SELECT
+                mt.player_id,
+                mt.player_name,
+                mt.milestone_turn,
+                json_extract(e.event_data, '$.tech') as tech_name
+            FROM milestone_turns mt
+            JOIN events e ON e.match_id = mt.match_id
+                AND e.player_id = mt.player_id
+                AND e.turn_number <= mt.milestone_turn
+            WHERE e.event_type = 'TECH_DISCOVERED'
+        )
+        SELECT
+            player_id,
+            player_name,
+            milestone_turn,
+            COUNT(*) as tech_count,
+            string_agg(tech_name, ', ') as tech_list
+        FROM techs_at_milestone
+        GROUP BY player_id, player_name, milestone_turn
+        ORDER BY player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, milestone]).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
