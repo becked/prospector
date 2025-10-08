@@ -93,6 +93,93 @@ class TestMemoryDataPlayerOwnership:
                 f"MEMORYPLAYER event has invalid player_id={event['player_id']}"
 
 
+def test_memorytribe_events_in_database_have_player_id() -> None:
+    """Integration test: Verify imported MEMORYTRIBE events have player_id.
+
+    Context:
+        - Tests against actual database (tournament_data.duckdb)
+        - Verifies the full pipeline: parse → import → query
+
+    Requirement:
+        - Database must exist with imported data
+        - Run this AFTER Task 4 (re-import data)
+    """
+    import duckdb
+
+    conn = duckdb.connect('tournament_data.duckdb', read_only=True)
+
+    # Query all MEMORYTRIBE events
+    result = conn.execute("""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN player_id IS NULL THEN 1 ELSE 0 END) as null_count,
+            SUM(CASE WHEN player_id IS NOT NULL THEN 1 ELSE 0 END) as valid_count
+        FROM events
+        WHERE event_type LIKE 'MEMORYTRIBE_%'
+    """).fetchone()
+
+    total, null_count, valid_count = result
+
+    # Should have some events
+    assert total > 0, "Database should contain MEMORYTRIBE events"
+
+    # ALL should have player_id
+    assert null_count == 0, \
+        f"Found {null_count} MEMORYTRIBE events with NULL player_id after import. " \
+        f"Parser fix may not be working correctly."
+
+    assert valid_count == total, \
+        f"Expected all {total} events to have player_id, but only {valid_count} do"
+
+    conn.close()
+
+
+def test_memoryfamily_events_in_database_have_player_id() -> None:
+    """Verify MEMORYFAMILY events also get player_id (same fix applies)."""
+    import duckdb
+
+    conn = duckdb.connect('tournament_data.duckdb', read_only=True)
+
+    result = conn.execute("""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN player_id IS NULL THEN 1 ELSE 0 END) as null_count
+        FROM events
+        WHERE event_type LIKE 'MEMORYFAMILY_%'
+    """).fetchone()
+
+    total, null_count = result
+
+    if total > 0:  # Only test if we have these events
+        assert null_count == 0, \
+            f"Found {null_count} MEMORYFAMILY events with NULL player_id"
+
+    conn.close()
+
+
+def test_memoryreligion_events_in_database_have_player_id() -> None:
+    """Verify MEMORYRELIGION events also get player_id (same fix applies)."""
+    import duckdb
+
+    conn = duckdb.connect('tournament_data.duckdb', read_only=True)
+
+    result = conn.execute("""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN player_id IS NULL THEN 1 ELSE 0 END) as null_count
+        FROM events
+        WHERE event_type LIKE 'MEMORYRELIGION_%'
+    """).fetchone()
+
+    total, null_count = result
+
+    if total > 0:
+        assert null_count == 0, \
+            f"Found {null_count} MEMORYRELIGION events with NULL player_id"
+
+    conn.close()
+
+
 @pytest.fixture
 def sample_save_path() -> str:
     """Path to sample save file for testing."""
