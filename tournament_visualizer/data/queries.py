@@ -1,0 +1,947 @@
+"""Reusable SQL queries for tournament data analysis.
+
+This module contains predefined SQL queries for common data analysis tasks
+in the tournament visualization application.
+"""
+
+from typing import Dict, Any, List, Optional, Tuple
+import pandas as pd
+from .database import TournamentDatabase, get_database
+
+
+class TournamentQueries:
+    """Collection of reusable queries for tournament data analysis."""
+    
+    def __init__(self, database: Optional[TournamentDatabase] = None) -> None:
+        """Initialize with database connection.
+        
+        Args:
+            database: Database instance to use (defaults to global instance)
+        """
+        self.db = database or get_database()
+    
+    def get_match_summary(self) -> pd.DataFrame:
+        """Get comprehensive match summary data.
+
+        Returns:
+            DataFrame with match summary information including player nations
+        """
+        query = """
+        WITH player_info AS (
+            SELECT
+                match_id,
+                STRING_AGG(
+                    COALESCE(civilization, 'Unknown') || ' (' || player_name || ')',
+                    ' vs '
+                    ORDER BY player_id
+                ) as players_with_nations
+            FROM players
+            GROUP BY match_id
+        )
+        SELECT
+            m.match_id,
+            COALESCE(m.game_name, 'Unknown Game') as game_name,
+            m.save_date,
+            m.total_turns,
+            COALESCE(m.map_size, 'Unknown') as map_size,
+            COALESCE(m.map_class, 'Unknown') as map_class,
+            COALESCE(m.turn_style, 'Unknown') as turn_style,
+            COALESCE(m.victory_conditions, 'Unknown') as victory_conditions,
+            COUNT(p.player_id) as player_count,
+            COALESCE(w.player_name, 'Unknown') as winner_name,
+            COALESCE(w.civilization, 'Unknown') as winner_civilization,
+            pi.players_with_nations,
+            m.processed_date
+        FROM matches m
+        LEFT JOIN players p ON m.match_id = p.match_id
+        LEFT JOIN match_winners mw ON m.match_id = mw.match_id
+        LEFT JOIN players w ON mw.winner_player_id = w.player_id
+        LEFT JOIN player_info pi ON m.match_id = pi.match_id
+        GROUP BY m.match_id, m.game_name, m.save_date, m.total_turns,
+                 m.map_size, m.map_class, m.turn_style, m.victory_conditions,
+                 w.player_name, w.civilization, pi.players_with_nations, m.processed_date
+        ORDER BY m.save_date DESC NULLS LAST, m.processed_date DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_player_performance(self) -> pd.DataFrame:
+        """Get player performance statistics.
+
+        Returns:
+            DataFrame with player performance data
+        """
+        query = """
+        SELECT
+            MAX(p.player_name) as player_name,
+            p.civilization,
+            COUNT(DISTINCT p.match_id) as total_matches,
+            COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
+            ROUND(
+                COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
+                COUNT(DISTINCT p.match_id), 2
+            ) as win_rate,
+            AVG(p.final_score) as avg_score,
+            MAX(p.final_score) as max_score,
+            MIN(p.final_score) as min_score
+        FROM players p
+        JOIN matches m ON p.match_id = m.match_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        GROUP BY p.player_name_normalized, p.civilization
+        HAVING COUNT(DISTINCT p.match_id) > 0
+        ORDER BY win_rate DESC, total_matches DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_civilization_performance(self) -> pd.DataFrame:
+        """Get performance statistics by civilization.
+        
+        Returns:
+            DataFrame with civilization performance data
+        """
+        query = """
+        SELECT
+            COALESCE(p.civilization, 'Unknown') as civilization,
+            COUNT(DISTINCT p.match_id) as total_matches,
+            COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
+            ROUND(
+                COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
+                COUNT(DISTINCT p.match_id), 2
+            ) as win_rate,
+            AVG(p.final_score) as avg_score,
+            COUNT(DISTINCT p.player_name) as unique_players
+        FROM players p
+        JOIN matches m ON p.match_id = m.match_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        GROUP BY COALESCE(p.civilization, 'Unknown')
+        HAVING COUNT(DISTINCT p.match_id) > 0
+        ORDER BY win_rate DESC, total_matches DESC
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_match_duration_analysis(self) -> pd.DataFrame:
+        """Get match duration analysis.
+        
+        Returns:
+            DataFrame with match duration statistics
+        """
+        query = """
+        SELECT
+            m.match_id,
+            COALESCE(m.game_name, 'Unknown Game') as game_name,
+            m.total_turns,
+            COALESCE(m.map_size, 'Unknown') as map_size,
+            COALESCE(m.turn_style, 'Unknown') as turn_style,
+            COUNT(p.player_id) as player_count,
+            CASE 
+                WHEN m.total_turns <= 50 THEN 'Short (≤50)'
+                WHEN m.total_turns <= 100 THEN 'Medium (51-100)'
+                WHEN m.total_turns <= 150 THEN 'Long (101-150)'
+                ELSE 'Very Long (>150)'
+            END as duration_category
+        FROM matches m
+        LEFT JOIN players p ON m.match_id = p.match_id
+        WHERE m.total_turns > 0
+        GROUP BY m.match_id, m.game_name, m.total_turns, m.map_size, m.turn_style
+        ORDER BY m.total_turns DESC
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_head_to_head_stats(self, player1: str, player2: str) -> Dict[str, Any]:
+        """Get head-to-head statistics between two players.
+        
+        Args:
+            player1: Name of first player
+            player2: Name of second player
+            
+        Returns:
+            Dictionary with head-to-head statistics
+        """
+        query = """
+        WITH match_participants AS (
+            SELECT
+                m.match_id,
+                m.game_name,
+                m.save_date,
+                m.total_turns,
+                w.player_name as winner_name
+            FROM matches m
+            JOIN players p1 ON m.match_id = p1.match_id AND p1.player_name = ?
+            JOIN players p2 ON m.match_id = p2.match_id AND p2.player_name = ?
+            LEFT JOIN match_winners mw ON m.match_id = mw.match_id
+            LEFT JOIN players w ON mw.winner_player_id = w.player_id
+        )
+        SELECT
+            COUNT(*) as total_matches,
+            COUNT(CASE WHEN winner_name = ? THEN 1 END) as player1_wins,
+            COUNT(CASE WHEN winner_name = ? THEN 1 END) as player2_wins,
+            AVG(total_turns) as avg_match_length,
+            MIN(save_date) as first_match,
+            MAX(save_date) as last_match
+        FROM match_participants
+        """
+        
+        result = self.db.fetch_one(query, {
+            "1": player1, "2": player2, "3": player1, "4": player2
+        })
+        
+        if result:
+            return {
+                'total_matches': result[0],
+                'player1_wins': result[1],
+                'player2_wins': result[2],
+                'avg_match_length': result[3],
+                'first_match': result[4],
+                'last_match': result[5]
+            }
+        
+        return {}
+    
+    def get_map_performance_analysis(self) -> pd.DataFrame:
+        """Get performance analysis by map characteristics.
+        
+        Returns:
+            DataFrame with map performance data
+        """
+        query = """
+        SELECT
+            COALESCE(m.map_size, 'Unknown') as map_size,
+            COALESCE(m.map_class, 'Unknown') as map_class,
+            COUNT(DISTINCT m.match_id) as total_matches,
+            AVG(m.total_turns) as avg_turns,
+            MIN(m.total_turns) as min_turns,
+            MAX(m.total_turns) as max_turns,
+            COUNT(DISTINCT p.player_name) as unique_players
+        FROM matches m
+        LEFT JOIN players p ON m.match_id = p.match_id
+        GROUP BY COALESCE(m.map_size, 'Unknown'), COALESCE(m.map_class, 'Unknown')
+        ORDER BY total_matches DESC
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_turn_progression_data(self, match_id: int) -> pd.DataFrame:
+        """Get turn-by-turn progression data for a specific match.
+        
+        Args:
+            match_id: ID of the match
+            
+        Returns:
+            DataFrame with turn progression data
+        """
+        query = """
+        SELECT
+            gs.turn_number,
+            gs.game_year,
+            p.player_name as active_player,
+            p.civilization,
+            COUNT(e.event_id) as events_count
+        FROM game_state gs
+        LEFT JOIN players p ON gs.active_player_id = p.player_id
+        LEFT JOIN events e ON gs.match_id = e.match_id AND gs.turn_number = e.turn_number
+        WHERE gs.match_id = ?
+        GROUP BY gs.turn_number, gs.game_year, p.player_name, p.civilization
+        ORDER BY gs.turn_number
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+    
+    def get_resource_progression(self, match_id: int, player_name: Optional[str] = None) -> pd.DataFrame:
+        """Get resource progression over time for a match.
+        
+        Args:
+            match_id: ID of the match
+            player_name: Optional player name to filter by
+            
+        Returns:
+            DataFrame with resource progression data
+        """
+        base_query = """
+        SELECT
+            r.turn_number,
+            p.player_name,
+            r.resource_type,
+            r.amount
+        FROM resources r
+        JOIN players p ON r.player_id = p.player_id
+        WHERE r.match_id = ?
+        """
+        
+        params = [match_id]
+        
+        if player_name:
+            base_query += " AND p.player_name = ?"
+            params.append(player_name)
+        
+        base_query += " ORDER BY r.turn_number, p.player_name, r.resource_type"
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+    
+    def get_event_timeline(self, match_id: int, event_types: Optional[List[str]] = None) -> pd.DataFrame:
+        """Get event timeline for a specific match.
+
+        Args:
+            match_id: ID of the match
+            event_types: Optional list of event types to filter by
+
+        Returns:
+            DataFrame with event timeline data, with MEMORYPLAYER_ATTACKED_UNIT events aggregated
+        """
+        # Get regular events (excluding player attacked unit)
+        # Group by turn and event type to remove duplicates
+        base_query = """
+        WITH deduplicated_events AS (
+            SELECT
+                e.turn_number,
+                e.event_type,
+                MIN(e.event_id) as event_id,
+                MAX(p.player_name) as player_name,
+                MAX(e.description) as description,
+                MAX(e.x_coordinate) as x_coordinate,
+                MAX(e.y_coordinate) as y_coordinate,
+                MAX(CASE
+                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.family') IS NOT NULL 
+                        THEN json_extract(e.event_data, '$.family')
+                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.religion') IS NOT NULL 
+                        THEN json_extract(e.event_data, '$.religion')
+                    ELSE NULL
+                END) as ambition,
+                COUNT(*) as occurrence_count
+            FROM events e
+            LEFT JOIN players p ON e.player_id = p.player_id
+            WHERE e.match_id = ?
+                AND e.event_type != 'MEMORYPLAYER_ATTACKED_UNIT'
+            GROUP BY e.turn_number, e.event_type
+        )
+        SELECT
+            turn_number,
+            event_type,
+            player_name,
+            CASE
+                WHEN occurrence_count > 1 THEN description || ' (' || occurrence_count || 'x)'
+                ELSE description
+            END as description,
+            x_coordinate,
+            y_coordinate,
+            ambition
+        FROM deduplicated_events
+        WHERE 1=1
+        """
+
+        params = [match_id]
+
+        if event_types:
+            placeholders = ', '.join(['?' for _ in event_types])
+            base_query += f" AND event_type IN ({placeholders})"
+            params.extend(event_types)
+
+        base_query += " ORDER BY turn_number, event_type"
+
+        with self.db.get_connection() as conn:
+            regular_events = conn.execute(base_query, params).df()
+
+            # Get aggregated attack events
+            attack_query = """
+            WITH attack_summary AS (
+                SELECT
+                    e.turn_number,
+                    e.player_id,
+                    e.match_id,
+                    p1.player_name as attacker_name,
+                    COUNT(*) as attack_count
+                FROM events e
+                LEFT JOIN players p1 ON e.player_id = p1.player_id
+                WHERE e.match_id = ?
+                    AND e.event_type = 'MEMORYPLAYER_ATTACKED_UNIT'
+                GROUP BY e.turn_number, e.player_id, e.match_id, p1.player_name
+            ),
+            target_lookup AS (
+                SELECT
+                    a.turn_number,
+                    a.player_id,
+                    a.match_id,
+                    a.attacker_name,
+                    a.attack_count,
+                    (SELECT p2.player_name
+                     FROM players p2
+                     WHERE p2.match_id = a.match_id
+                       AND p2.player_id != a.player_id
+                     LIMIT 1) as target_name
+                FROM attack_summary a
+            )
+            SELECT
+                turn_number,
+                'MEMORYPLAYER_ATTACKED_UNIT' as event_type,
+                attacker_name as player_name,
+                attacker_name || ' attacked ' || COALESCE(target_name, 'Unknown') || ' ' || attack_count || ' time' ||
+                    CASE WHEN attack_count > 1 THEN 's' ELSE '' END as description,
+                NULL as x_coordinate,
+                NULL as y_coordinate,
+                NULL as ambition
+            FROM target_lookup
+            ORDER BY turn_number
+            """
+
+            attack_events = conn.execute(attack_query, [match_id]).df()
+
+            # Combine and sort
+            if not attack_events.empty:
+                combined = pd.concat([regular_events, attack_events], ignore_index=True)
+                combined = combined.sort_values(['turn_number', 'event_type']).reset_index(drop=True)
+                return combined
+            else:
+                return regular_events
+    
+    def get_territory_control_summary(self, match_id: int) -> pd.DataFrame:
+        """Get territory control summary over time.
+        
+        Args:
+            match_id: ID of the match
+            
+        Returns:
+            DataFrame with territory control data
+        """
+        query = """
+        WITH territory_counts AS (
+            SELECT
+                t.turn_number,
+                p.player_name,
+                COUNT(*) as controlled_territories
+            FROM territories t
+            LEFT JOIN players p ON t.owner_player_id = p.player_id
+            WHERE t.match_id = ?
+            GROUP BY t.turn_number, p.player_name
+        )
+        SELECT
+            turn_number,
+            player_name,
+            controlled_territories,
+            SUM(controlled_territories) OVER (PARTITION BY turn_number) as total_territories
+        FROM territory_counts
+        ORDER BY turn_number, controlled_territories DESC
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+    
+    def get_victory_condition_analysis(self) -> pd.DataFrame:
+        """Get analysis of victory conditions and their success rates.
+        
+        Returns:
+            DataFrame with victory condition analysis
+        """
+        query = """
+        SELECT
+            COALESCE(m.victory_conditions, 'Unknown') as victory_conditions,
+            COUNT(*) as total_matches,
+            AVG(m.total_turns) as avg_turns,
+            MIN(m.total_turns) as min_turns,
+            MAX(m.total_turns) as max_turns
+        FROM matches m
+        GROUP BY COALESCE(m.victory_conditions, 'Unknown')
+        ORDER BY total_matches DESC
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+    
+    def get_recent_matches(self, limit: int = 10) -> pd.DataFrame:
+        """Get most recently processed matches.
+        
+        Args:
+            limit: Number of matches to return
+            
+        Returns:
+            DataFrame with recent match data
+        """
+        query = """
+        SELECT
+            m.match_id,
+            COALESCE(m.game_name, 'Unknown Game') as game_name,
+            m.save_date,
+            m.processed_date,
+            m.total_turns,
+            COALESCE(m.map_size, 'Unknown') as map_size,
+            COALESCE(w.player_name, 'Unknown') as winner_name,
+            COUNT(p.player_id) as player_count
+        FROM matches m
+        LEFT JOIN players p ON m.match_id = p.match_id
+        LEFT JOIN match_winners mw ON m.match_id = mw.match_id
+        LEFT JOIN players w ON mw.winner_player_id = w.player_id
+        GROUP BY m.match_id, m.game_name, m.save_date, m.processed_date,
+                 m.total_turns, m.map_size, w.player_name
+        ORDER BY m.processed_date DESC
+        LIMIT ?
+        """
+        
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [limit]).df()
+    
+    def get_database_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive database statistics.
+
+        Returns:
+            Dictionary with database statistics
+        """
+        stats = {}
+
+        # Table counts
+        tables = ['matches', 'players', 'game_state', 'events', 'territories', 'resources']
+        for table in tables:
+            result = self.db.fetch_one(f"SELECT COUNT(*) FROM {table}")
+            stats[f"{table}_count"] = result[0] if result else 0
+
+        # Unique counts
+        result = self.db.fetch_one("SELECT COUNT(DISTINCT player_name) FROM players")
+        stats['unique_players'] = result[0] if result else 0
+
+        result = self.db.fetch_one("SELECT COUNT(DISTINCT civilization) FROM players WHERE civilization IS NOT NULL")
+        stats['unique_civilizations'] = result[0] if result else 0
+
+        # Date ranges
+        result = self.db.fetch_one("SELECT MIN(save_date), MAX(save_date) FROM matches WHERE save_date IS NOT NULL")
+        if result and result[0]:
+            stats['date_range'] = {'earliest': result[0], 'latest': result[1]}
+
+        # Turn statistics
+        result = self.db.fetch_one("SELECT AVG(total_turns), MIN(total_turns), MAX(total_turns) FROM matches WHERE total_turns > 0")
+        if result and result[0]:
+            stats['turn_stats'] = {'avg': result[0], 'min': result[1], 'max': result[2]}
+
+        return stats
+
+    def get_technology_comparison(self, match_id: int) -> pd.DataFrame:
+        """Get technology research comparison for all players in a match.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            DataFrame with technology research data by player
+        """
+        query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            tp.tech_name,
+            tp.count
+        FROM technology_progress tp
+        JOIN players p ON tp.player_id = p.player_id
+        WHERE tp.match_id = ?
+        ORDER BY p.player_name, tp.tech_name
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_player_statistics_by_category(self, match_id: int, category: Optional[str] = None) -> pd.DataFrame:
+        """Get player statistics for a match, optionally filtered by category.
+
+        Args:
+            match_id: ID of the match
+            category: Optional category filter (e.g., 'STAT_IMPROVEMENTS', 'STAT_PRODUCTION')
+
+        Returns:
+            DataFrame with player statistics
+        """
+        base_query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            ps.stat_category,
+            ps.stat_name,
+            ps.value
+        FROM player_statistics ps
+        JOIN players p ON ps.player_id = p.player_id
+        WHERE ps.match_id = ?
+        """
+
+        params: List[Any] = [match_id]
+
+        if category:
+            base_query += " AND ps.stat_category = ?"
+            params.append(category)
+
+        base_query += " ORDER BY p.player_name, ps.stat_category, ps.stat_name"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
+    def get_match_metadata(self, match_id: int) -> Dict[str, Any]:
+        """Get detailed match metadata including game settings and options.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            Dictionary with match metadata
+        """
+        query = """
+        SELECT
+            difficulty,
+            event_level,
+            victory_type,
+            victory_turn,
+            game_options,
+            dlc_content,
+            map_settings
+        FROM match_metadata
+        WHERE match_id = ?
+        """
+
+        result = self.db.fetch_one(query, {"1": match_id})
+
+        if result:
+            return {
+                'difficulty': result[0],
+                'event_level': result[1],
+                'victory_type': result[2],
+                'victory_turn': result[3],
+                'game_options': result[4],
+                'dlc_content': result[5],
+                'map_settings': result[6]
+            }
+
+        return {}
+
+    def get_stat_categories(self, match_id: int) -> List[str]:
+        """Get list of unique statistic categories available for a match.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            List of unique stat category names
+        """
+        query = """
+        SELECT DISTINCT stat_category
+        FROM player_statistics
+        WHERE match_id = ?
+        ORDER BY stat_category
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, [match_id]).df()
+            return df['stat_category'].tolist() if not df.empty else []
+
+    def get_technology_summary(self, match_id: int) -> pd.DataFrame:
+        """Get aggregated technology research summary by player.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            DataFrame with total tech counts per player
+        """
+        query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            COUNT(DISTINCT tp.tech_name) as unique_techs,
+            SUM(tp.count) as total_tech_count
+        FROM technology_progress tp
+        JOIN players p ON tp.player_id = p.player_id
+        WHERE tp.match_id = ?
+        GROUP BY p.player_name, p.civilization
+        ORDER BY total_tech_count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_law_progression(self, match_id: int) -> pd.DataFrame:
+        """Get law progression data for a specific match.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            DataFrame with law change counts by player
+        """
+        query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            ps.stat_name as law_type,
+            ps.value as law_count
+        FROM player_statistics ps
+        JOIN players p ON ps.player_id = p.player_id
+        WHERE ps.match_id = ?
+            AND ps.stat_category = 'law_changes'
+            AND ps.value > 0
+        ORDER BY p.player_name, ps.stat_name
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_total_laws_by_player(self, match_id: Optional[int] = None) -> pd.DataFrame:
+        """Get total law counts by player, optionally filtered by match.
+
+        Args:
+            match_id: Optional match ID to filter by
+
+        Returns:
+            DataFrame with total law counts per player
+        """
+        base_query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            m.match_id,
+            m.game_name,
+            m.total_turns,
+            SUM(ps.value) as total_laws
+        FROM player_statistics ps
+        JOIN players p ON ps.player_id = p.player_id
+        JOIN matches m ON ps.match_id = m.match_id
+        WHERE ps.stat_category = 'law_changes'
+        """
+
+        params: List[Any] = []
+
+        if match_id:
+            base_query += " AND ps.match_id = ?"
+            params.append(match_id)
+
+        base_query += """
+        GROUP BY p.player_name, p.civilization, m.match_id, m.game_name, m.total_turns
+        ORDER BY total_laws DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
+    def get_law_milestone_timing(self) -> pd.DataFrame:
+        """Get timing analysis for law milestones across all matches.
+
+        Calculates when players reach 4 laws and 7 laws based on
+        turns per law ratio.
+
+        Returns:
+            DataFrame with estimated milestone timing
+        """
+        query = """
+        WITH law_totals AS (
+            SELECT
+                ps.match_id,
+                ps.player_id,
+                p.player_name,
+                p.civilization,
+                m.total_turns,
+                m.game_name,
+                SUM(ps.value) as total_laws
+            FROM player_statistics ps
+            JOIN players p ON ps.player_id = p.player_id
+            JOIN matches m ON ps.match_id = m.match_id
+            WHERE ps.stat_category = 'law_changes'
+            GROUP BY ps.match_id, ps.player_id, p.player_name, p.civilization,
+                     m.total_turns, m.game_name
+            HAVING SUM(ps.value) > 0
+        )
+        SELECT
+            player_name,
+            civilization,
+            game_name,
+            total_turns,
+            total_laws,
+            CAST(total_turns AS FLOAT) / total_laws as turns_per_law,
+            CASE
+                WHEN total_laws >= 4
+                    THEN CAST((4.0 * total_turns / total_laws) AS INTEGER)
+                ELSE NULL
+            END as estimated_turn_to_4_laws,
+            CASE
+                WHEN total_laws >= 7
+                    THEN CAST((7.0 * total_turns / total_laws) AS INTEGER)
+                ELSE NULL
+            END as estimated_turn_to_7_laws
+        FROM law_totals
+        WHERE total_laws > 0
+        ORDER BY turns_per_law ASC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_player_law_progression_stats(self) -> pd.DataFrame:
+        """Get aggregate law progression statistics per player.
+
+        Returns:
+            DataFrame with average law counts and milestone estimates per player
+        """
+        query = """
+        WITH match_laws AS (
+            SELECT
+                p.player_name_normalized,
+                MAX(p.player_name) as player_name,
+                ps.match_id,
+                m.total_turns,
+                SUM(ps.value) as total_laws
+            FROM player_statistics ps
+            JOIN players p ON ps.player_id = p.player_id
+            JOIN matches m ON ps.match_id = m.match_id
+            WHERE ps.stat_category = 'law_changes'
+            GROUP BY p.player_name_normalized, ps.match_id, m.total_turns
+            HAVING SUM(ps.value) > 0
+        )
+        SELECT
+            player_name,
+            COUNT(DISTINCT match_id) as matches_played,
+            AVG(total_laws) as avg_laws_per_game,
+            MAX(total_laws) as max_laws,
+            MIN(total_laws) as min_laws,
+            AVG(CAST(total_turns AS FLOAT) / total_laws) as avg_turns_per_law,
+            AVG(CASE
+                WHEN total_laws >= 4
+                    THEN CAST((4.0 * total_turns / total_laws) AS INTEGER)
+                ELSE NULL
+            END) as avg_turn_to_4_laws,
+            AVG(CASE
+                WHEN total_laws >= 7
+                    THEN CAST((7.0 * total_turns / total_laws) AS INTEGER)
+                ELSE NULL
+            END) as avg_turn_to_7_laws
+        FROM match_laws
+        GROUP BY player_name_normalized, player_name
+        HAVING COUNT(DISTINCT match_id) > 0
+        ORDER BY avg_laws_per_game DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_nation_win_stats(self) -> pd.DataFrame:
+        """Get win statistics by nation/civilization.
+
+        Returns:
+            DataFrame with nation, wins, total_matches, win_percentage
+        """
+        query = """
+        SELECT
+            COALESCE(p.civilization, 'Unknown') as nation,
+            COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
+            COUNT(DISTINCT p.match_id) as total_matches,
+            ROUND(
+                COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
+                NULLIF(COUNT(DISTINCT p.match_id), 0), 2
+            ) as win_percentage
+        FROM players p
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        GROUP BY p.civilization
+        HAVING COUNT(DISTINCT p.match_id) > 0
+        ORDER BY wins DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_nation_loss_stats(self) -> pd.DataFrame:
+        """Get loss statistics by nation/civilization.
+
+        Returns:
+            DataFrame with nation, losses, total_matches, loss_percentage
+        """
+        query = """
+        SELECT
+            COALESCE(p.civilization, 'Unknown') as nation,
+            COUNT(CASE WHEN mw.winner_player_id != p.player_id OR mw.winner_player_id IS NULL THEN 1 END) as losses,
+            COUNT(DISTINCT p.match_id) as total_matches,
+            ROUND(
+                COUNT(CASE WHEN mw.winner_player_id != p.player_id OR mw.winner_player_id IS NULL THEN 1 END) * 100.0 /
+                NULLIF(COUNT(DISTINCT p.match_id), 0), 2
+            ) as loss_percentage
+        FROM players p
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        GROUP BY p.civilization
+        HAVING COUNT(DISTINCT p.match_id) > 0
+        ORDER BY losses DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_nation_popularity(self) -> pd.DataFrame:
+        """Get nation popularity statistics based on total matches played.
+
+        Returns:
+            DataFrame with nation, total_matches
+        """
+        query = """
+        SELECT
+            COALESCE(p.civilization, 'Unknown') as nation,
+            COUNT(DISTINCT p.match_id) as total_matches
+        FROM players p
+        GROUP BY p.civilization
+        HAVING COUNT(DISTINCT p.match_id) > 0
+        ORDER BY total_matches DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_map_breakdown(self) -> pd.DataFrame:
+        """Get map breakdown statistics by map type, aspect ratio, and size.
+
+        Returns:
+            DataFrame with map_class, map_aspect_ratio, map_size, count
+        """
+        query = """
+        SELECT
+            COALESCE(map_class, 'Unknown') as map_class,
+            COALESCE(map_aspect_ratio, 'Unknown') as map_aspect_ratio,
+            COALESCE(map_size, 'Unknown') as map_size,
+            COUNT(*) as count
+        FROM matches
+        GROUP BY map_class, map_aspect_ratio, map_size
+        HAVING COUNT(*) > 0
+        ORDER BY count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_unit_popularity(self) -> pd.DataFrame:
+        """Get unit popularity statistics with category and role classification.
+
+        Returns:
+            DataFrame with category, role, unit_type, total_count
+        """
+        query = """
+        SELECT
+            COALESCE(uc.category, 'Unknown') as category,
+            COALESCE(uc.role, 'Unknown') as role,
+            up.unit_type,
+            SUM(up.count) as total_count
+        FROM units_produced up
+        LEFT JOIN unit_classifications uc ON up.unit_type = uc.unit_type
+        GROUP BY uc.category, uc.role, up.unit_type
+        HAVING SUM(up.count) > 0
+        ORDER BY uc.category, uc.role, total_count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+
+# Global queries instance
+queries = TournamentQueries()
+
+
+def get_queries() -> TournamentQueries:
+    """Get the global queries instance.
+    
+    Returns:
+        TournamentQueries instance
+    """
+    return queries

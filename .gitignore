@@ -1,0 +1,56 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+
+# Env vars
+.env
+.env.*
+
+# Server management
+.server.pid
+
+# Logs
+*.log
+logs/
+
+# Database files (large binary files)
+*.duckdb
+*.duckdb.*
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Game save files (zip and xml saves)
+saves/*.zip
+saves/*.xml
+
+# Backup files
+*.backup
+*.backup_*
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Playwright browser cache
+.playwright-mcp/
+
+# Python version management
+.python-version
