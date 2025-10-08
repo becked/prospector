@@ -27,6 +27,24 @@ class OldWorldSaveParser:
         self.xml_content: Optional[str] = None
         self.root: Optional[ET.Element] = None
         
+    def parse_xml_file(self, xml_file_path: str) -> None:
+        """Parse XML directly from a file (for testing purposes).
+
+        Args:
+            xml_file_path: Path to the XML file
+        """
+        xml_path = Path(xml_file_path)
+        try:
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                self.xml_content = f.read()
+
+            self.root = ET.fromstring(self.xml_content)
+            logger.info(f"Successfully parsed XML from {xml_path} with root element: {self.root.tag}")
+        except FileNotFoundError:
+            raise ValueError(f"XML file not found: {xml_path}")
+        except ET.ParseError as e:
+            raise ValueError(f"Error parsing XML from {xml_path}: {e}")
+
     def extract_and_parse(self) -> None:
         """Extract XML from zip file and parse it."""
         try:
@@ -35,19 +53,19 @@ class OldWorldSaveParser:
                 file_list = zip_file.namelist()
                 if not file_list:
                     raise ValueError(f"No files found in {self.zip_file_path}")
-                
+
                 xml_file = file_list[0]
                 logger.info(f"Extracting {xml_file} from {self.zip_file_path}")
-                
+
                 # Read the XML content
                 with zip_file.open(xml_file) as xml_content:
                     self.xml_content = xml_content.read().decode('utf-8')
-                    
+
         except zipfile.BadZipFile:
             raise ValueError(f"Invalid zip file: {self.zip_file_path}")
         except Exception as e:
             raise ValueError(f"Error extracting file {self.zip_file_path}: {e}")
-        
+
         # Parse the XML
         try:
             self.root = ET.fromstring(self.xml_content)
