@@ -4,6 +4,10 @@
 > See `docs/plans/logdata-investigation-findings.md` for detailed findings.
 > Key changes: LogData is in `PermanentLogList` (not `TurnSummary`), no deduplication needed.
 
+> **Bug Fix (2025-10-08):** MemoryData player ID mapping bug has been fixed.
+> Previously, XML Player=0 was incorrectly converted to None instead of player_id=1.
+> See `docs/plans/fix-memorydata-player-id-bug.md` for details.
+
 ## Overview
 
 Currently, the parser only extracts `MemoryData` events from Old World save files, which provides limited historical data (e.g., only 1 law event out of 13 actual law adoptions). The `LogData` sections within `Player/PermanentLogList` elements contain comprehensive turn-by-turn historical data including:
@@ -153,7 +157,7 @@ grep -c "TECH_DISCOVERED" tests/fixtures/sample_save.xml  # Should be > 0
 
 **Questions to answer:**
 1. What does `extract_events()` return? (List of dict with what keys?)
-2. How does it map player IDs? (See line 294-295 - NOTE: This has a bug for player_id 0!)
+2. How does it map player IDs? (See line ~311-318 - FIXED: Now correctly maps 0→1, 1→2)
 3. What lookup tables does it build? (Lines 277-278)
 4. How are events stored in the database? (Check `etl.py` for usage)
 
