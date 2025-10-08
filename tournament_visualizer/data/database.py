@@ -300,6 +300,7 @@ class TournamentDatabase:
         CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
         CREATE INDEX IF NOT EXISTS idx_events_player ON events(player_id);
         CREATE INDEX IF NOT EXISTS idx_events_location ON events(x_coordinate, y_coordinate);
+        CREATE INDEX IF NOT EXISTS idx_events_type_player ON events(event_type, player_id, turn_number);
         """
         with self.get_connection() as conn:
             conn.execute(query)
