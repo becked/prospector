@@ -6,11 +6,12 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tournament_visualizer.data.etl import TournamentETL
-from tournament_visualizer.data.database import TournamentDatabase
 import logging
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+from tournament_visualizer.data.database import TournamentDatabase
+from tournament_visualizer.data.etl import TournamentETL
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +40,7 @@ def test_import() -> None:
             # Get the match_id for this file
             result = db.fetch_one(
                 "SELECT match_id FROM matches WHERE file_name = ? ORDER BY processed_date DESC LIMIT 1",
-                {"1": Path(test_file).name}
+                {"1": Path(test_file).name},
             )
 
             if result:
@@ -49,24 +50,30 @@ def test_import() -> None:
                 # Check technology progress
                 tech_count = db.fetch_one(
                     "SELECT COUNT(*) FROM technology_progress WHERE match_id = ?",
-                    {"1": match_id}
+                    {"1": match_id},
                 )
-                logger.info(f"  Technology progress records: {tech_count[0] if tech_count else 0}")
+                logger.info(
+                    f"  Technology progress records: {tech_count[0] if tech_count else 0}"
+                )
 
                 # Check player statistics
                 stats_count = db.fetch_one(
                     "SELECT COUNT(*) FROM player_statistics WHERE match_id = ?",
-                    {"1": match_id}
+                    {"1": match_id},
                 )
-                logger.info(f"  Player statistics records: {stats_count[0] if stats_count else 0}")
+                logger.info(
+                    f"  Player statistics records: {stats_count[0] if stats_count else 0}"
+                )
 
                 # Check match metadata
                 metadata = db.fetch_one(
                     "SELECT difficulty, victory_type FROM match_metadata WHERE match_id = ?",
-                    {"1": match_id}
+                    {"1": match_id},
                 )
                 if metadata:
-                    logger.info(f"  Match metadata: Difficulty={metadata[0]}, Victory={metadata[1]}")
+                    logger.info(
+                        f"  Match metadata: Difficulty={metadata[0]}, Victory={metadata[1]}"
+                    )
 
                 # Show some sample tech data
                 logger.info("\nSample technology data:")
@@ -78,7 +85,7 @@ def test_import() -> None:
                     WHERE tp.match_id = ?
                     LIMIT 5
                     """,
-                    {"1": match_id}
+                    {"1": match_id},
                 )
                 for player_name, tech_name, count in techs:
                     logger.info(f"    {player_name}: {tech_name} x{count}")
@@ -93,7 +100,7 @@ def test_import() -> None:
                     WHERE ps.match_id = ? AND ps.stat_category = 'yield_stockpile'
                     LIMIT 5
                     """,
-                    {"1": match_id}
+                    {"1": match_id},
                 )
                 for player_name, cat, name, value in stats:
                     logger.info(f"    {player_name} {cat}/{name}: {value}")
@@ -106,10 +113,11 @@ def test_import() -> None:
     except Exception as e:
         logger.error(f"Error during import: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         db.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_import()

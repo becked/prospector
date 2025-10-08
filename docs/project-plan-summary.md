@@ -91,12 +91,12 @@
   ├── config.py         # Configuration management
   └── app.py           # Main Dash application
 
-  import_tournaments.py  # CLI import tool
+  scripts/import_tournaments.py  # CLI import tool
 
   📈 Ready for Use:
 
   1. Install Dependencies: uv sync or pip install -e .
-  2. Import Data: python import_tournaments.py --directory saves/
+  2. Import Data: python scripts/import_tournaments.py --directory saves/
   3. Run Application: python tournament_visualizer/app.py
   4. View Dashboard: Navigate to http://localhost:8050
 

@@ -1021,7 +1021,7 @@ uv run python import_tournaments.py --directory saves
    rm -f tournament_data.duckdb
 
    # Import one save file
-   uv run python import_tournaments.py --directory saves
+   uv run python scripts/import_tournaments.py --directory saves
    ```
 
 2. **Query the database to verify player IDs:**
@@ -1072,7 +1072,7 @@ uv run python import_tournaments.py --directory saves
 **If you see problems:**
 - Check that the fix is actually in parser.py
 - Verify you deleted the old database before re-importing
-- Make sure import_tournaments.py is using the updated parser
+- Make sure scripts/import_tournaments.py is using the updated parser
 
 **Deliverable:** Database has correct player IDs
 
@@ -1190,7 +1190,7 @@ git checkout HEAD~1 tournament_visualizer/data/parser.py
 rm tournament_data.duckdb
 
 # Re-import (will use old buggy parser)
-uv run python import_tournaments.py --directory saves
+uv run python scripts/import_tournaments.py --directory saves
 
 # Then fix the bug again...
 ```
@@ -1254,7 +1254,7 @@ SELECT COUNT(*) FROM events WHERE player_id IS NULL
 **Solution:**
 1. Delete the database: `rm tournament_data.duckdb`
 2. Verify your code fix is correct
-3. Re-import: `uv run python import_tournaments.py --directory saves`
+3. Re-import: `uv run python scripts/import_tournaments.py --directory saves`
 
 The old database might have been imported before your fix.
 

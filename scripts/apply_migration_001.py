@@ -36,12 +36,14 @@ def apply_migration() -> bool:
 
         # Check if index already exists
         print("\nChecking for existing indexes...")
-        existing_indexes = conn.execute("""
+        existing_indexes = conn.execute(
+            """
             SELECT index_name
             FROM duckdb_indexes()
             WHERE table_name = 'events'
             AND index_name = 'idx_events_type_player'
-        """).fetchall()
+        """
+        ).fetchall()
 
         if existing_indexes:
             print("✓ Index idx_events_type_player already exists")
@@ -49,20 +51,24 @@ def apply_migration() -> bool:
 
         # Create the new index
         print("\nCreating index idx_events_type_player...")
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_events_type_player
             ON events(event_type, player_id, turn_number)
-        """)
+        """
+        )
         print("✓ Index created successfully")
 
         # Verify index was created
         print("\nVerifying index creation...")
-        indexes = conn.execute("""
+        indexes = conn.execute(
+            """
             SELECT index_name, sql
             FROM duckdb_indexes()
             WHERE table_name = 'events'
             ORDER BY index_name
-        """).fetchall()
+        """
+        ).fetchall()
 
         print("\nCurrent indexes on events table:")
         for index_name, sql in indexes:
@@ -70,10 +76,12 @@ def apply_migration() -> bool:
 
         # Mark migration as applied
         print("\nMarking migration as applied...")
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR IGNORE INTO schema_migrations (version, description)
             VALUES ('1.1.0', 'Add LogData events support and indexes')
-        """)
+        """
+        )
         print("✓ Migration marked as applied")
 
         print("\n" + "=" * 60)
@@ -94,5 +102,5 @@ def main() -> None:
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

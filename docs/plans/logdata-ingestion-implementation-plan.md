@@ -91,7 +91,7 @@ tournament_visualizer/data/
 **Files to read:**
 - `README.md` - Project overview
 - `CLAUDE.md` - Project-specific instructions
-- `import_tournaments.py` - Entry point for data import
+- `scripts/import_tournaments.py` - Entry point for data import
 - `tournament_visualizer/data/parser.py` - Current parser implementation
 
 **Steps:**
@@ -675,7 +675,7 @@ all_events = memory_events + logdata_events
 **Verification:**
 ```bash
 # Test the full ETL process on one file
-uv run python import_tournaments.py --directory saves --dry-run
+uv run python scripts/import_tournaments.py --directory saves --dry-run
 ```
 
 **Expected output**: Should show the file would be processed without errors
@@ -1519,7 +1519,7 @@ cp tournament_data.duckdb tournament_data.duckdb.backup_before_logdata_$(date +%
 
 ```bash
 # Force re-import
-uv run python import_tournaments.py --directory saves --force --verbose
+uv run python scripts/import_tournaments.py --directory saves --force --verbose
 ```
 
 **Expected output:**

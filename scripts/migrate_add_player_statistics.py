@@ -30,9 +30,7 @@ def check_if_migrated(db: TournamentDatabase) -> bool:
     Returns:
         True if migration already applied
     """
-    result = db.fetch_one(
-        "SELECT 1 FROM schema_migrations WHERE version = '1.1.0'"
-    )
+    result = db.fetch_one("SELECT 1 FROM schema_migrations WHERE version = '1.1.0'")
     return result is not None
 
 
@@ -47,12 +45,15 @@ def migrate_up(db: TournamentDatabase) -> None:
     with db.get_connection() as conn:
         # Create sequences
         logger.info("Creating sequences...")
-        conn.execute("CREATE SEQUENCE IF NOT EXISTS technology_progress_id_seq START 1;")
+        conn.execute(
+            "CREATE SEQUENCE IF NOT EXISTS technology_progress_id_seq START 1;"
+        )
         conn.execute("CREATE SEQUENCE IF NOT EXISTS player_statistics_id_seq START 1;")
 
         # Create technology_progress table
         logger.info("Creating technology_progress table...")
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS technology_progress (
                 tech_progress_id BIGINT PRIMARY KEY,
                 match_id BIGINT NOT NULL,
@@ -63,11 +64,13 @@ def migrate_up(db: TournamentDatabase) -> None:
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 UNIQUE(match_id, player_id, tech_name)
             )
-        """)
+        """
+        )
 
         # Create player_statistics table
         logger.info("Creating player_statistics table...")
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS player_statistics (
                 stat_id BIGINT PRIMARY KEY,
                 match_id BIGINT NOT NULL,
@@ -79,11 +82,13 @@ def migrate_up(db: TournamentDatabase) -> None:
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 UNIQUE(match_id, player_id, stat_category, stat_name)
             )
-        """)
+        """
+        )
 
         # Create match_metadata table
         logger.info("Creating match_metadata table...")
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS match_metadata (
                 match_id BIGINT PRIMARY KEY,
                 difficulty VARCHAR,
@@ -95,24 +100,39 @@ def migrate_up(db: TournamentDatabase) -> None:
                 map_settings JSON,
                 FOREIGN KEY (match_id) REFERENCES matches(match_id)
             )
-        """)
+        """
+        )
 
         # Create indexes
         logger.info("Creating indexes...")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tech_progress_match ON technology_progress(match_id);")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tech_progress_player ON technology_progress(player_id);")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tech_progress_tech ON technology_progress(tech_name);")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tech_progress_match ON technology_progress(match_id);"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tech_progress_player ON technology_progress(player_id);"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tech_progress_tech ON technology_progress(tech_name);"
+        )
 
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_player_stats_match ON player_statistics(match_id);")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_player_stats_player ON player_statistics(player_id);")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_player_stats_category ON player_statistics(stat_category);")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_stats_match ON player_statistics(match_id);"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_stats_player ON player_statistics(player_id);"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_stats_category ON player_statistics(stat_category);"
+        )
 
         # Record migration
         logger.info("Recording migration...")
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO schema_migrations (version, description, applied_at)
             VALUES ('1.1.0', 'Add player statistics tables (technology_progress, player_statistics, match_metadata)', CURRENT_TIMESTAMP)
-        """)
+        """
+        )
 
     logger.info("Migration 1.1.0 completed successfully")
 
@@ -145,9 +165,13 @@ def main() -> None:
     """Main migration script entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Apply database migration 1.1.0')
-    parser.add_argument('--rollback', action='store_true', help='Rollback the migration')
-    parser.add_argument('--db', default='tournament_data.duckdb', help='Database file path')
+    parser = argparse.ArgumentParser(description="Apply database migration 1.1.0")
+    parser.add_argument(
+        "--rollback", action="store_true", help="Rollback the migration"
+    )
+    parser.add_argument(
+        "--db", default="tournament_data.duckdb", help="Database file path"
+    )
     args = parser.parse_args()
 
     # Create database instance in write mode
@@ -168,5 +192,5 @@ def main() -> None:
         db.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

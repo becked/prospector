@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Verify that MemoryData player ID mapping is fixed."""
 
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
+
 from tournament_visualizer.data.parser import OldWorldSaveParser
 
 
@@ -20,14 +21,13 @@ def verify_player_id_mapping(save_file: Path) -> None:
 
     # Count player IDs in MemoryData
     memory_player_counts = Counter(
-        e.get('player_id') for e in memory_events
-        if e['event_type'].startswith('MEMORYPLAYER_')
+        e.get("player_id")
+        for e in memory_events
+        if e["event_type"].startswith("MEMORYPLAYER_")
     )
 
     # Count player IDs in LogData
-    logdata_player_counts = Counter(
-        e.get('player_id') for e in logdata_events
-    )
+    logdata_player_counts = Counter(e.get("player_id") for e in logdata_events)
 
     print("\nMemoryData Player Distribution:")
     for player_id in sorted(memory_player_counts.keys(), key=lambda x: (x is None, x)):
@@ -46,7 +46,9 @@ def verify_player_id_mapping(save_file: Path) -> None:
     if memory_player_counts.get(None, 0) == 0:
         print("  ✅ No MEMORYPLAYER events with player_id=None")
     else:
-        print(f"  ❌ Found {memory_player_counts.get(None, 0)} MEMORYPLAYER events with player_id=None")
+        print(
+            f"  ❌ Found {memory_player_counts.get(None, 0)} MEMORYPLAYER events with player_id=None"
+        )
 
     # Check 2: MemoryData and LogData have same player IDs
     memory_ids = set(k for k in memory_player_counts.keys() if k is not None)
@@ -67,10 +69,10 @@ def verify_player_id_mapping(save_file: Path) -> None:
     print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test with all save files in saves/
-    saves_dir = Path('saves')
-    save_files = list(saves_dir.glob('*.zip'))
+    saves_dir = Path("saves")
+    save_files = list(saves_dir.glob("*.zip"))
 
     if not save_files:
         print("No save files found in saves/")

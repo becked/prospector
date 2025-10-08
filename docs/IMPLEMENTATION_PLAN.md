@@ -87,7 +87,7 @@ The existing schema can remain. Tables will just be empty:
 
 ### 5. Import Process - Minor Changes
 
-In `import_tournaments.py` or wherever save files are processed:
+In `scripts/import_tournaments.py` or wherever save files are processed:
 - Ensure `extract_memory_events()` is called
 - Ensure memory events are inserted into `events` table
 - Player names still come from Challonge API (not save files)
@@ -98,7 +98,7 @@ In `import_tournaments.py` or wherever save files are processed:
 2. **Clear existing data**: Delete and recreate database
 3. **Re-import with new parser**:
    ```bash
-   uv run python import_tournaments.py
+   uv run python scripts/import_tournaments.py
    ```
 4. **Verify data**:
    ```sql

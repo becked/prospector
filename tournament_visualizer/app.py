@@ -4,19 +4,21 @@ This module creates and configures the main Dash application with multi-page
 support for tournament data visualization.
 """
 
-import dash
-from dash import dcc, html, Input, Output, callback, page_registry
-import dash_bootstrap_components as dbc
-import logging
-from pathlib import Path
-import signal
 import atexit
-
-from tournament_visualizer.config import get_config, validate_config, PAGE_CONFIG
-from tournament_visualizer.data.database import get_database
+import logging
+import signal
 
 # Set up logging to both file and console
 from datetime import datetime
+from pathlib import Path
+
+import dash
+import dash_bootstrap_components as dbc
+from dash import Input, Output, callback, dcc, html
+
+from tournament_visualizer.config import get_config, validate_config
+from tournament_visualizer.data.database import get_database
+
 
 def setup_logging() -> str:
     """Set up logging configuration. Only configures once per process."""
@@ -29,18 +31,22 @@ def setup_logging() -> str:
     log_dir.mkdir(exist_ok=True)
 
     # Create a unique log filename with timestamp
-    log_filename = log_dir / f"tournament_visualizer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_filename = (
+        log_dir
+        / f"tournament_visualizer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    )
 
     # Configure logging with both file and console handlers
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.FileHandler(log_filename),
-            logging.StreamHandler()  # Console output
-        ]
+            logging.StreamHandler(),  # Console output
+        ],
     )
     return str(log_filename)
+
 
 # Only setup logging when running as main module
 if __name__ == "__main__":
@@ -70,198 +76,186 @@ app = dash.Dash(
     suppress_callback_exceptions=True,
     title=config.APP_TITLE,
     update_title="Loading...",
-    assets_folder=config.ASSETS_DIRECTORY
+    assets_folder=config.ASSETS_DIRECTORY,
 )
 
 # Set up the app layout
-app.layout = dbc.Container([
-    # Navigation header
-    dbc.NavbarSimple(
-        children=[
-            dbc.Nav([
-                dbc.NavItem(
-                    dbc.NavLink(
-                        [
-                            html.I(className="bi bi-bar-chart-fill me-2"),
-                            "Overview"
-                        ],
-                        href="/",
-                        active="exact"
-                    )
-                ),
-                dbc.NavItem(
-                    dbc.NavLink(
-                        [
-                            html.I(className="bi bi-target me-2"),
-                            "Matches"
-                        ],
-                        href="/matches",
-                        active="exact"
-                    )
-                ),
-                dbc.NavItem(
-                    dbc.NavLink(
-                        [
-                            html.I(className="bi bi-people-fill me-2"),
-                            "Players"
-                        ],
-                        href="/players",
-                        active="exact"
-                    )
-                ),
-                dbc.NavItem(
-                    dbc.NavLink(
-                        [
-                            html.I(className="bi bi-map-fill me-2"),
-                            "Maps"
-                        ],
-                        href="/maps",
-                        active="exact"
-                    )
-                )
-            ], className="me-auto", navbar=True),
-            
-            # Database status indicator
-            dbc.Badge(
-                id="db-status-badge",
-                color="secondary",
-                className="me-2"
-            ),
-            
-            # Refresh button
-            dbc.Button(
-                [html.I(className="bi bi-arrow-clockwise")],
-                id="refresh-button",
-                color="outline-light",
-                size="sm",
-                className="me-2"
-            ),
-            
-            # Settings dropdown
-            dbc.DropdownMenu(
-                children=[
-                    dbc.DropdownMenuItem("Import Data", href="/import"),
-                    dbc.DropdownMenuItem("Export Data", id="export-data"),
-                    dbc.DropdownMenuItem(divider=True),
-                    dbc.DropdownMenuItem("About", id="about-modal-open")
-                ],
-                nav=True,
-                in_navbar=True,
-                label=[html.I(className="bi bi-gear-fill")],
-                toggle_style={"color": "white", "border": "none"}
-            )
-        ],
-        brand=[
-            html.I(className="bi bi-trophy-fill me-2"),
-            config.APP_TITLE
-        ],
-        brand_href="/",
-        color="primary",
-        dark=True,
-        className="mb-4"
-    ),
-    
-    # Alert area for messages
-    html.Div(id="alert-area"),
-    
-    # Main content area
-    html.Div([
-        dcc.Loading(
-            id="page-loading",
-            type="default",
+app.layout = dbc.Container(
+    [
+        # Navigation header
+        dbc.NavbarSimple(
             children=[
-                dash.page_container
-            ]
-        )
-    ]),
-    
-    # About modal
-    dbc.Modal([
-        dbc.ModalHeader(
-            dbc.ModalTitle("About Tournament Visualizer")
+                dbc.Nav(
+                    [
+                        dbc.NavItem(
+                            dbc.NavLink(
+                                [
+                                    html.I(className="bi bi-bar-chart-fill me-2"),
+                                    "Overview",
+                                ],
+                                href="/",
+                                active="exact",
+                            )
+                        ),
+                        dbc.NavItem(
+                            dbc.NavLink(
+                                [html.I(className="bi bi-target me-2"), "Matches"],
+                                href="/matches",
+                                active="exact",
+                            )
+                        ),
+                        dbc.NavItem(
+                            dbc.NavLink(
+                                [html.I(className="bi bi-people-fill me-2"), "Players"],
+                                href="/players",
+                                active="exact",
+                            )
+                        ),
+                        dbc.NavItem(
+                            dbc.NavLink(
+                                [html.I(className="bi bi-map-fill me-2"), "Maps"],
+                                href="/maps",
+                                active="exact",
+                            )
+                        ),
+                    ],
+                    className="me-auto",
+                    navbar=True,
+                ),
+                # Database status indicator
+                dbc.Badge(id="db-status-badge", color="secondary", className="me-2"),
+                # Refresh button
+                dbc.Button(
+                    [html.I(className="bi bi-arrow-clockwise")],
+                    id="refresh-button",
+                    color="outline-light",
+                    size="sm",
+                    className="me-2",
+                ),
+                # Settings dropdown
+                dbc.DropdownMenu(
+                    children=[
+                        dbc.DropdownMenuItem("Import Data", href="/import"),
+                        dbc.DropdownMenuItem("Export Data", id="export-data"),
+                        dbc.DropdownMenuItem(divider=True),
+                        dbc.DropdownMenuItem("About", id="about-modal-open"),
+                    ],
+                    nav=True,
+                    in_navbar=True,
+                    label=[html.I(className="bi bi-gear-fill")],
+                    toggle_style={"color": "white", "border": "none"},
+                ),
+            ],
+            brand=[html.I(className="bi bi-trophy-fill me-2"), config.APP_TITLE],
+            brand_href="/",
+            color="primary",
+            dark=True,
+            className="mb-4",
         ),
-        dbc.ModalBody([
-            html.H5("Old World Tournament Visualizer"),
-            html.P([
-                "This application visualizes tournament data from Old World game saves. ",
-                "It provides comprehensive analytics including player performance, ",
-                "match analysis, and territorial control patterns."
-            ]),
-            html.Hr(),
-            html.H6("Features:"),
-            html.Ul([
-                html.Li("Tournament overview with key statistics"),
-                html.Li("Detailed match analysis and progression"),
-                html.Li("Player performance metrics and comparisons"),
-                html.Li("Territory control and map visualizations"),
-                html.Li("Resource progression tracking"),
-                html.Li("Event timeline analysis")
-            ]),
-            html.Hr(),
-            html.P([
-                html.Strong("Data Source: "),
-                "Old World game save files (.zip format)"
-            ]),
-            html.P([
-                html.Strong("Database: "),
-                "DuckDB for high-performance analytics"
-            ])
-        ]),
-        dbc.ModalFooter(
-            dbc.Button(
-                "Close", 
-                id="about-modal-close", 
-                className="ms-auto", 
-                n_clicks=0
-            )
-        )
+        # Alert area for messages
+        html.Div(id="alert-area"),
+        # Main content area
+        html.Div(
+            [
+                dcc.Loading(
+                    id="page-loading", type="default", children=[dash.page_container]
+                )
+            ]
+        ),
+        # About modal
+        dbc.Modal(
+            [
+                dbc.ModalHeader(dbc.ModalTitle("About Tournament Visualizer")),
+                dbc.ModalBody(
+                    [
+                        html.H5("Old World Tournament Visualizer"),
+                        html.P(
+                            [
+                                "This application visualizes tournament data from Old World game saves. ",
+                                "It provides comprehensive analytics including player performance, ",
+                                "match analysis, and territorial control patterns.",
+                            ]
+                        ),
+                        html.Hr(),
+                        html.H6("Features:"),
+                        html.Ul(
+                            [
+                                html.Li("Tournament overview with key statistics"),
+                                html.Li("Detailed match analysis and progression"),
+                                html.Li("Player performance metrics and comparisons"),
+                                html.Li("Territory control and map visualizations"),
+                                html.Li("Resource progression tracking"),
+                                html.Li("Event timeline analysis"),
+                            ]
+                        ),
+                        html.Hr(),
+                        html.P(
+                            [
+                                html.Strong("Data Source: "),
+                                "Old World game save files (.zip format)",
+                            ]
+                        ),
+                        html.P(
+                            [
+                                html.Strong("Database: "),
+                                "DuckDB for high-performance analytics",
+                            ]
+                        ),
+                    ]
+                ),
+                dbc.ModalFooter(
+                    dbc.Button(
+                        "Close", id="about-modal-close", className="ms-auto", n_clicks=0
+                    )
+                ),
+            ],
+            id="about-modal",
+            is_open=False,
+        ),
+        # Hidden div to store app state
+        dcc.Store(id="app-state", data={}),
+        # Interval component for periodic updates
+        dcc.Interval(
+            id="refresh-interval",
+            interval=60 * 1000,  # Update every minute
+            n_intervals=0,
+            disabled=True,
+        ),
     ],
-    id="about-modal",
-    is_open=False),
-    
-    # Hidden div to store app state
-    dcc.Store(id="app-state", data={}),
-    
-    # Interval component for periodic updates
-    dcc.Interval(
-        id="refresh-interval",
-        interval=60*1000,  # Update every minute
-        n_intervals=0,
-        disabled=True
-    )
-    
-], fluid=True, className="px-4")
+    fluid=True,
+    className="px-4",
+)
 
 
 @callback(
     Output("db-status-badge", "children"),
     Output("db-status-badge", "color"),
     Input("refresh-interval", "n_intervals"),
-    Input("refresh-button", "n_clicks")
+    Input("refresh-button", "n_clicks"),
 )
 def update_database_status(n_intervals: int, refresh_clicks: int) -> tuple[str, str]:
     """Update the database status indicator.
-    
+
     Args:
         n_intervals: Number of interval triggers
         refresh_clicks: Number of refresh button clicks
-        
+
     Returns:
         Tuple of (badge_text, badge_color)
     """
     try:
         db = get_database()
-        
+
         # Use the context manager to properly handle the connection
         with db.get_connection() as conn:
             result = conn.execute("SELECT COUNT(*) FROM matches").fetchone()
             match_count = result[0] if result else 0
-        
+
         if match_count == 0:
             return "No Data", "warning"
         else:
             return f"{match_count} Matches", "success"
-            
+
     except Exception as e:
         logger.error(f"Database status check failed: {e}")
         return "DB Error", "danger"
@@ -271,24 +265,24 @@ def update_database_status(n_intervals: int, refresh_clicks: int) -> tuple[str, 
     Output("about-modal", "is_open"),
     Input("about-modal-open", "n_clicks"),
     Input("about-modal-close", "n_clicks"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def toggle_about_modal(open_clicks: int, close_clicks: int) -> bool:
     """Toggle the about modal.
-    
+
     Args:
         open_clicks: Number of open button clicks
         close_clicks: Number of close button clicks
-        
+
     Returns:
         Whether modal should be open
     """
     ctx = dash.callback_context
     if not ctx.triggered:
         return False
-    
+
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    
+
     if button_id == "about-modal-open":
         return True
     else:
@@ -298,14 +292,14 @@ def toggle_about_modal(open_clicks: int, close_clicks: int) -> bool:
 @callback(
     Output("alert-area", "children"),
     Input("export-data", "n_clicks"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def handle_export_data(n_clicks: int) -> dbc.Alert:
     """Handle data export request.
-    
+
     Args:
         n_clicks: Number of export button clicks
-        
+
     Returns:
         Alert component with export status
     """
@@ -315,32 +309,40 @@ def handle_export_data(n_clicks: int) -> dbc.Alert:
             "Export functionality not yet implemented.",
             color="info",
             dismissable=True,
-            duration=3000
+            duration=3000,
         )
-    
+
     return dash.no_update
 
 
 def create_error_page(error_message: str) -> html.Div:
     """Create an error page layout.
-    
+
     Args:
         error_message: Error message to display
-        
+
     Returns:
         Error page layout
     """
-    return html.Div([
-        dbc.Alert([
-            html.H4("Application Error", className="alert-heading"),
-            html.P(error_message),
-            html.Hr(),
-            html.P([
-                "Please check the application logs for more details. ",
-                "Try refreshing the page or contact support if the problem persists."
-            ])
-        ], color="danger")
-    ], className="mt-5")
+    return html.Div(
+        [
+            dbc.Alert(
+                [
+                    html.H4("Application Error", className="alert-heading"),
+                    html.P(error_message),
+                    html.Hr(),
+                    html.P(
+                        [
+                            "Please check the application logs for more details. ",
+                            "Try refreshing the page or contact support if the problem persists.",
+                        ]
+                    ),
+                ],
+                color="danger",
+            )
+        ],
+        className="mt-5",
+    )
 
 
 def check_database_connection() -> bool:
@@ -393,25 +395,30 @@ def run_development_server() -> None:
 
         # Run the server without debug mode to completely avoid multiprocessing semaphore issues
         # Debug mode in Dash creates multiprocessing semaphores even with use_reloader=False
-        logger.info("Running in production mode to avoid multiprocessing semaphore leaks")
+        logger.info(
+            "Running in production mode to avoid multiprocessing semaphore leaks"
+        )
         app.run(
             host=config.APP_HOST,
             port=config.APP_PORT,
             debug=False,  # Disable debug to prevent multiprocessing semaphore creation
             threaded=True,
-            use_reloader=False
+            use_reloader=False,
         )
     except KeyboardInterrupt:
         logger.info("Server interrupted by user")
     except OSError as e:
         if "Address already in use" in str(e):
-            logger.error(f"Port {config.APP_PORT} is already in use. Try a different port or stop other servers.")
+            logger.error(
+                f"Port {config.APP_PORT} is already in use. Try a different port or stop other servers."
+            )
         else:
             logger.error(f"OS error starting server: {e}")
     except Exception as e:
         logger.error(f"Unexpected error starting server: {e}")
         logger.error(f"Error type: {type(e).__name__}")
         import traceback
+
         logger.error(f"Traceback: {traceback.format_exc()}")
     finally:
         cleanup_resources()
@@ -419,16 +426,18 @@ def run_development_server() -> None:
 
 def create_production_server():
     """Create the production WSGI server.
-    
+
     Returns:
         WSGI application object
     """
     logger.info(f"Starting {config.APP_TITLE} in production mode")
-    
+
     # Check database connection
     if not check_database_connection():
-        logger.error("Database connection failed - application may not function properly")
-    
+        logger.error(
+            "Database connection failed - application may not function properly"
+        )
+
     return app.server
 
 

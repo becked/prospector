@@ -421,7 +421,7 @@ WHERE event_type LIKE 'MEMORYTRIBE_%'
 # - has_player_id: 0
 
 # 3. Re-import data
-uv run python import_tournaments.py --directory saves --force --verbose
+uv run python scripts/import_tournaments.py --directory saves --force --verbose
 
 # 4. Check AFTER counts (should show NO NULL player_ids)
 uv run duckdb tournament_data.duckdb -readonly -c "
@@ -782,7 +782,7 @@ def main():
         print()
         print("Action required:")
         print("1. Check if parser fix is implemented correctly")
-        print("2. Re-import data: uv run python import_tournaments.py --directory saves --force")
+        print("2. Re-import data: uv run python scripts/import_tournaments.py --directory saves --force")
         print("3. Run this script again to verify")
         return 1
 

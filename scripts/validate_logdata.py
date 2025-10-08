@@ -22,7 +22,7 @@ def validate_anarkos_becked_match():
         print("❌ Could not find anarkos vs becked match")
         return False
 
-    match_id = int(matches['match_id'].iloc[0])
+    match_id = int(matches["match_id"].iloc[0])
 
     # Get law progression
     queries = TournamentQueries(database=db)
@@ -30,42 +30,49 @@ def validate_anarkos_becked_match():
 
     # Expected values from manual analysis
     expected = {
-        'anarkos': {
-            'turn_to_4_laws': 54,
-            'turn_to_7_laws': None,  # Never reached 7
-            'total_laws': 6
+        "anarkos": {
+            "turn_to_4_laws": 54,
+            "turn_to_7_laws": None,  # Never reached 7
+            "total_laws": 6,
         },
-        'becked': {
-            'turn_to_4_laws': 46,
-            'turn_to_7_laws': 68,
-            'total_laws': 7
-        }
+        "becked": {"turn_to_4_laws": 46, "turn_to_7_laws": 68, "total_laws": 7},
     }
 
     passed = True
     for _, row in progression.iterrows():
-        player = row['player_name']
+        player = row["player_name"]
         if player not in expected:
             continue
 
         exp = expected[player]
 
         # Check turn to 4 laws
-        if row['turn_to_4_laws'] != exp['turn_to_4_laws']:
-            print(f"❌ {player} turn_to_4_laws: expected {exp['turn_to_4_laws']}, got {row['turn_to_4_laws']}")
+        if row["turn_to_4_laws"] != exp["turn_to_4_laws"]:
+            print(
+                f"❌ {player} turn_to_4_laws: expected {exp['turn_to_4_laws']}, got {row['turn_to_4_laws']}"
+            )
             passed = False
 
         # Check turn to 7 laws
-        if pd.isna(row['turn_to_7_laws']) and exp['turn_to_7_laws'] is not None:
-            print(f"❌ {player} turn_to_7_laws: expected {exp['turn_to_7_laws']}, got None")
+        if pd.isna(row["turn_to_7_laws"]) and exp["turn_to_7_laws"] is not None:
+            print(
+                f"❌ {player} turn_to_7_laws: expected {exp['turn_to_7_laws']}, got None"
+            )
             passed = False
-        elif not pd.isna(row['turn_to_7_laws']) and row['turn_to_7_laws'] != exp['turn_to_7_laws']:
-            print(f"❌ {player} turn_to_7_laws: expected {exp['turn_to_7_laws']}, got {row['turn_to_7_laws']}")
+        elif (
+            not pd.isna(row["turn_to_7_laws"])
+            and row["turn_to_7_laws"] != exp["turn_to_7_laws"]
+        ):
+            print(
+                f"❌ {player} turn_to_7_laws: expected {exp['turn_to_7_laws']}, got {row['turn_to_7_laws']}"
+            )
             passed = False
 
         # Check total laws
-        if row['total_laws'] != exp['total_laws']:
-            print(f"❌ {player} total_laws: expected {exp['total_laws']}, got {row['total_laws']}")
+        if row["total_laws"] != exp["total_laws"]:
+            print(
+                f"❌ {player} total_laws: expected {exp['total_laws']}, got {row['total_laws']}"
+            )
             passed = False
 
         if passed:
@@ -74,7 +81,7 @@ def validate_anarkos_becked_match():
     return passed
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import pandas as pd
 
     print("Validating LogData import quality...\n")

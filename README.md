@@ -32,25 +32,25 @@ This will install all required dependencies including Dash, Plotly, DuckDB, and 
 Place your Old World tournament save files (`.zip` format) in a directory (default: `saves/`) and run:
 
 ```bash
-uv run python import_tournaments.py --directory saves/
+uv run python scripts/import_tournaments.py --directory saves/
 ```
 
 **Import Options:**
 ```bash
 # Import from default saves/ directory
-uv run python import_tournaments.py
+uv run python scripts/import_tournaments.py
 
 # Import from custom directory
-uv run python import_tournaments.py --directory /path/to/tournament/files
+uv run python scripts/import_tournaments.py --directory /path/to/tournament/files
 
 # Verbose logging
-uv run python import_tournaments.py --verbose
+uv run python scripts/import_tournaments.py --verbose
 
 # Force reimport (removes existing database)
-uv run python import_tournaments.py --force
+uv run python scripts/import_tournaments.py --force
 
 # Dry run (see what would be imported)
-uv run python import_tournaments.py --dry-run
+uv run python scripts/import_tournaments.py --dry-run
 ```
 
 ### 3. Launch the Dashboard
@@ -245,13 +245,13 @@ ls saves/*.zip
 ```bash
 # Remove existing database to start fresh
 rm tournament_data.duckdb
-uv run python import_tournaments.py --force
+uv run python scripts/import_tournaments.py --force
 ```
 
 **Parsing errors:**
 ```bash
 # Run with verbose logging to see detailed errors
-uv run python import_tournaments.py --verbose
+uv run python scripts/import_tournaments.py --verbose
 ```
 
 ### Application Issues

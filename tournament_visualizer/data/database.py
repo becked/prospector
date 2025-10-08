@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 class TournamentDatabase:
     """Manages database connection and schema for tournament data."""
 
-    def __init__(self, db_path: str = "tournament_data.duckdb", read_only: bool = True) -> None:
+    def __init__(
+        self, db_path: str = "tournament_data.duckdb", read_only: bool = True
+    ) -> None:
         """Initialize database connection.
 
         Args:
@@ -57,9 +59,13 @@ class TournamentDatabase:
             with self._lock:
                 if self.connection is None:
                     # Connect based on read_only setting
-                    self.connection = duckdb.connect(self.db_path, read_only=self.read_only)
+                    self.connection = duckdb.connect(
+                        self.db_path, read_only=self.read_only
+                    )
                     mode = "read-only" if self.read_only else "read-write"
-                    logger.info(f"Connected to database: {self.db_path} ({mode} mode, single shared connection)")
+                    logger.info(
+                        f"Connected to database: {self.db_path} ({mode} mode, single shared connection)"
+                    )
         return self.connection
 
     def close(self) -> None:
@@ -70,9 +76,11 @@ class TournamentDatabase:
                 self.connection = None
                 logger.info("Shared database connection closed")
 
-    def execute_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> None:
+    def execute_query(
+        self, query: str, parameters: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Execute a SQL query (for INSERT/UPDATE/DELETE operations).
-        
+
         Args:
             query: SQL query string
             parameters: Query parameters
@@ -80,13 +88,15 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             conn.execute(query, parameters or {})
 
-    def fetch_all(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Tuple]:
+    def fetch_all(
+        self, query: str, parameters: Optional[Dict[str, Any]] = None
+    ) -> List[Tuple]:
         """Execute query and fetch all results.
-        
+
         Args:
             query: SQL query string
             parameters: Query parameters
-            
+
         Returns:
             List of result tuples
         """
@@ -94,13 +104,15 @@ class TournamentDatabase:
             result = conn.execute(query, parameters or {})
             return result.fetchall()
 
-    def fetch_one(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Optional[Tuple]:
+    def fetch_one(
+        self, query: str, parameters: Optional[Dict[str, Any]] = None
+    ) -> Optional[Tuple]:
         """Execute query and fetch one result.
-        
+
         Args:
             query: SQL query string
             parameters: Query parameters
-            
+
         Returns:
             Single result tuple or None
         """
@@ -132,7 +144,10 @@ class TournamentDatabase:
         self._create_views()
 
         # Mark initial schema version
-        self._mark_schema_version("1.0.0", "Initial database schema with comprehensive constraints and indexes")
+        self._mark_schema_version(
+            "1.0.0",
+            "Initial database schema with comprehensive constraints and indexes",
+        )
 
         logger.info("Database schema created successfully")
 
@@ -147,7 +162,7 @@ class TournamentDatabase:
             "CREATE SEQUENCE IF NOT EXISTS resources_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS technology_progress_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS player_statistics_id_seq START 1;",
-            "CREATE SEQUENCE IF NOT EXISTS units_produced_id_seq START 1;"
+            "CREATE SEQUENCE IF NOT EXISTS units_produced_id_seq START 1;",
         ]
 
         with self.get_connection() as conn:
@@ -432,48 +447,101 @@ class TournamentDatabase:
             # Populate with initial unit classifications
             classifications = [
                 # Civilian units
-                ('UNIT_WORKER', 'civilian', 'worker', 'Worker unit for improving tiles'),
-                ('UNIT_SETTLER', 'civilian', 'settler', 'Settler unit for founding cities'),
-
+                (
+                    "UNIT_WORKER",
+                    "civilian",
+                    "worker",
+                    "Worker unit for improving tiles",
+                ),
+                (
+                    "UNIT_SETTLER",
+                    "civilian",
+                    "settler",
+                    "Settler unit for founding cities",
+                ),
                 # Religious units
-                ('UNIT_JUDAISM_DISCIPLE', 'religious', 'religious', 'Religious unit for spreading Judaism'),
-                ('UNIT_ZOROASTRIANISM_DISCIPLE', 'religious', 'religious', 'Religious unit for spreading Zoroastrianism'),
-
+                (
+                    "UNIT_JUDAISM_DISCIPLE",
+                    "religious",
+                    "religious",
+                    "Religious unit for spreading Judaism",
+                ),
+                (
+                    "UNIT_ZOROASTRIANISM_DISCIPLE",
+                    "religious",
+                    "religious",
+                    "Religious unit for spreading Zoroastrianism",
+                ),
                 # Military - Scout
-                ('UNIT_SCOUT', 'military', 'scout', 'Scout unit for exploration and reconnaissance'),
-
+                (
+                    "UNIT_SCOUT",
+                    "military",
+                    "scout",
+                    "Scout unit for exploration and reconnaissance",
+                ),
                 # Military - Infantry
-                ('UNIT_WARRIOR', 'military', 'infantry', 'Basic melee infantry unit'),
-                ('UNIT_SPEARMAN', 'military', 'infantry', 'Anti-cavalry infantry unit'),
-                ('UNIT_HASTATUS', 'military', 'infantry', 'Roman infantry unit'),
-                ('UNIT_LEGIONARY', 'military', 'infantry', 'Advanced Roman infantry unit'),
-                ('UNIT_MILITIA', 'military', 'infantry', 'Basic defensive infantry unit'),
-                ('UNIT_AXEMAN', 'military', 'infantry', 'Melee infantry unit with axe'),
-                ('UNIT_MACEMAN', 'military', 'infantry', 'Heavy melee infantry unit'),
-                ('UNIT_DMT_WARRIOR', 'military', 'infantry', 'Special infantry unit'),
-                ('UNIT_HOPLITE', 'military', 'infantry', 'Greek heavy infantry unit'),
-
+                ("UNIT_WARRIOR", "military", "infantry", "Basic melee infantry unit"),
+                ("UNIT_SPEARMAN", "military", "infantry", "Anti-cavalry infantry unit"),
+                ("UNIT_HASTATUS", "military", "infantry", "Roman infantry unit"),
+                (
+                    "UNIT_LEGIONARY",
+                    "military",
+                    "infantry",
+                    "Advanced Roman infantry unit",
+                ),
+                (
+                    "UNIT_MILITIA",
+                    "military",
+                    "infantry",
+                    "Basic defensive infantry unit",
+                ),
+                ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
+                ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
+                ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
+                ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
                 # Military - Ranged
-                ('UNIT_ARCHER', 'military', 'ranged', 'Basic ranged unit'),
-                ('UNIT_SLINGER', 'military', 'ranged', 'Early ranged unit'),
-                ('UNIT_CROSSBOWMAN', 'military', 'ranged', 'Advanced ranged unit'),
-
+                ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
+                ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
+                ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
                 # Military - Cavalry
-                ('UNIT_CHARIOT', 'military', 'cavalry', 'Chariot unit'),
-                ('UNIT_LIGHT_CHARIOT', 'military', 'cavalry', 'Fast chariot unit'),
-                ('UNIT_HITTITE_CHARIOT_1', 'military', 'cavalry', 'Hittite unique chariot unit'),
-                ('UNIT_PALTON_CAVALRY', 'military', 'cavalry', 'Cavalry unit'),
-                ('UNIT_AFRICAN_ELEPHANT', 'military', 'cavalry', 'Elephant cavalry unit'),
-                ('UNIT_WAR_ELEPHANT', 'military', 'cavalry', 'War elephant cavalry unit'),
-                ('UNIT_TURRETED_ELEPHANT', 'military', 'cavalry', 'Advanced elephant cavalry unit'),
-
+                ("UNIT_CHARIOT", "military", "cavalry", "Chariot unit"),
+                ("UNIT_LIGHT_CHARIOT", "military", "cavalry", "Fast chariot unit"),
+                (
+                    "UNIT_HITTITE_CHARIOT_1",
+                    "military",
+                    "cavalry",
+                    "Hittite unique chariot unit",
+                ),
+                ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
+                (
+                    "UNIT_AFRICAN_ELEPHANT",
+                    "military",
+                    "cavalry",
+                    "Elephant cavalry unit",
+                ),
+                (
+                    "UNIT_WAR_ELEPHANT",
+                    "military",
+                    "cavalry",
+                    "War elephant cavalry unit",
+                ),
+                (
+                    "UNIT_TURRETED_ELEPHANT",
+                    "military",
+                    "cavalry",
+                    "Advanced elephant cavalry unit",
+                ),
                 # Military - Siege
-                ('UNIT_ONAGER', 'military', 'siege', 'Stone-throwing siege weapon'),
-                ('UNIT_BALLISTA', 'military', 'siege', 'Bolt-throwing siege weapon'),
-                ('UNIT_BATTERING_RAM', 'military', 'siege', 'Siege weapon for attacking cities'),
-
+                ("UNIT_ONAGER", "military", "siege", "Stone-throwing siege weapon"),
+                ("UNIT_BALLISTA", "military", "siege", "Bolt-throwing siege weapon"),
+                (
+                    "UNIT_BATTERING_RAM",
+                    "military",
+                    "siege",
+                    "Siege weapon for attacking cities",
+                ),
                 # Military - Naval
-                ('UNIT_BIREME', 'military', 'naval', 'Ancient warship'),
+                ("UNIT_BIREME", "military", "naval", "Ancient warship"),
             ]
 
             insert_query = """
@@ -559,7 +627,7 @@ class TournamentDatabase:
 
     def get_processed_files(self) -> List[Tuple[str, str]]:
         """Get list of already processed files with their hashes.
-        
+
         Returns:
             List of (filename, hash) tuples
         """
@@ -568,11 +636,11 @@ class TournamentDatabase:
 
     def file_already_processed(self, filename: str, file_hash: str) -> bool:
         """Check if a file has already been processed.
-        
+
         Args:
             filename: Name of the file
             file_hash: SHA256 hash of the file
-            
+
         Returns:
             True if file already exists in database
         """
@@ -601,23 +669,26 @@ class TournamentDatabase:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            conn.execute(query, [
-                match_id,
-                match_data.get('challonge_match_id'),
-                match_data['file_name'],
-                match_data['file_hash'],
-                match_data.get('game_name'),
-                match_data.get('save_date'),
-                match_data.get('game_mode'),
-                match_data.get('map_size'),
-                match_data.get('map_class'),
-                match_data.get('map_aspect_ratio'),
-                match_data.get('turn_style'),
-                match_data.get('turn_timer'),
-                match_data.get('victory_conditions'),
-                match_data.get('total_turns'),
-                match_data.get('winner_player_id')
-            ])
+            conn.execute(
+                query,
+                [
+                    match_id,
+                    match_data.get("challonge_match_id"),
+                    match_data["file_name"],
+                    match_data["file_hash"],
+                    match_data.get("game_name"),
+                    match_data.get("save_date"),
+                    match_data.get("game_mode"),
+                    match_data.get("map_size"),
+                    match_data.get("map_class"),
+                    match_data.get("map_aspect_ratio"),
+                    match_data.get("turn_style"),
+                    match_data.get("turn_timer"),
+                    match_data.get("victory_conditions"),
+                    match_data.get("total_turns"),
+                    match_data.get("winner_player_id"),
+                ],
+            )
 
             return match_id
 
@@ -641,22 +712,27 @@ class TournamentDatabase:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            conn.execute(query, [
-                player_id,
-                player_data['match_id'],
-                player_data['player_name'],
-                player_data['player_name_normalized'],
-                player_data.get('civilization'),
-                player_data.get('team_id'),
-                player_data.get('difficulty_level'),
-                player_data.get('final_score', 0),
-                player_data.get('is_human', True),
-                player_data.get('final_turn_active')
-            ])
+            conn.execute(
+                query,
+                [
+                    player_id,
+                    player_data["match_id"],
+                    player_data["player_name"],
+                    player_data["player_name_normalized"],
+                    player_data.get("civilization"),
+                    player_data.get("team_id"),
+                    player_data.get("difficulty_level"),
+                    player_data.get("final_score", 0),
+                    player_data.get("is_human", True),
+                    player_data.get("final_turn_active"),
+                ],
+            )
 
             return player_id
 
-    def insert_match_winner(self, match_id: int, winner_player_id: int, method: str = 'automatic') -> None:
+    def insert_match_winner(
+        self, match_id: int, winner_player_id: int, method: str = "automatic"
+    ) -> None:
         """Insert a match winner record.
 
         Args:
@@ -692,17 +768,19 @@ class TournamentDatabase:
             values = []
             for event in events_data:
                 event_id = conn.execute("SELECT nextval('events_id_seq')").fetchone()[0]
-                values.append([
-                    event_id,
-                    event['match_id'],
-                    event['turn_number'],
-                    event['event_type'],
-                    event.get('player_id'),
-                    event.get('description'),
-                    event.get('x_coordinate'),
-                    event.get('y_coordinate'),
-                    event.get('event_data')
-                ])
+                values.append(
+                    [
+                        event_id,
+                        event["match_id"],
+                        event["turn_number"],
+                        event["event_type"],
+                        event.get("player_id"),
+                        event.get("description"),
+                        event.get("x_coordinate"),
+                        event.get("y_coordinate"),
+                        event.get("event_data"),
+                    ]
+                )
 
             conn.executemany(query, values)
 
@@ -725,16 +803,20 @@ class TournamentDatabase:
 
             values = []
             for territory in territories_data:
-                territory_id = conn.execute("SELECT nextval('territories_id_seq')").fetchone()[0]
-                values.append([
-                    territory_id,
-                    territory['match_id'],
-                    territory['x_coordinate'],
-                    territory['y_coordinate'],
-                    territory['turn_number'],
-                    territory.get('terrain_type'),
-                    territory.get('owner_player_id')
-                ])
+                territory_id = conn.execute(
+                    "SELECT nextval('territories_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        territory_id,
+                        territory["match_id"],
+                        territory["x_coordinate"],
+                        territory["y_coordinate"],
+                        territory["turn_number"],
+                        territory.get("terrain_type"),
+                        territory.get("owner_player_id"),
+                    ]
+                )
 
             conn.executemany(query, values)
 
@@ -756,19 +838,25 @@ class TournamentDatabase:
 
             values = []
             for resource in resources_data:
-                resource_id = conn.execute("SELECT nextval('resources_id_seq')").fetchone()[0]
-                values.append([
-                    resource_id,
-                    resource['match_id'],
-                    resource['player_id'],
-                    resource['turn_number'],
-                    resource['resource_type'],
-                    resource['amount']
-                ])
+                resource_id = conn.execute(
+                    "SELECT nextval('resources_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        resource_id,
+                        resource["match_id"],
+                        resource["player_id"],
+                        resource["turn_number"],
+                        resource["resource_type"],
+                        resource["amount"],
+                    ]
+                )
 
             conn.executemany(query, values)
 
-    def bulk_insert_technology_progress(self, tech_progress_data: List[Dict[str, Any]]) -> None:
+    def bulk_insert_technology_progress(
+        self, tech_progress_data: List[Dict[str, Any]]
+    ) -> None:
         """Bulk insert technology progress records.
 
         Args:
@@ -786,18 +874,24 @@ class TournamentDatabase:
 
             values = []
             for tech in tech_progress_data:
-                tech_id = conn.execute("SELECT nextval('technology_progress_id_seq')").fetchone()[0]
-                values.append([
-                    tech_id,
-                    tech['match_id'],
-                    tech['player_id'],
-                    tech['tech_name'],
-                    tech['count']
-                ])
+                tech_id = conn.execute(
+                    "SELECT nextval('technology_progress_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        tech_id,
+                        tech["match_id"],
+                        tech["player_id"],
+                        tech["tech_name"],
+                        tech["count"],
+                    ]
+                )
 
             conn.executemany(query, values)
 
-    def bulk_insert_player_statistics(self, statistics_data: List[Dict[str, Any]]) -> None:
+    def bulk_insert_player_statistics(
+        self, statistics_data: List[Dict[str, Any]]
+    ) -> None:
         """Bulk insert player statistics records.
 
         Args:
@@ -815,15 +909,19 @@ class TournamentDatabase:
 
             values = []
             for stat in statistics_data:
-                stat_id = conn.execute("SELECT nextval('player_statistics_id_seq')").fetchone()[0]
-                values.append([
-                    stat_id,
-                    stat['match_id'],
-                    stat['player_id'],
-                    stat['stat_category'],
-                    stat['stat_name'],
-                    stat['value']
-                ])
+                stat_id = conn.execute(
+                    "SELECT nextval('player_statistics_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        stat_id,
+                        stat["match_id"],
+                        stat["player_id"],
+                        stat["stat_category"],
+                        stat["stat_name"],
+                        stat["value"],
+                    ]
+                )
 
             conn.executemany(query, values)
 
@@ -845,14 +943,18 @@ class TournamentDatabase:
 
             values = []
             for unit in units_data:
-                unit_id = conn.execute("SELECT nextval('units_produced_id_seq')").fetchone()[0]
-                values.append([
-                    unit_id,
-                    unit['match_id'],
-                    unit['player_id'],
-                    unit['unit_type'],
-                    unit['count']
-                ])
+                unit_id = conn.execute(
+                    "SELECT nextval('units_produced_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        unit_id,
+                        unit["match_id"],
+                        unit["player_id"],
+                        unit["unit_type"],
+                        unit["count"],
+                    ]
+                )
 
             conn.executemany(query, values)
 
@@ -874,16 +976,19 @@ class TournamentDatabase:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            conn.execute(query, [
-                match_id,
-                metadata.get('difficulty'),
-                metadata.get('event_level'),
-                metadata.get('victory_type'),
-                metadata.get('victory_turn'),
-                metadata.get('game_options'),
-                metadata.get('dlc_content'),
-                metadata.get('map_settings')
-            ])
+            conn.execute(
+                query,
+                [
+                    match_id,
+                    metadata.get("difficulty"),
+                    metadata.get("event_level"),
+                    metadata.get("victory_type"),
+                    metadata.get("victory_turn"),
+                    metadata.get("game_options"),
+                    metadata.get("dlc_content"),
+                    metadata.get("map_settings"),
+                ],
+            )
 
 
 # Global database instance
@@ -892,7 +997,7 @@ db = TournamentDatabase()
 
 def get_database() -> TournamentDatabase:
     """Get the global database instance.
-    
+
     Returns:
         TournamentDatabase instance
     """

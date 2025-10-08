@@ -8,12 +8,15 @@ Usage:
     uv run python scripts/validate_memorydata_ownership.py
 """
 
-import duckdb
 import sys
 from typing import Tuple
 
+import duckdb
 
-def check_event_type_ownership(conn: duckdb.DuckDBPyConnection, pattern: str) -> Tuple[int, int]:
+
+def check_event_type_ownership(
+    conn: duckdb.DuckDBPyConnection, pattern: str
+) -> Tuple[int, int]:
     """Check how many events matching pattern have NULL vs valid player_id.
 
     Args:
@@ -23,13 +26,15 @@ def check_event_type_ownership(conn: duckdb.DuckDBPyConnection, pattern: str) ->
     Returns:
         Tuple of (total_events, null_count)
     """
-    result = conn.execute(f"""
+    result = conn.execute(
+        f"""
         SELECT
             COUNT(*) as total,
             SUM(CASE WHEN player_id IS NULL THEN 1 ELSE 0 END) as null_count
         FROM events
         WHERE event_type LIKE '{pattern}'
-    """).fetchone()
+    """
+    ).fetchone()
 
     return result[0], result[1]
 
@@ -43,7 +48,7 @@ def main() -> int:
 
     # Connect to database
     try:
-        conn = duckdb.connect('tournament_data.duckdb', read_only=True)
+        conn = duckdb.connect("tournament_data.duckdb", read_only=True)
     except Exception as e:
         print(f"❌ Error connecting to database: {e}")
         print("   Make sure tournament_data.duckdb exists")
@@ -51,11 +56,11 @@ def main() -> int:
 
     # Check different event type categories
     checks = [
-        ('MEMORYTRIBE_%', 'MEMORYTRIBE Events'),
-        ('MEMORYFAMILY_%', 'MEMORYFAMILY Events'),
-        ('MEMORYRELIGION_%', 'MEMORYRELIGION Events'),
-        ('MEMORYCHARACTER_%', 'MEMORYCHARACTER Events'),
-        ('MEMORYPLAYER_%', 'MEMORYPLAYER Events (should also work)'),
+        ("MEMORYTRIBE_%", "MEMORYTRIBE Events"),
+        ("MEMORYFAMILY_%", "MEMORYFAMILY Events"),
+        ("MEMORYRELIGION_%", "MEMORYRELIGION Events"),
+        ("MEMORYCHARACTER_%", "MEMORYCHARACTER Events"),
+        ("MEMORYPLAYER_%", "MEMORYPLAYER Events (should also work)"),
     ]
 
     all_passed = True
@@ -73,7 +78,9 @@ def main() -> int:
         if null_count == 0:
             print(f"✅ {label}: {total} events, ALL have player_id ({percentage:.1f}%)")
         else:
-            print(f"❌ {label}: {total} events, {null_count} have NULL player_id ({percentage:.1f}% valid)")
+            print(
+                f"❌ {label}: {total} events, {null_count} have NULL player_id ({percentage:.1f}% valid)"
+            )
             all_passed = False
 
     print()
@@ -89,10 +96,12 @@ def main() -> int:
         print()
         print("Action required:")
         print("1. Check if parser fix is implemented correctly")
-        print("2. Re-import data: uv run python scripts/import_tournaments.py --directory saves --force")
+        print(
+            "2. Re-import data: uv run python scripts/import_tournaments.py --directory saves --force"
+        )
         print("3. Run this script again to verify")
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

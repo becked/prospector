@@ -14,9 +14,10 @@ For LogData extraction, we'll use correct mapping:
 - Formula: database_player_id = int(xml_id) + 1
 """
 
-import pytest
 from pathlib import Path
-from typing import Any, Dict, List
+
+import pytest
+
 from tournament_visualizer.data.parser import OldWorldSaveParser
 
 
@@ -50,7 +51,7 @@ class TestLawAdoptionExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        law_events = [e for e in events if e['event_type'] == 'LAW_ADOPTED']
+        law_events = [e for e in events if e["event_type"] == "LAW_ADOPTED"]
 
         # For anarkos-becked match, there are 13 total law adoptions
         # (6 for anarkos, 7 for becked)
@@ -62,22 +63,22 @@ class TestLawAdoptionExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        law_events = [e for e in events if e['event_type'] == 'LAW_ADOPTED']
+        law_events = [e for e in events if e["event_type"] == "LAW_ADOPTED"]
 
         if law_events:
             event = law_events[0]
 
             # Required fields
-            assert 'turn_number' in event
-            assert 'event_type' in event
-            assert 'player_id' in event
-            assert 'description' in event
+            assert "turn_number" in event
+            assert "event_type" in event
+            assert "player_id" in event
+            assert "description" in event
 
             # Type checks
-            assert isinstance(event['turn_number'], int)
-            assert event['event_type'] == 'LAW_ADOPTED'
-            assert isinstance(event['player_id'], int)
-            assert isinstance(event['description'], str)
+            assert isinstance(event["turn_number"], int)
+            assert event["event_type"] == "LAW_ADOPTED"
+            assert isinstance(event["player_id"], int)
+            assert isinstance(event["description"], str)
 
     def test_law_adoption_extracts_law_name(self, sample_xml_path: Path) -> None:
         """Should extract the specific law from Data1."""
@@ -85,15 +86,15 @@ class TestLawAdoptionExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        law_events = [e for e in events if e['event_type'] == 'LAW_ADOPTED']
+        law_events = [e for e in events if e["event_type"] == "LAW_ADOPTED"]
 
         if law_events:
             event = law_events[0]
 
             # event_data should contain the law name
-            assert event.get('event_data') is not None
-            assert 'law' in event['event_data']
-            assert event['event_data']['law'].startswith('LAW_')
+            assert event.get("event_data") is not None
+            assert "law" in event["event_data"]
+            assert event["event_data"]["law"].startswith("LAW_")
 
     def test_law_adoption_correct_player_mapping(self, sample_xml_path: Path) -> None:
         """Should correctly map player IDs from XML to database."""
@@ -101,10 +102,10 @@ class TestLawAdoptionExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        law_events = [e for e in events if e['event_type'] == 'LAW_ADOPTED']
+        law_events = [e for e in events if e["event_type"] == "LAW_ADOPTED"]
 
         # Player IDs should be 1-based (matching players table)
-        player_ids = [e['player_id'] for e in law_events]
+        player_ids = [e["player_id"] for e in law_events]
         assert all(pid >= 1 for pid in player_ids), "Player IDs should be 1-based"
 
 
@@ -117,7 +118,7 @@ class TestTechDiscoveryExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        tech_events = [e for e in events if e['event_type'] == 'TECH_DISCOVERED']
+        tech_events = [e for e in events if e["event_type"] == "TECH_DISCOVERED"]
 
         # anarkos-becked match has 39 tech discoveries (19 + 20)
         assert len(tech_events) > 0, "Should find at least one tech discovery"
@@ -128,20 +129,20 @@ class TestTechDiscoveryExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        tech_events = [e for e in events if e['event_type'] == 'TECH_DISCOVERED']
+        tech_events = [e for e in events if e["event_type"] == "TECH_DISCOVERED"]
 
         if tech_events:
             event = tech_events[0]
 
             # Required fields
-            assert 'turn_number' in event
-            assert 'event_type' in event
-            assert 'player_id' in event
+            assert "turn_number" in event
+            assert "event_type" in event
+            assert "player_id" in event
 
             # Type checks
-            assert isinstance(event['turn_number'], int)
-            assert event['event_type'] == 'TECH_DISCOVERED'
-            assert isinstance(event['player_id'], int)
+            assert isinstance(event["turn_number"], int)
+            assert event["event_type"] == "TECH_DISCOVERED"
+            assert isinstance(event["player_id"], int)
 
     def test_tech_discovery_extracts_tech_name(self, sample_xml_path: Path) -> None:
         """Should extract the specific tech from Data1."""
@@ -149,15 +150,15 @@ class TestTechDiscoveryExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        tech_events = [e for e in events if e['event_type'] == 'TECH_DISCOVERED']
+        tech_events = [e for e in events if e["event_type"] == "TECH_DISCOVERED"]
 
         if tech_events:
             event = tech_events[0]
 
             # event_data should contain the tech name
-            assert event.get('event_data') is not None
-            assert 'tech' in event['event_data']
-            assert event['event_data']['tech'].startswith('TECH_')
+            assert event.get("event_data") is not None
+            assert "tech" in event["event_data"]
+            assert event["event_data"]["tech"].startswith("TECH_")
 
     def test_tech_discoveries_ordered_by_turn(self, sample_xml_path: Path) -> None:
         """Tech discoveries should be extractable in turn order."""
@@ -165,10 +166,10 @@ class TestTechDiscoveryExtraction:
         parser.parse_xml_file(str(sample_xml_path))
 
         events = parser.extract_logdata_events()
-        tech_events = [e for e in events if e['event_type'] == 'TECH_DISCOVERED']
+        tech_events = [e for e in events if e["event_type"] == "TECH_DISCOVERED"]
 
         # Check that we can order by turn
-        turns = [e['turn_number'] for e in tech_events]
+        turns = [e["turn_number"] for e in tech_events]
         assert turns == sorted(turns), "Should preserve turn order"
 
 
@@ -194,8 +195,9 @@ class TestMemoryDataPlayerIDMapping:
         # Find events that should belong to player 1 (XML Player=0)
         # These are MEMORYPLAYER_* events that occur around turn 65
         player_1_events = [
-            e for e in events
-            if e['player_id'] == 1 and e['event_type'].startswith('MEMORYPLAYER_')
+            e
+            for e in events
+            if e["player_id"] == 1 and e["event_type"].startswith("MEMORYPLAYER_")
         ]
 
         # The fixture has 39 events with <Player>0</Player>
@@ -207,8 +209,9 @@ class TestMemoryDataPlayerIDMapping:
 
         # Verify no events have player_id=None for MEMORYPLAYER_* events
         player_none_events = [
-            e for e in events
-            if e['player_id'] is None and e['event_type'].startswith('MEMORYPLAYER_')
+            e
+            for e in events
+            if e["player_id"] is None and e["event_type"].startswith("MEMORYPLAYER_")
         ]
 
         assert len(player_none_events) == 0, (
@@ -229,8 +232,9 @@ class TestMemoryDataPlayerIDMapping:
 
         # Find events that should belong to player 2 (XML Player=1)
         player_2_events = [
-            e for e in events
-            if e['player_id'] == 2 and e['event_type'].startswith('MEMORYPLAYER_')
+            e
+            for e in events
+            if e["player_id"] == 2 and e["event_type"].startswith("MEMORYPLAYER_")
         ]
 
         # The fixture has 32 events with <Player>1</Player>
@@ -254,11 +258,12 @@ class TestMemoryDataPlayerIDMapping:
 
         # Count MEMORYPLAYER_* events by player_id
         from collections import Counter
+
         memoryplayer_events = [
-            e for e in events if e['event_type'].startswith('MEMORYPLAYER_')
+            e for e in events if e["event_type"].startswith("MEMORYPLAYER_")
         ]
 
-        player_counts = Counter(e.get('player_id') for e in memoryplayer_events)
+        player_counts = Counter(e.get("player_id") for e in memoryplayer_events)
 
         # Expected counts from XML
         expected_player_1_count = 39  # From <Player>0</Player>
@@ -281,7 +286,9 @@ class TestMemoryDataPlayerIDMapping:
             "All MEMORYPLAYER events should have a valid player_id."
         )
 
-    def test_memorydata_matches_logdata_player_mapping(self, sample_xml_path: Path) -> None:
+    def test_memorydata_matches_logdata_player_mapping(
+        self, sample_xml_path: Path
+    ) -> None:
         """MemoryData and LogData should use the same player ID mapping.
 
         Both extract methods should convert 0-based XML IDs to 1-based DB IDs.
@@ -295,13 +302,11 @@ class TestMemoryDataPlayerIDMapping:
 
         # Get unique player IDs from each source
         memory_player_ids = set(
-            e['player_id'] for e in memory_events
-            if e['player_id'] is not None
+            e["player_id"] for e in memory_events if e["player_id"] is not None
         )
 
         logdata_player_ids = set(
-            e['player_id'] for e in logdata_events
-            if e['player_id'] is not None
+            e["player_id"] for e in logdata_events if e["player_id"] is not None
         )
 
         # Both should have the same player IDs (1 and 2 for this fixture)

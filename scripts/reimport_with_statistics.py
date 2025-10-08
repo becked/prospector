@@ -1,17 +1,17 @@
 """Reimport all tournament files to populate new statistics tables."""
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tournament_visualizer.data.etl import TournamentETL
 from tournament_visualizer.data.database import TournamentDatabase
+from tournament_visualizer.data.etl import TournamentETL
 from tournament_visualizer.data.parser import parse_tournament_file
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -46,37 +46,45 @@ def reimport_all() -> None:
                 # Get player ID mapping
                 players = db.fetch_all(
                     "SELECT player_id FROM players WHERE match_id = ? ORDER BY player_id",
-                    {"1": match_id}
+                    {"1": match_id},
                 )
-                player_id_mapping = {i+1: pid[0] for i, pid in enumerate(players)}
+                player_id_mapping = {i + 1: pid[0] for i, pid in enumerate(players)}
 
                 # Process technology progress
-                technology_progress = parsed_data.get('technology_progress', [])
+                technology_progress = parsed_data.get("technology_progress", [])
                 for tech_data in technology_progress:
-                    tech_data['match_id'] = match_id
-                    if tech_data.get('player_id') in player_id_mapping:
-                        tech_data['player_id'] = player_id_mapping[tech_data['player_id']]
+                    tech_data["match_id"] = match_id
+                    if tech_data.get("player_id") in player_id_mapping:
+                        tech_data["player_id"] = player_id_mapping[
+                            tech_data["player_id"]
+                        ]
 
                 if technology_progress:
                     db.bulk_insert_technology_progress(technology_progress)
-                    logger.info(f"  ✓ Inserted {len(technology_progress)} technology records")
+                    logger.info(
+                        f"  ✓ Inserted {len(technology_progress)} technology records"
+                    )
 
                 # Process player statistics
-                player_statistics = parsed_data.get('player_statistics', [])
+                player_statistics = parsed_data.get("player_statistics", [])
                 for stat_data in player_statistics:
-                    stat_data['match_id'] = match_id
-                    if stat_data.get('player_id') in player_id_mapping:
-                        stat_data['player_id'] = player_id_mapping[stat_data['player_id']]
+                    stat_data["match_id"] = match_id
+                    if stat_data.get("player_id") in player_id_mapping:
+                        stat_data["player_id"] = player_id_mapping[
+                            stat_data["player_id"]
+                        ]
 
                 if player_statistics:
                     db.bulk_insert_player_statistics(player_statistics)
-                    logger.info(f"  ✓ Inserted {len(player_statistics)} statistics records")
+                    logger.info(
+                        f"  ✓ Inserted {len(player_statistics)} statistics records"
+                    )
 
                 # Process match metadata
-                detailed_metadata = parsed_data.get('detailed_metadata', {})
+                detailed_metadata = parsed_data.get("detailed_metadata", {})
                 if detailed_metadata:
                     db.insert_match_metadata(match_id, detailed_metadata)
-                    logger.info(f"  ✓ Inserted match metadata")
+                    logger.info("  ✓ Inserted match metadata")
 
             except Exception as e:
                 logger.error(f"  ✗ Error processing {file_name}: {e}")
@@ -89,7 +97,7 @@ def reimport_all() -> None:
         stats_total = db.fetch_one("SELECT COUNT(*) FROM player_statistics")[0]
         metadata_total = db.fetch_one("SELECT COUNT(*) FROM match_metadata")[0]
 
-        logger.info(f"\nTotal records inserted:")
+        logger.info("\nTotal records inserted:")
         logger.info(f"  Technology progress: {tech_total}")
         logger.info(f"  Player statistics: {stats_total}")
         logger.info(f"  Match metadata: {metadata_total}")
@@ -98,5 +106,5 @@ def reimport_all() -> None:
         db.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     reimport_all()

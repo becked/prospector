@@ -261,6 +261,7 @@ tournament_visualizer/
 │   ├── database.py        # DuckDB connection and schema
 │   ├── etl.py            # Extract, Transform, Load pipeline
 │   └── queries.py         # Reusable SQL queries
+scripts/
 ├── import_tournaments.py  # Manual import script for new files
 ├── components/
 │   ├── __init__.py
@@ -373,7 +374,7 @@ black==23.11.0
 ## Manual Import Strategy
 
 ### Simple Import Workflow
-1. **Run import script**: `python import_tournaments.py`
+1. **Run import script**: `python scripts/import_tournaments.py`
 2. **Scan directory**: Check all `.zip` files in `saves/`
 3. **Calculate hashes**: SHA256 hash for each file
 4. **Check duplicates**: Query database for filename AND hash

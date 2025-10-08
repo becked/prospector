@@ -1,11 +1,13 @@
 """Integration tests for LogData ingestion pipeline."""
 
-import pytest
-from pathlib import Path
-import tempfile
 import shutil
-from tournament_visualizer.data.etl import TournamentETL
+import tempfile
+from pathlib import Path
+
+import pytest
+
 from tournament_visualizer.data.database import TournamentDatabase
+from tournament_visualizer.data.etl import TournamentETL
 
 
 @pytest.fixture
@@ -52,23 +54,27 @@ def test_full_pipeline_with_logdata(temp_db, sample_save_dir):
 
     # Check that law events were captured
     with db.get_connection() as conn:
-        law_events = conn.execute("""
+        law_events = conn.execute(
+            """
             SELECT COUNT(*) as count
             FROM events
             WHERE event_type = 'LAW_ADOPTED'
-        """).df()
+        """
+        ).df()
 
-    assert law_events['count'].iloc[0] >= 13, "Should find 13 law adoptions"
+    assert law_events["count"].iloc[0] >= 13, "Should find 13 law adoptions"
 
     # Check that tech events were captured
     with db.get_connection() as conn:
-        tech_events = conn.execute("""
+        tech_events = conn.execute(
+            """
             SELECT COUNT(*) as count
             FROM events
             WHERE event_type = 'TECH_DISCOVERED'
-        """).df()
+        """
+        ).df()
 
-    assert tech_events['count'].iloc[0] >= 39, "Should find 39 tech discoveries"
+    assert tech_events["count"].iloc[0] >= 39, "Should find 39 tech discoveries"
 
 
 def test_law_milestone_calculation(temp_db, sample_save_dir):
@@ -92,7 +98,7 @@ def test_law_milestone_calculation(temp_db, sample_save_dir):
 
     with db.get_connection() as conn:
         matches = conn.execute("SELECT match_id FROM matches LIMIT 1").df()
-    match_id = int(matches['match_id'].iloc[0])
+    match_id = int(matches["match_id"].iloc[0])
 
     queries = TournamentQueries(database=db)
     progression = queries.get_law_progression_by_match(match_id)
@@ -101,8 +107,8 @@ def test_law_milestone_calculation(temp_db, sample_save_dir):
     assert len(progression) == 2, "Should have data for both players"
 
     # Verify milestone columns exist and have reasonable values
-    assert 'turn_to_4_laws' in progression.columns
-    assert 'turn_to_7_laws' in progression.columns
+    assert "turn_to_4_laws" in progression.columns
+    assert "turn_to_7_laws" in progression.columns
 
     # At least one player should reach 4 laws
-    assert progression['turn_to_4_laws'].notna().any()
+    assert progression["turn_to_4_laws"].notna().any()

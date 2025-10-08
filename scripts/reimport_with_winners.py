@@ -16,11 +16,11 @@ from tournament_visualizer.data.database import get_database
 from tournament_visualizer.data.etl import process_tournament_directory
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
+
 
 def clear_all_data():
     """Clear all existing data from the database."""
@@ -31,13 +31,13 @@ def clear_all_data():
 
     # Delete in reverse dependency order
     tables_to_clear = [
-        'match_winners',
-        'resources',
-        'events',
-        'territories',
-        'game_state',
-        'players',
-        'matches'
+        "match_winners",
+        "resources",
+        "events",
+        "territories",
+        "game_state",
+        "players",
+        "matches",
     ]
 
     for table in tables_to_clear:
@@ -49,12 +49,12 @@ def clear_all_data():
 
     # Reset sequences
     sequences = [
-        'matches_id_seq',
-        'players_id_seq',
-        'game_state_id_seq',
-        'territories_id_seq',
-        'events_id_seq',
-        'resources_id_seq'
+        "matches_id_seq",
+        "players_id_seq",
+        "game_state_id_seq",
+        "territories_id_seq",
+        "events_id_seq",
+        "resources_id_seq",
     ]
 
     for seq in sequences:
@@ -63,6 +63,7 @@ def clear_all_data():
             logger.info(f"Reset {seq}")
         except Exception as e:
             logger.warning(f"Failed to reset {seq}: {e}")
+
 
 def main():
     """Main function to clear and re-import data."""
@@ -82,13 +83,15 @@ def main():
     results = process_tournament_directory(str(saves_dir))
 
     # Report results
-    processing = results['processing']
-    logger.info(f"Re-import complete!")
-    logger.info(f"Files processed: {processing['successful_files']}/{processing['total_files']}")
+    processing = results["processing"]
+    logger.info("Re-import complete!")
+    logger.info(
+        f"Files processed: {processing['successful_files']}/{processing['total_files']}"
+    )
     logger.info(f"Success rate: {processing['success_rate']:.1%}")
 
     # Show final data summary
-    summary = results['summary']
+    summary = results["summary"]
     logger.info("Final data counts:")
     logger.info(f"  Matches: {summary['total_matches']}")
     logger.info(f"  Players: {summary['total_players']}")
@@ -97,6 +100,7 @@ def main():
 
     # Check winner data
     from tournament_visualizer.data.database import get_database
+
     db = get_database()
     db.connect()
 
@@ -111,7 +115,8 @@ def main():
     else:
         logger.error("❌ No winner data found - there may be an issue with the parser")
 
-    return 0 if processing['success_rate'] > 0.8 else 1
+    return 0 if processing["success_rate"] > 0.8 else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

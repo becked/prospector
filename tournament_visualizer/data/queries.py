@@ -16,7 +16,7 @@ class TournamentQueries:
 
     def __init__(self, database: Optional[TournamentDatabase] = None) -> None:
         """Initialize with database connection.
-        
+
         Args:
             database: Database instance to use (defaults to global instance)
         """
@@ -100,7 +100,7 @@ class TournamentQueries:
 
     def get_civilization_performance(self) -> pd.DataFrame:
         """Get performance statistics by civilization.
-        
+
         Returns:
             DataFrame with civilization performance data
         """
@@ -128,7 +128,7 @@ class TournamentQueries:
 
     def get_match_duration_analysis(self) -> pd.DataFrame:
         """Get match duration analysis.
-        
+
         Returns:
             DataFrame with match duration statistics
         """
@@ -158,11 +158,11 @@ class TournamentQueries:
 
     def get_head_to_head_stats(self, player1: str, player2: str) -> Dict[str, Any]:
         """Get head-to-head statistics between two players.
-        
+
         Args:
             player1: Name of first player
             player2: Name of second player
-            
+
         Returns:
             Dictionary with head-to-head statistics
         """
@@ -190,25 +190,25 @@ class TournamentQueries:
         FROM match_participants
         """
 
-        result = self.db.fetch_one(query, {
-            "1": player1, "2": player2, "3": player1, "4": player2
-        })
+        result = self.db.fetch_one(
+            query, {"1": player1, "2": player2, "3": player1, "4": player2}
+        )
 
         if result:
             return {
-                'total_matches': result[0],
-                'player1_wins': result[1],
-                'player2_wins': result[2],
-                'avg_match_length': result[3],
-                'first_match': result[4],
-                'last_match': result[5]
+                "total_matches": result[0],
+                "player1_wins": result[1],
+                "player2_wins": result[2],
+                "avg_match_length": result[3],
+                "first_match": result[4],
+                "last_match": result[5],
             }
 
         return {}
 
     def get_map_performance_analysis(self) -> pd.DataFrame:
         """Get performance analysis by map characteristics.
-        
+
         Returns:
             DataFrame with map performance data
         """
@@ -232,10 +232,10 @@ class TournamentQueries:
 
     def get_turn_progression_data(self, match_id: int) -> pd.DataFrame:
         """Get turn-by-turn progression data for a specific match.
-        
+
         Args:
             match_id: ID of the match
-            
+
         Returns:
             DataFrame with turn progression data
         """
@@ -257,13 +257,15 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
-    def get_resource_progression(self, match_id: int, player_name: Optional[str] = None) -> pd.DataFrame:
+    def get_resource_progression(
+        self, match_id: int, player_name: Optional[str] = None
+    ) -> pd.DataFrame:
         """Get resource progression over time for a match.
-        
+
         Args:
             match_id: ID of the match
             player_name: Optional player name to filter by
-            
+
         Returns:
             DataFrame with resource progression data
         """
@@ -289,7 +291,9 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(base_query, params).df()
 
-    def get_event_timeline(self, match_id: int, event_types: Optional[List[str]] = None) -> pd.DataFrame:
+    def get_event_timeline(
+        self, match_id: int, event_types: Optional[List[str]] = None
+    ) -> pd.DataFrame:
         """Get event timeline for a specific match, including both MemoryData and LogData events.
 
         Args:
@@ -360,21 +364,23 @@ class TournamentQueries:
         params = [match_id]
 
         if event_types:
-            placeholders = ', '.join(['?' for _ in event_types])
+            placeholders = ", ".join(["?" for _ in event_types])
             base_query += f" AND event_type IN ({placeholders})"
             params.extend(event_types)
 
-        base_query += " ORDER BY turn_number DESC, display_priority, event_type, player_name"
+        base_query += (
+            " ORDER BY turn_number DESC, display_priority, event_type, player_name"
+        )
 
         with self.db.get_connection() as conn:
             return conn.execute(base_query, params).df()
 
     def get_territory_control_summary(self, match_id: int) -> pd.DataFrame:
         """Get territory control summary over time.
-        
+
         Args:
             match_id: ID of the match
-            
+
         Returns:
             DataFrame with territory control data
         """
@@ -403,7 +409,7 @@ class TournamentQueries:
 
     def get_victory_condition_analysis(self) -> pd.DataFrame:
         """Get analysis of victory conditions and their success rates.
-        
+
         Returns:
             DataFrame with victory condition analysis
         """
@@ -480,27 +486,40 @@ class TournamentQueries:
         stats = {}
 
         # Table counts
-        tables = ['matches', 'players', 'game_state', 'events', 'territories', 'resources']
+        tables = [
+            "matches",
+            "players",
+            "game_state",
+            "events",
+            "territories",
+            "resources",
+        ]
         for table in tables:
             result = self.db.fetch_one(f"SELECT COUNT(*) FROM {table}")
             stats[f"{table}_count"] = result[0] if result else 0
 
         # Unique counts
         result = self.db.fetch_one("SELECT COUNT(DISTINCT player_name) FROM players")
-        stats['unique_players'] = result[0] if result else 0
+        stats["unique_players"] = result[0] if result else 0
 
-        result = self.db.fetch_one("SELECT COUNT(DISTINCT civilization) FROM players WHERE civilization IS NOT NULL")
-        stats['unique_civilizations'] = result[0] if result else 0
+        result = self.db.fetch_one(
+            "SELECT COUNT(DISTINCT civilization) FROM players WHERE civilization IS NOT NULL"
+        )
+        stats["unique_civilizations"] = result[0] if result else 0
 
         # Date ranges
-        result = self.db.fetch_one("SELECT MIN(save_date), MAX(save_date) FROM matches WHERE save_date IS NOT NULL")
+        result = self.db.fetch_one(
+            "SELECT MIN(save_date), MAX(save_date) FROM matches WHERE save_date IS NOT NULL"
+        )
         if result and result[0]:
-            stats['date_range'] = {'earliest': result[0], 'latest': result[1]}
+            stats["date_range"] = {"earliest": result[0], "latest": result[1]}
 
         # Turn statistics
-        result = self.db.fetch_one("SELECT AVG(total_turns), MIN(total_turns), MAX(total_turns) FROM matches WHERE total_turns > 0")
+        result = self.db.fetch_one(
+            "SELECT AVG(total_turns), MIN(total_turns), MAX(total_turns) FROM matches WHERE total_turns > 0"
+        )
         if result and result[0]:
-            stats['turn_stats'] = {'avg': result[0], 'min': result[1], 'max': result[2]}
+            stats["turn_stats"] = {"avg": result[0], "min": result[1], "max": result[2]}
 
         return stats
 
@@ -528,7 +547,9 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
-    def get_player_statistics_by_category(self, match_id: int, category: Optional[str] = None) -> pd.DataFrame:
+    def get_player_statistics_by_category(
+        self, match_id: int, category: Optional[str] = None
+    ) -> pd.DataFrame:
         """Get player statistics for a match, optionally filtered by category.
 
         Args:
@@ -587,13 +608,13 @@ class TournamentQueries:
 
         if result:
             return {
-                'difficulty': result[0],
-                'event_level': result[1],
-                'victory_type': result[2],
-                'victory_turn': result[3],
-                'game_options': result[4],
-                'dlc_content': result[5],
-                'map_settings': result[6]
+                "difficulty": result[0],
+                "event_level": result[1],
+                "victory_type": result[2],
+                "victory_turn": result[3],
+                "game_options": result[4],
+                "dlc_content": result[5],
+                "map_settings": result[6],
             }
 
         return {}
@@ -616,7 +637,7 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, [match_id]).df()
-            return df['stat_category'].tolist() if not df.empty else []
+            return df["stat_category"].tolist() if not df.empty else []
 
     def get_technology_summary(self, match_id: int) -> pd.DataFrame:
         """Get aggregated technology research summary by player.
@@ -917,7 +938,9 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
-    def get_law_progression_by_match(self, match_id: Optional[int] = None) -> pd.DataFrame:
+    def get_law_progression_by_match(
+        self, match_id: Optional[int] = None
+    ) -> pd.DataFrame:
         """Get law progression for players, showing when they reached 4 and 7 laws.
 
         Args:
@@ -1042,7 +1065,9 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
-    def get_techs_at_law_milestone(self, match_id: int, milestone: int = 4) -> pd.DataFrame:
+    def get_techs_at_law_milestone(
+        self, match_id: int, milestone: int = 4
+    ) -> pd.DataFrame:
         """Get list of techs each player had when reaching a law milestone.
 
         Args:
@@ -1111,7 +1136,7 @@ queries = TournamentQueries()
 
 def get_queries() -> TournamentQueries:
     """Get the global queries instance.
-    
+
     Returns:
         TournamentQueries instance
     """

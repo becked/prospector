@@ -451,7 +451,7 @@ uv run python import_tournaments.py
 
 1. **Import Data:**
    ```bash
-   uv run python import_tournaments.py
+   uv run python scripts/import_tournaments.py
    ```
 
 2. **Verify Law Data:**

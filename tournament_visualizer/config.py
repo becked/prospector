@@ -6,37 +6,45 @@ UI settings, and application constants.
 
 import os
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 
 class Config:
     """Main configuration class for the tournament visualizer."""
-    
+
     # Database settings
     DATABASE_PATH = os.getenv("TOURNAMENT_DB_PATH", "tournament_data.duckdb")
-    
+
     # Application settings
     APP_TITLE = "Old World Tournament Visualizer"
     APP_HOST = os.getenv("DASH_HOST", "127.0.0.1")
     APP_PORT = int(os.getenv("DASH_PORT", "8050"))
     DEBUG_MODE = os.getenv("DASH_DEBUG", "True").lower() == "true"
-    
+
     # Data directories
     SAVES_DIRECTORY = os.getenv("SAVES_DIRECTORY", "saves")
     ASSETS_DIRECTORY = "tournament_visualizer/assets"
-    
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000
     CHART_HEIGHT = 400
     CHART_MARGIN = {"l": 50, "r": 50, "t": 50, "b": 50}
-    
+
     # Color schemes
     PRIMARY_COLORS = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+        "#7f7f7f",
+        "#bcbd22",
+        "#17becf",
     ]
-    
+
     CIVILIZATION_COLORS = {
         "Assyria": "#8b0000",
         "Babylon": "#4169e1",
@@ -45,53 +53,39 @@ class Config:
         "Greece": "#0000ff",
         "Persia": "#ff69b4",
         "Rome": "#dc143c",
-        "Vikings": "#708090"
+        "Vikings": "#708090",
     }
-    
+
     # Map visualization settings
     MAP_TILE_SIZE = 10
     MAP_OPACITY = 0.7
     TERRITORY_BORDER_WIDTH = 1
-    
+
     # Performance settings
     CACHE_TIMEOUT = 300  # 5 minutes
     LAZY_LOADING = True
     PAGINATION_SIZE = 50
-    
+
     # Chart type configurations
     CHART_CONFIGS = {
-        "timeline": {
-            "type": "line",
-            "mode": "lines+markers",
-            "marker_size": 6
-        },
-        "bar": {
-            "type": "bar",
-            "text_position": "auto"
-        },
-        "heatmap": {
-            "type": "heatmap",
-            "colorscale": "RdYlBu"
-        },
-        "scatter": {
-            "type": "scatter",
-            "mode": "markers",
-            "marker_size": 8
-        }
+        "timeline": {"type": "line", "mode": "lines+markers", "marker_size": 6},
+        "bar": {"type": "bar", "text_position": "auto"},
+        "heatmap": {"type": "heatmap", "colorscale": "RdYlBu"},
+        "scatter": {"type": "scatter", "mode": "markers", "marker_size": 8},
     }
-    
+
     # Data validation settings
     VALIDATION_RULES = {
         "max_turns": 1000,
         "max_players": 16,
         "valid_coordinates": {"min": 0, "max": 45},
-        "required_fields": ["file_name", "file_hash"]
+        "required_fields": ["file_name", "file_hash"],
     }
 
 
 class DevelopmentConfig(Config):
     """Development-specific configuration."""
-    
+
     DEBUG_MODE = True
     APP_HOST = "0.0.0.0"
     CACHE_TIMEOUT = 10  # Shorter cache for development
@@ -99,7 +93,7 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     """Production-specific configuration."""
-    
+
     DEBUG_MODE = False
     CACHE_TIMEOUT = 3600  # Longer cache for production
     LAZY_LOADING = True
@@ -107,7 +101,7 @@ class ProductionConfig(Config):
 
 class TestConfig(Config):
     """Test-specific configuration."""
-    
+
     DATABASE_PATH = ":memory:"  # In-memory database for tests
     DEBUG_MODE = False
     CACHE_TIMEOUT = 0  # No caching for tests
@@ -117,53 +111,70 @@ class TestConfig(Config):
 CONFIG_MAP = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
-    "testing": TestConfig
+    "testing": TestConfig,
 }
 
 
 def get_config(config_name: str = None) -> Config:
     """Get configuration object based on environment.
-    
+
     Args:
         config_name: Configuration name (development/production/testing)
-        
+
     Returns:
         Configuration object
     """
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
-    
+
     return CONFIG_MAP.get(config_name, DevelopmentConfig)
 
 
 # Application constants
 APP_CONSTANTS = {
     "VICTORY_CONDITIONS": [
-        "Conquest", "Wonder", "Ambition", "Legitimacy", "Culture", "Science"
+        "Conquest",
+        "Wonder",
+        "Ambition",
+        "Legitimacy",
+        "Culture",
+        "Science",
     ],
-    
-    "DIFFICULTY_LEVELS": [
-        "The Able", "The Good", "The Great", "The Magnificent"
-    ],
-    
-    "TURN_STYLES": [
-        "Simultaneous", "Sequential", "Classic"
-    ],
-    
+    "DIFFICULTY_LEVELS": ["The Able", "The Good", "The Great", "The Magnificent"],
+    "TURN_STYLES": ["Simultaneous", "Sequential", "Classic"],
     "MAP_CLASSES": [
-        "Continent", "Lakes", "Highlands", "Wetlands", "Inland Sea",
-        "Seven Seas", "Donut", "Riversland", "Oasis"
+        "Continent",
+        "Lakes",
+        "Highlands",
+        "Wetlands",
+        "Inland Sea",
+        "Seven Seas",
+        "Donut",
+        "Riversland",
+        "Oasis",
     ],
-    
     "RESOURCE_TYPES": [
-        "Food", "Stone", "Wood", "Iron", "Gold", "Science", 
-        "Culture", "Orders", "Training", "Civics"
+        "Food",
+        "Stone",
+        "Wood",
+        "Iron",
+        "Gold",
+        "Science",
+        "Culture",
+        "Orders",
+        "Training",
+        "Civics",
     ],
-    
     "EVENT_TYPES": [
-        "Battle", "CityFounded", "TechDiscovered", "ImprovementBuilt",
-        "UnitProduced", "BuildingConstructed", "TradeRoute", "Diplomacy"
-    ]
+        "Battle",
+        "CityFounded",
+        "TechDiscovered",
+        "ImprovementBuilt",
+        "UnitProduced",
+        "BuildingConstructed",
+        "TradeRoute",
+        "Diplomacy",
+    ],
 }
 
 
@@ -172,23 +183,23 @@ PAGE_CONFIG = {
     "overview": {
         "title": "Tournament Overview",
         "icon": "📊",
-        "description": "High-level tournament statistics and trends"
+        "description": "High-level tournament statistics and trends",
     },
     "matches": {
         "title": "Match Analysis",
         "icon": "🎯",
-        "description": "Detailed analysis of individual matches"
+        "description": "Detailed analysis of individual matches",
     },
     "players": {
         "title": "Player Performance",
         "icon": "👥",
-        "description": "Player statistics and performance metrics"
+        "description": "Player statistics and performance metrics",
     },
     "maps": {
         "title": "Map & Territory",
         "icon": "🗺️",
-        "description": "Territory control and map visualizations"
-    }
+        "description": "Territory control and map visualizations",
+    },
 }
 
 
@@ -199,7 +210,7 @@ LAYOUT_CONSTANTS = {
     "CARD_MARGIN": "10px",
     "FILTER_HEIGHT": "auto",
     "CHART_MIN_HEIGHT": "300px",
-    "TABLE_PAGE_SIZE": 20
+    "TABLE_PAGE_SIZE": 20,
 }
 
 
@@ -209,22 +220,20 @@ FILTER_OPTIONS = {
         {"label": "Last 7 days", "value": 7},
         {"label": "Last 30 days", "value": 30},
         {"label": "Last 90 days", "value": 90},
-        {"label": "All time", "value": "all"}
+        {"label": "All time", "value": "all"},
     ],
-    
     "match_durations": [
         {"label": "Short (≤50 turns)", "value": "short"},
         {"label": "Medium (51-100 turns)", "value": "medium"},
         {"label": "Long (101-150 turns)", "value": "long"},
-        {"label": "Very Long (>150 turns)", "value": "very_long"}
+        {"label": "Very Long (>150 turns)", "value": "very_long"},
     ],
-    
     "player_counts": [
         {"label": "2 players", "value": 2},
         {"label": "3 players", "value": 3},
         {"label": "4 players", "value": 4},
-        {"label": "5+ players", "value": 5}
-    ]
+        {"label": "5+ players", "value": 5},
+    ],
 }
 
 
@@ -236,7 +245,7 @@ DEFAULT_CHART_LAYOUT = {
     "legend": {"x": 0, "y": 1, "bgcolor": "rgba(255,255,255,0.8)"},
     "font": {"size": 12},
     "plot_bgcolor": "rgba(0,0,0,0)",
-    "paper_bgcolor": "rgba(0,0,0,0)"
+    "paper_bgcolor": "rgba(0,0,0,0)",
 }
 
 # Export civilization colors at module level for easier import
@@ -249,7 +258,7 @@ ERROR_MESSAGES = {
     "database_error": "Database connection error. Please try again.",
     "file_not_found": "Tournament file not found.",
     "invalid_match": "Invalid match ID provided.",
-    "parsing_error": "Error parsing tournament data."
+    "parsing_error": "Error parsing tournament data.",
 }
 
 
@@ -257,13 +266,13 @@ ERROR_MESSAGES = {
 SUCCESS_MESSAGES = {
     "import_complete": "Tournament data imported successfully.",
     "database_updated": "Database updated successfully.",
-    "export_complete": "Data exported successfully."
+    "export_complete": "Data exported successfully.",
 }
 
 
 def get_app_constants() -> Dict[str, Any]:
     """Get all application constants.
-    
+
     Returns:
         Dictionary containing all constants
     """
@@ -273,21 +282,21 @@ def get_app_constants() -> Dict[str, Any]:
         "LAYOUT_CONSTANTS": LAYOUT_CONSTANTS,
         "FILTER_OPTIONS": FILTER_OPTIONS,
         "ERROR_MESSAGES": ERROR_MESSAGES,
-        "SUCCESS_MESSAGES": SUCCESS_MESSAGES
+        "SUCCESS_MESSAGES": SUCCESS_MESSAGES,
     }
 
 
 def validate_config(config: Config) -> List[str]:
     """Validate configuration settings.
-    
+
     Args:
         config: Configuration object to validate
-        
+
     Returns:
         List of validation errors (empty if valid)
     """
     errors = []
-    
+
     # Check database path is writable
     try:
         db_path = Path(config.DATABASE_PATH)
@@ -295,21 +304,21 @@ def validate_config(config: Config) -> List[str]:
             errors.append(f"Database path not writable: {config.DATABASE_PATH}")
     except Exception as e:
         errors.append(f"Invalid database path: {e}")
-    
+
     # Check saves directory exists
     saves_path = Path(config.SAVES_DIRECTORY)
     if not saves_path.exists():
         errors.append(f"Saves directory does not exist: {config.SAVES_DIRECTORY}")
-    
+
     # Validate port range
     if not (1024 <= config.APP_PORT <= 65535):
         errors.append(f"Invalid port number: {config.APP_PORT}")
-    
+
     # Validate chart settings
     if config.MAX_CHART_POINTS <= 0:
         errors.append("MAX_CHART_POINTS must be positive")
-    
+
     if config.CHART_HEIGHT <= 0:
         errors.append("CHART_HEIGHT must be positive")
-    
+
     return errors
