@@ -360,11 +360,33 @@ class OldWorldSaveParser:
     def extract_logdata_events(self) -> List[Dict[str, Any]]:
         """Extract game events from LogData elements in Player/PermanentLogList sections.
 
-        LogData contains more detailed historical information than MemoryData,
-        including law adoptions, tech discoveries, and goal tracking.
+        LogData contains comprehensive turn-by-turn gameplay logs, providing much more
+        detailed historical information than MemoryData. This includes:
+        - Law adoptions (LAW_ADOPTED): Which laws were enacted and when
+        - Tech discoveries (TECH_DISCOVERED): Complete tech tree progression
+        - Goal tracking: Ambition start/completion events
+        - City events: Founding, production, breaches
+
+        The data comes from the PermanentLogList within each Player element, which
+        maintains a complete history of significant game events throughout the match.
+
+        Note on Player IDs:
+            XML uses 0-based player IDs (ID="0", ID="1", etc.)
+            Database uses 1-based player IDs (player_id=1, player_id=2, etc.)
+            Conversion: database_player_id = xml_id + 1
 
         Returns:
-            List of event dictionaries from LogData
+            List of event dictionaries with keys:
+                - turn_number: Turn when event occurred
+                - event_type: Type of event (e.g., 'LAW_ADOPTED', 'TECH_DISCOVERED')
+                - player_id: Database player ID (1-based)
+                - description: Human-readable event description
+                - x_coordinate: Optional X coordinate (None for LogData events)
+                - y_coordinate: Optional Y coordinate (None for LogData events)
+                - event_data: Optional JSON data with event-specific details
+
+        Raises:
+            ValueError: If XML not parsed yet (call extract_and_parse() first)
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
@@ -405,12 +427,23 @@ class OldWorldSaveParser:
     def _extract_single_logdata_event(self, log_elem: ET.Element, player_id: int) -> Optional[Dict[str, Any]]:
         """Extract a single LogData event.
 
+        LogData elements contain turn-by-turn gameplay logs. Each element has:
+        - Type: Event type (LAW_ADOPTED, TECH_DISCOVERED, etc.)
+        - Turn: Game turn number when event occurred
+        - Data1/2/3: Event-specific data (e.g., law name, tech name)
+        - Text: Human-readable description with HTML tags
+
         Args:
-            log_elem: LogData XML element
-            player_id: Database player ID (1-based)
+            log_elem: LogData XML element from PermanentLogList
+            player_id: Database player ID (1-based, not XML ID which is 0-based)
 
         Returns:
-            Event dictionary or None if event should be skipped
+            Event dictionary with standardized structure, or None if invalid/incomplete
+
+        Note:
+            Player IDs in XML are 0-based (ID="0", ID="1")
+            Database player IDs are 1-based (player_id 1, 2, 3...)
+            This method receives the already-converted database ID.
         """
         # Extract basic fields
         type_elem = log_elem.find('Type')
@@ -458,14 +491,23 @@ class OldWorldSaveParser:
                                    data2: Optional[str], data3: Optional[str]) -> Optional[Dict[str, Any]]:
         """Build event_data dict based on event type.
 
+        Extracts structured data from LogData Data1/Data2/Data3 fields based on
+        the event type. Different event types use these fields for different purposes:
+        - LAW_ADOPTED: Data1 contains the law constant (e.g., 'LAW_SLAVERY')
+        - TECH_DISCOVERED: Data1 contains the tech constant (e.g., 'TECH_WRITING')
+
         Args:
-            event_type: Type of LogData event
-            data1: Primary data field
-            data2: Secondary data field
-            data3: Tertiary data field
+            event_type: Type of LogData event (e.g., 'LAW_ADOPTED', 'TECH_DISCOVERED')
+            data1: Primary data field (most commonly used)
+            data2: Secondary data field (event-specific usage)
+            data3: Tertiary data field (event-specific usage)
 
         Returns:
-            Dictionary of event data or None
+            Dictionary of event data with event-specific keys, or None if no data to extract
+
+        Note:
+            Following YAGNI principle - only implement event types as needed.
+            Additional event types can be added here when required.
         """
         if event_type == 'LAW_ADOPTED' and data1:
             return {'law': data1}
@@ -481,19 +523,31 @@ class OldWorldSaveParser:
                               text: Optional[str]) -> str:
         """Format a LogData event into a readable description.
 
+        Creates human-readable descriptions from LogData events by:
+        1. Using event-specific formatting for known types (LAW_ADOPTED, TECH_DISCOVERED)
+        2. Falling back to the Text field from XML (with HTML tags stripped)
+        3. Finally falling back to the event type itself
+
         Args:
-            event_type: Type of event
-            event_data: Event data dictionary
-            text: Human-readable text from XML (may contain HTML tags)
+            event_type: Type of event (e.g., 'LAW_ADOPTED', 'TECH_DISCOVERED')
+            event_data: Event data dictionary with event-specific keys
+            text: Human-readable text from XML (may contain HTML tags like <link>)
 
         Returns:
-            Human-readable description
+            Human-readable description suitable for database storage
+
+        Note:
+            Text field often contains HTML markup (e.g., <link help="...">)
+            which is stripped for clean database storage. Length is limited to
+            200 characters to prevent database bloat.
         """
         if event_type == 'LAW_ADOPTED' and event_data and 'law' in event_data:
+            # Convert LAW_SLAVERY -> Slavery
             law_name = event_data['law'].replace('LAW_', '').replace('_', ' ').title()
             return f"Adopted {law_name}"
 
         if event_type == 'TECH_DISCOVERED' and event_data and 'tech' in event_data:
+            # Convert TECH_WRITING -> Writing
             tech_name = event_data['tech'].replace('TECH_', '').replace('_', ' ').title()
             return f"Discovered {tech_name}"
 
@@ -504,7 +558,7 @@ class OldWorldSaveParser:
             clean_text = re.sub(r'<[^>]+>', '', text)
             return clean_text[:200]  # Limit length
 
-        # Final fallback
+        # Final fallback: format event type as title
         return event_type.replace('_', ' ').title()
 
     def _format_memory_event(self, event_type: str, context_data: Optional[Dict[str, str]] = None) -> str:
@@ -1072,10 +1126,14 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     game_states = parser.extract_game_states()
 
     # Extract both MemoryData and LogData events
-    memory_events = parser.extract_events()
-    logdata_events = parser.extract_logdata_events()
+    memory_events = parser.extract_events()  # MemoryData: MEMORY* event types (limited historical data)
+    logdata_events = parser.extract_logdata_events()  # LogData: LAW_ADOPTED, TECH_DISCOVERED, etc. (comprehensive logs)
 
-    # Merge both event sources (no deduplication needed - separate namespaces)
+    # Merge both event sources
+    # No deduplication needed - MemoryData and LogData have completely separate event type namespaces:
+    #   - MemoryData: MEMORYPLAYER_*, MEMORYFAMILY_*, etc.
+    #   - LogData: LAW_ADOPTED, TECH_DISCOVERED, GOAL_STARTED, etc.
+    # They capture different types of historical information and can be safely concatenated.
     events = memory_events + logdata_events
 
     territories = parser.extract_territories()
