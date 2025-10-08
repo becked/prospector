@@ -285,12 +285,18 @@ class OldWorldSaveParser:
         This provides limited historical data compared to LogData.
 
         Player ID Mapping:
-            MemoryData uses 0-based player IDs in XML (Player=0, Player=1, ...).
-            These are converted to 1-based database player IDs (player_id=1, 2, ...).
-            This matches the mapping used in extract_logdata_events().
+            - Owner Player: The Player[@ID] element that contains the MemoryList
+              This is whose perspective/memory the event represents.
 
-            Example: XML <Player>0</Player> → database player_id=1
-                     XML <Player>1</Player> → database player_id=2
+            - Subject Player: The <Player> child element inside MemoryData
+              Only exists for MEMORYPLAYER_* events, represents the OTHER player.
+
+            - For MEMORYPLAYER_*: Use subject player (the <Player> child)
+            - For MEMORYTRIBE/FAMILY/RELIGION_*: Use owner player (parent Player[@ID])
+
+            XML uses 0-based IDs, database uses 1-based:
+                Example: XML Player[@ID="0"] → database player_id=1
+                         XML Player[@ID="1"] → database player_id=2
 
         Returns:
             List of event dictionaries from memory data, with player IDs mapped
@@ -305,28 +311,45 @@ class OldWorldSaveParser:
         character_lookup = self._build_character_lookup()
         city_lookup = self._build_city_lookup()
 
-        # Extract memory events - the only historical data available
-        memory_data_elements = self.root.findall('.//MemoryData')
+        # Iterate through Player elements to preserve ownership context
+        for player_element in self.root.findall('.//Player[@ID]'):
+            # Get the player ID who OWNS this MemoryList (0-based in XML)
+            owner_xml_id = self._safe_int(player_element.get('ID'))
+            if owner_xml_id is None:
+                continue
 
-        for mem in memory_data_elements:
-            # Extract basic memory event data
-            turn_elem = mem.find('Turn')
-            type_elem = mem.find('Type')
-            player_elem = mem.find('Player')
+            # Convert to 1-based database player_id
+            owner_player_id = owner_xml_id + 1
 
-            if turn_elem is not None and type_elem is not None:
+            # Find this player's MemoryList
+            memory_list = player_element.find('MemoryList')
+            if memory_list is None:
+                continue
+
+            # Process all MemoryData elements within this player's list
+            for mem in memory_list.findall('MemoryData'):
+                # Extract basic memory event data
+                turn_elem = mem.find('Turn')
+                type_elem = mem.find('Type')
+
+                if turn_elem is None or type_elem is None:
+                    continue
+
                 event_type = type_elem.text
                 turn_number = self._safe_int(turn_elem.text)
 
-                # Get player ID from MemoryData (0-based in XML, like LogData)
-                # Convert to 1-based database player_id to match database schema
-                raw_player_id = self._safe_int(player_elem.text) if player_elem is not None else None
+                # Determine player_id based on event type:
+                # - MEMORYPLAYER_*: Use the <Player> child (subject/opponent)
+                # - MEMORYTRIBE/FAMILY/RELIGION_*: Use the owner player (viewer)
+                player_elem = mem.find('Player')
 
-                # Convert 0-based XML player ID to 1-based database player_id
-                # XML Player=0 → database player_id=1
-                # XML Player=1 → database player_id=2
-                # This matches the LogData mapping in extract_logdata_events()
-                player_id = (raw_player_id + 1) if raw_player_id is not None else None
+                if player_elem is not None:
+                    # MEMORYPLAYER_* events: <Player> child is the subject (0-based)
+                    raw_subject_id = self._safe_int(player_elem.text)
+                    player_id = (raw_subject_id + 1) if raw_subject_id is not None else None
+                else:
+                    # MEMORYTRIBE/FAMILY/RELIGION_* events: use owner
+                    player_id = owner_player_id
 
                 # Extract additional context fields (note: actual XML uses IDs)
                 context_data = {}
