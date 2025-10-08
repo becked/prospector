@@ -281,10 +281,20 @@ class OldWorldSaveParser:
     def extract_events(self) -> List[Dict[str, Any]]:
         """Extract game events from MemoryData elements.
 
-        This is the only historical data available in Old World save files.
+        MemoryData contains character and diplomatic memories stored by the game AI.
+        This provides limited historical data compared to LogData.
+
+        Player ID Mapping:
+            MemoryData uses 0-based player IDs in XML (Player=0, Player=1, ...).
+            These are converted to 1-based database player IDs (player_id=1, 2, ...).
+            This matches the mapping used in extract_logdata_events().
+
+            Example: XML <Player>0</Player> → database player_id=1
+                     XML <Player>1</Player> → database player_id=2
 
         Returns:
-            List of event dictionaries from memory data
+            List of event dictionaries from memory data, with player IDs mapped
+            to 1-based database IDs for consistency with LogData events.
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
