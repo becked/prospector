@@ -4,14 +4,16 @@ This module contains predefined SQL queries for common data analysis tasks
 in the tournament visualization application.
 """
 
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
+
 from .database import TournamentDatabase, get_database
 
 
 class TournamentQueries:
     """Collection of reusable queries for tournament data analysis."""
-    
+
     def __init__(self, database: Optional[TournamentDatabase] = None) -> None:
         """Initialize with database connection.
         
@@ -19,7 +21,7 @@ class TournamentQueries:
             database: Database instance to use (defaults to global instance)
         """
         self.db = database or get_database()
-    
+
     def get_match_summary(self) -> pd.DataFrame:
         """Get comprehensive match summary data.
 
@@ -65,7 +67,7 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_player_performance(self) -> pd.DataFrame:
         """Get player performance statistics.
 
@@ -95,7 +97,7 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_civilization_performance(self) -> pd.DataFrame:
         """Get performance statistics by civilization.
         
@@ -120,10 +122,10 @@ class TournamentQueries:
         HAVING COUNT(DISTINCT p.match_id) > 0
         ORDER BY win_rate DESC, total_matches DESC
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_match_duration_analysis(self) -> pd.DataFrame:
         """Get match duration analysis.
         
@@ -150,10 +152,10 @@ class TournamentQueries:
         GROUP BY m.match_id, m.game_name, m.total_turns, m.map_size, m.turn_style
         ORDER BY m.total_turns DESC
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_head_to_head_stats(self, player1: str, player2: str) -> Dict[str, Any]:
         """Get head-to-head statistics between two players.
         
@@ -187,11 +189,11 @@ class TournamentQueries:
             MAX(save_date) as last_match
         FROM match_participants
         """
-        
+
         result = self.db.fetch_one(query, {
             "1": player1, "2": player2, "3": player1, "4": player2
         })
-        
+
         if result:
             return {
                 'total_matches': result[0],
@@ -201,9 +203,9 @@ class TournamentQueries:
                 'first_match': result[4],
                 'last_match': result[5]
             }
-        
+
         return {}
-    
+
     def get_map_performance_analysis(self) -> pd.DataFrame:
         """Get performance analysis by map characteristics.
         
@@ -224,10 +226,10 @@ class TournamentQueries:
         GROUP BY COALESCE(m.map_size, 'Unknown'), COALESCE(m.map_class, 'Unknown')
         ORDER BY total_matches DESC
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_turn_progression_data(self, match_id: int) -> pd.DataFrame:
         """Get turn-by-turn progression data for a specific match.
         
@@ -251,10 +253,10 @@ class TournamentQueries:
         GROUP BY gs.turn_number, gs.game_year, p.player_name, p.civilization
         ORDER BY gs.turn_number
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
-    
+
     def get_resource_progression(self, match_id: int, player_name: Optional[str] = None) -> pd.DataFrame:
         """Get resource progression over time for a match.
         
@@ -275,18 +277,18 @@ class TournamentQueries:
         JOIN players p ON r.player_id = p.player_id
         WHERE r.match_id = ?
         """
-        
+
         params = [match_id]
-        
+
         if player_name:
             base_query += " AND p.player_name = ?"
             params.append(player_name)
-        
+
         base_query += " ORDER BY r.turn_number, p.player_name, r.resource_type"
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(base_query, params).df()
-    
+
     def get_event_timeline(self, match_id: int, event_types: Optional[List[str]] = None) -> pd.DataFrame:
         """Get event timeline for a specific match.
 
@@ -401,7 +403,7 @@ class TournamentQueries:
                 return combined
             else:
                 return regular_events
-    
+
     def get_territory_control_summary(self, match_id: int) -> pd.DataFrame:
         """Get territory control summary over time.
         
@@ -430,10 +432,10 @@ class TournamentQueries:
         FROM territory_counts
         ORDER BY turn_number, controlled_territories DESC
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
-    
+
     def get_victory_condition_analysis(self) -> pd.DataFrame:
         """Get analysis of victory conditions and their success rates.
         
@@ -451,10 +453,10 @@ class TournamentQueries:
         GROUP BY COALESCE(m.victory_conditions, 'Unknown')
         ORDER BY total_matches DESC
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
-    
+
     def get_recent_matches(self, limit: int = 10) -> pd.DataFrame:
         """Get most recently processed matches.
         
@@ -483,10 +485,10 @@ class TournamentQueries:
         ORDER BY m.processed_date DESC
         LIMIT ?
         """
-        
+
         with self.db.get_connection() as conn:
             return conn.execute(query, [limit]).df()
-    
+
     def get_database_statistics(self) -> Dict[str, Any]:
         """Get comprehensive database statistics.
 

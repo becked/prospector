@@ -4,19 +4,19 @@ This module handles DuckDB connection, schema creation, and database operations
 for the tournament visualization application.
 """
 
-import duckdb
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
 import logging
 import threading
 from contextlib import contextmanager
+from typing import Any, Dict, List, Optional, Tuple
+
+import duckdb
 
 logger = logging.getLogger(__name__)
 
 
 class TournamentDatabase:
     """Manages database connection and schema for tournament data."""
-    
+
     def __init__(self, db_path: str = "tournament_data.duckdb", read_only: bool = True) -> None:
         """Initialize database connection.
 
@@ -28,7 +28,7 @@ class TournamentDatabase:
         self.read_only = read_only
         self.connection: Optional[duckdb.DuckDBPyConnection] = None
         self._lock = threading.RLock()  # Use reentrant lock to avoid deadlocks
-    
+
     @contextmanager
     def get_connection(self):
         """Context manager for database connections with proper locking.
@@ -42,7 +42,7 @@ class TournamentDatabase:
             # Ensure the shared connection is established
             conn = self.connect()
             yield conn
-        
+
     def connect(self) -> duckdb.DuckDBPyConnection:
         """Establish database connection.
 
@@ -61,7 +61,7 @@ class TournamentDatabase:
                     mode = "read-only" if self.read_only else "read-write"
                     logger.info(f"Connected to database: {self.db_path} ({mode} mode, single shared connection)")
         return self.connection
-    
+
     def close(self) -> None:
         """Close database connection."""
         with self._lock:
@@ -69,7 +69,7 @@ class TournamentDatabase:
                 self.connection.close()
                 self.connection = None
                 logger.info("Shared database connection closed")
-    
+
     def execute_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> None:
         """Execute a SQL query (for INSERT/UPDATE/DELETE operations).
         
@@ -79,7 +79,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query, parameters or {})
-    
+
     def fetch_all(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Tuple]:
         """Execute query and fetch all results.
         
@@ -93,7 +93,7 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             result = conn.execute(query, parameters or {})
             return result.fetchall()
-    
+
     def fetch_one(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Optional[Tuple]:
         """Execute query and fetch one result.
         
@@ -107,7 +107,7 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             result = conn.execute(query, parameters or {})
             return result.fetchone()
-    
+
     def create_schema(self) -> None:
         """Create the complete database schema."""
         logger.info("Creating database schema...")
@@ -186,7 +186,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query)
-    
+
     def _create_players_table(self) -> None:
         """Create the players table."""
         query = """
@@ -250,7 +250,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query)
-    
+
     def _create_territories_table(self) -> None:
         """Create the territories table."""
         query = """
@@ -276,7 +276,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query)
-    
+
     def _create_events_table(self) -> None:
         """Create the events table."""
         query = """
@@ -304,7 +304,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query)
-    
+
     def _create_resources_table(self) -> None:
         """Create the resources table."""
         query = """
@@ -495,7 +495,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query)
-    
+
     def _create_views(self) -> None:
         """Create performance optimization views."""
         # Player performance summary view
@@ -542,7 +542,7 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             conn.execute(player_performance_query)
             conn.execute(match_summary_query)
-    
+
     def _mark_schema_version(self, version: str, description: str) -> None:
         """Mark a schema version as applied.
 
@@ -556,7 +556,7 @@ class TournamentDatabase:
         """
         with self.get_connection() as conn:
             conn.execute(query, {"1": version, "2": description})
-    
+
     def get_processed_files(self) -> List[Tuple[str, str]]:
         """Get list of already processed files with their hashes.
         
@@ -565,7 +565,7 @@ class TournamentDatabase:
         """
         query = "SELECT file_name, file_hash FROM matches"
         return self.fetch_all(query)
-    
+
     def file_already_processed(self, filename: str, file_hash: str) -> bool:
         """Check if a file has already been processed.
         
@@ -579,7 +579,7 @@ class TournamentDatabase:
         query = "SELECT 1 FROM matches WHERE file_name = ? AND file_hash = ?"
         result = self.fetch_one(query, {"1": filename, "2": file_hash})
         return result is not None
-    
+
     def insert_match(self, match_data: Dict[str, Any]) -> int:
         """Insert a new match record.
 
@@ -620,7 +620,7 @@ class TournamentDatabase:
             ])
 
             return match_id
-    
+
     def insert_player(self, player_data: Dict[str, Any]) -> int:
         """Insert a new player record.
 
@@ -705,7 +705,7 @@ class TournamentDatabase:
                 ])
 
             conn.executemany(query, values)
-    
+
     def bulk_insert_territories(self, territories_data: List[Dict[str, Any]]) -> None:
         """Bulk insert territory records for better performance.
 
@@ -737,7 +737,7 @@ class TournamentDatabase:
                 ])
 
             conn.executemany(query, values)
-    
+
     def bulk_insert_resources(self, resources_data: List[Dict[str, Any]]) -> None:
         """Bulk insert resource records for better performance.
 

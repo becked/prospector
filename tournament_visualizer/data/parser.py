@@ -4,19 +4,19 @@ This module handles parsing of Old World game save XML files to extract
 tournament data including match information, players, game state, and events.
 """
 
-import xml.etree.ElementTree as ET
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime
-import zipfile
 import logging
+import xml.etree.ElementTree as ET
+import zipfile
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class OldWorldSaveParser:
     """Parser for Old World game save XML files."""
-    
+
     def __init__(self, zip_file_path: str) -> None:
         """Initialize parser with a zip file path.
         
@@ -26,7 +26,7 @@ class OldWorldSaveParser:
         self.zip_file_path = Path(zip_file_path)
         self.xml_content: Optional[str] = None
         self.root: Optional[ET.Element] = None
-        
+
     def parse_xml_file(self, xml_file_path: str) -> None:
         """Parse XML directly from a file (for testing purposes).
 
@@ -35,7 +35,7 @@ class OldWorldSaveParser:
         """
         xml_path = Path(xml_file_path)
         try:
-            with open(xml_path, 'r', encoding='utf-8') as f:
+            with open(xml_path, encoding='utf-8') as f:
                 self.xml_content = f.read()
 
             self.root = ET.fromstring(self.xml_content)
@@ -72,7 +72,7 @@ class OldWorldSaveParser:
             logger.info(f"Successfully parsed XML with root element: {self.root.tag}")
         except ET.ParseError as e:
             raise ValueError(f"Error parsing XML from {self.zip_file_path}: {e}")
-    
+
     def extract_basic_metadata(self) -> Dict[str, Any]:
         """Extract basic match metadata from the save file.
 
@@ -81,7 +81,7 @@ class OldWorldSaveParser:
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
-        
+
         metadata = {
             'file_name': self.zip_file_path.name,
             'game_name': None,
@@ -95,33 +95,33 @@ class OldWorldSaveParser:
             'victory_conditions': None,
             'total_turns': 0
         }
-        
+
         # Extract metadata from root element attributes (Old World save format)
         root_attrs = self.root.attrib
-        
+
         # Game name
         metadata['game_name'] = root_attrs.get('GameName')
-        
+
         # Save date
         save_date_str = root_attrs.get('SaveDate')
         if save_date_str:
             metadata['save_date'] = self._parse_date(save_date_str)
-        
+
         # Game mode
         metadata['game_mode'] = root_attrs.get('GameMode')
-        
+
         # Turn style
         turn_style = root_attrs.get('TurnStyle')
         if turn_style:
             # Convert from TURNSTYLE_TIGHT to more readable format
             metadata['turn_style'] = turn_style.replace('TURNSTYLE_', '').replace('_', ' ').title()
-        
+
         # Turn timer
         turn_timer = root_attrs.get('TurnTimer')
         if turn_timer:
             # Convert from TURNTIMER_SLOW to more readable format
             metadata['turn_timer'] = turn_timer.replace('TURNTIMER_', '').replace('_', ' ').title()
-        
+
         # Map information
         map_class = root_attrs.get('MapClass')
         if map_class:
@@ -156,12 +156,12 @@ class OldWorldSaveParser:
         if map_aspect_ratio:
             # Convert from MAPASPECTRATIO_WIDE to Wide
             metadata['map_aspect_ratio'] = map_aspect_ratio.replace('MAPASPECTRATIO_', '').replace('_', ' ').title()
-        
+
         # Map dimensions as backup
         map_width = root_attrs.get('MapWidth')
         if map_width and not metadata['map_size']:
             metadata['map_size'] = f"{map_width}x{map_width}"
-        
+
         # Extract victory conditions from VictoryEnabled section
         victory_enabled = self.root.find('.//VictoryEnabled')
         if victory_enabled is not None:
@@ -171,7 +171,7 @@ class OldWorldSaveParser:
                 victory_type = victory_elem.tag.replace('VICTORY_', '').replace('_', ' ').title()
                 conditions.append(victory_type)
             metadata['victory_conditions'] = ', '.join(conditions) if conditions else None
-        
+
         # Get total turns from Game/Turn element
         game_elem = self.root.find('.//Game')
         if game_elem is not None:
@@ -179,7 +179,7 @@ class OldWorldSaveParser:
             turn_elem = game_elem.find('Turn')
             if turn_elem is not None and turn_elem.text:
                 metadata['total_turns'] = self._safe_int(turn_elem.text, 0)
-        
+
         # If no turns found, try to extract from filename
         if metadata['total_turns'] == 0:
             # Look for Year pattern in filename (e.g., "Year69")
@@ -190,15 +190,15 @@ class OldWorldSaveParser:
                     xml_files = zip_file.namelist()
             except:
                 pass
-            
+
             if xml_files:
                 xml_filename = xml_files[0]
                 year_match = re.search(r'Year(\d+)', xml_filename)
                 if year_match:
                     metadata['total_turns'] = int(year_match.group(1))
-        
+
         return metadata
-    
+
     def extract_players(self) -> List[Dict[str, Any]]:
         """Extract player information from the save file.
         
@@ -207,18 +207,18 @@ class OldWorldSaveParser:
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
-        
+
         players = []
-        
+
         # Find all player elements that have OnlineID (human players)
         player_elements = self.root.findall('.//Player')
-        
+
         for i, player_elem in enumerate(player_elements):
             # Only process players with OnlineID (human players)
             online_id = player_elem.get('OnlineID')
             if not online_id:
                 continue
-                
+
             # Extract civilization from Nation attribute
             nation = player_elem.get('Nation')
             civilization = None
@@ -239,17 +239,17 @@ class OldWorldSaveParser:
                 'is_human': True,  # All players with OnlineID are human
                 'final_turn_active': None
             }
-            
+
             # Try to determine the last turn this player was active
             player_id = player_elem.get('ID')
             if player_id:
                 last_turn = self._find_last_active_turn(player_id)
                 player_data['final_turn_active'] = last_turn
-            
+
             players.append(player_data)
-        
+
         return players
-    
+
     def extract_game_states(self) -> List[Dict[str, Any]]:
         """Extract turn-by-turn game state information.
         
@@ -258,26 +258,26 @@ class OldWorldSaveParser:
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
-        
+
         game_states = []
-        
+
         # Find all turn elements
         turn_elements = self.root.findall('.//Turn')
-        
+
         for turn_elem in turn_elements:
             turn_number = self._safe_int(turn_elem.get('number'), 0)
-            
+
             state_data = {
                 'turn_number': turn_number,
                 'active_player_id': self._safe_int(turn_elem.get('activePlayer')),
                 'game_year': self._safe_int(turn_elem.get('year')),
                 'turn_timestamp': self._parse_date(turn_elem.get('timestamp'))
             }
-            
+
             game_states.append(state_data)
-        
+
         return game_states
-    
+
     def extract_events(self) -> List[Dict[str, Any]]:
         """Extract game events from MemoryData elements.
 
@@ -622,7 +622,7 @@ class OldWorldSaveParser:
                          .title())
 
         return formatted
-    
+
     def extract_territories(self) -> List[Dict[str, Any]]:
         """Extract territory control information over time.
 
@@ -637,7 +637,7 @@ class OldWorldSaveParser:
 
         # No turn-by-turn territory data available in save files
         return []
-    
+
     def extract_resources(self) -> List[Dict[str, Any]]:
         """Extract player resource information over time.
 
@@ -652,7 +652,7 @@ class OldWorldSaveParser:
 
         # No turn-by-turn resource data available in save files
         return []
-    
+
     def extract_technology_progress(self) -> List[Dict[str, Any]]:
         """Extract technology research progress from player data.
 
@@ -921,7 +921,7 @@ class OldWorldSaveParser:
                 winner_id = i + 1  # 1-based player IDs
 
         return winner_id
-    
+
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse a date string into a datetime object.
         
@@ -933,7 +933,7 @@ class OldWorldSaveParser:
         """
         if not date_str:
             return None
-        
+
         # Try different date formats
         formats = [
             '%d %B %Y',  # Old World format: "20 September 2025"
@@ -943,16 +943,16 @@ class OldWorldSaveParser:
             '%m/%d/%Y',
             '%Y%m%d_%H%M%S'
         ]
-        
+
         for fmt in formats:
             try:
                 return datetime.strptime(date_str, fmt)
             except ValueError:
                 continue
-        
+
         logger.warning(f"Could not parse date: {date_str}")
         return None
-    
+
     def _safe_int(self, value: Optional[str], default: Optional[int] = None) -> Optional[int]:
         """Safely convert a string to integer.
         
@@ -965,12 +965,12 @@ class OldWorldSaveParser:
         """
         if value is None:
             return default
-        
+
         try:
             return int(value)
         except (ValueError, TypeError):
             return default
-    
+
     def _find_last_active_turn(self, player_id: str) -> Optional[int]:
         """Find the last turn a player was active.
         
@@ -982,21 +982,21 @@ class OldWorldSaveParser:
         """
         if self.root is None:
             return None
-        
+
         last_turn = None
-        
+
         # Look through all turns for player activity
         turn_elements = self.root.findall('.//Turn')
-        
+
         for turn_elem in turn_elements:
             turn_number = self._safe_int(turn_elem.get('number'))
             active_player = turn_elem.get('activePlayer')
-            
+
             if active_player == player_id and turn_number is not None:
                 last_turn = turn_number
-        
+
         return last_turn
-    
+
     def _build_character_lookup(self) -> Dict[int, str]:
         """Build a lookup table mapping character IDs to full names.
 
@@ -1080,7 +1080,7 @@ class OldWorldSaveParser:
             return f"Technology discovered: {tech_name}"
         else:
             return f"{event_type} event"
-    
+
     def _extract_event_attributes(self, event_elem: ET.Element) -> Optional[str]:
         """Extract additional event data as JSON string.
         
@@ -1091,20 +1091,20 @@ class OldWorldSaveParser:
             JSON string of event attributes or None
         """
         import json
-        
+
         # Get all attributes except the basic ones
         basic_attrs = {'turn', 'player', 'x', 'y', 'description'}
         extra_attrs = {
             key: value for key, value in event_elem.attrib.items()
             if key not in basic_attrs
         }
-        
+
         if extra_attrs:
             try:
                 return json.dumps(extra_attrs)
             except (TypeError, ValueError):
                 pass
-        
+
         return None
 
 
