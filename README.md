@@ -164,6 +164,31 @@ export DASH_DEBUG="True"
 uv run python tournament_visualizer/app.py
 ```
 
+## 📊 Data Sources
+
+The tournament analyzer extracts data from Old World save files (`.zip` archives containing XML). Two types of historical data are captured:
+
+### MemoryData Events
+Character and diplomatic memories stored by the game AI (limited historical data):
+- Character events (promotions, marriages, deaths)
+- Tribal interactions
+- Family events
+- ~145 event types
+
+### LogData Events
+Comprehensive turn-by-turn gameplay logs:
+- **Law Adoptions**: Which laws were adopted and when (`LAW_ADOPTED`)
+- **Tech Discoveries**: Complete tech tree progression (`TECH_DISCOVERED`)
+- **Goal Tracking**: Ambition start/completion events
+- **City Events**: Founding, production, breaches
+- ~79 event types
+
+This enables analysis of:
+- Time to reach 4 laws / 7 laws
+- Tech progression paths
+- Tech availability at law milestones
+- Comparative player progression
+
 ## 📄 Database Schema
 
 The application uses DuckDB with the following core tables:
@@ -172,8 +197,39 @@ The application uses DuckDB with the following core tables:
 - **players**: Player information and performance stats
 - **game_state**: Turn-by-turn game progression
 - **territories**: Territory control over time
-- **events**: Game events and timeline data
+- **events**: Game events and timeline data (MemoryData + LogData)
 - **resources**: Player resource progression
+
+## 📈 Analytics Queries
+
+### Law Progression
+```python
+from tournament_visualizer.data.database import get_database
+from tournament_visualizer.data.queries import get_queries
+
+db = get_database()
+queries = get_queries()
+progression = queries.get_law_progression_by_match(match_id=10)
+# Returns: player_name, turn_to_4_laws, turn_to_7_laws, total_laws
+```
+
+### Tech Timeline
+```python
+from tournament_visualizer.data.queries import get_queries
+
+queries = get_queries()
+timeline = queries.get_tech_timeline_by_match(match_id=10)
+# Returns: player_name, turn_number, tech_name, tech_sequence
+```
+
+### Techs at Law Milestone
+```python
+from tournament_visualizer.data.queries import get_queries
+
+queries = get_queries()
+techs = queries.get_techs_at_law_milestone(match_id=10, milestone=4)
+# Returns: player_name, milestone_turn, tech_count, tech_list
+```
 
 ## 🔍 Troubleshooting
 
