@@ -109,12 +109,11 @@ layout = html.Div([
                 title="Recent Matches",
                 table_id="overview-matches-table",
                 columns=[
-                    {"name": "Game", "id": "game_name"},
+                    {"name": "Match", "id": "match_link", "presentation": "markdown"},
                     {"name": "Date", "id": "save_date", "type": "datetime"},
                     {"name": "Turns", "id": "total_turns", "type": "numeric"},
-                    {"name": "Players", "id": "player_count", "type": "numeric"},
                     {"name": "Winner", "id": "winner_name"},
-                    {"name": "Map", "id": "map_size"}
+                    {"name": "Map", "id": "map_info"}
                 ]
             )
         ], width=12)
@@ -305,17 +304,18 @@ def update_matches_table(refresh_clicks: int) -> List[Dict[str, Any]]:
         # Format data for table
         table_data = []
         for _, row in df.iterrows():
+            match_id = row.get("match_id")
+            players = f"{row.get('player1', 'Unknown')} vs {row.get('player2', 'Unknown')}"
             table_data.append({
-                "game_name": row.get("game_name", "Unknown"),
+                "match_link": f"[{players}](/matches?match_id={match_id})",
                 "save_date": row.get("save_date", "").strftime("%Y-%m-%d") if pd.notna(row.get("save_date")) else "",
                 "total_turns": row.get("total_turns", 0),
-                "player_count": row.get("player_count", 0),
                 "winner_name": row.get("winner_name", "Unknown"),
-                "map_size": row.get("map_size", "Unknown")
+                "map_info": row.get("map_info", "Unknown").strip()
             })
-        
+
         return table_data
-        
+
     except Exception as e:
         logger.error(f"Error updating matches table: {e}")
         return []

@@ -33,13 +33,16 @@ dash.register_page(__name__, path="/matches", name="Matches")
 
 # Page layout
 layout = html.Div([
+    # URL tracking
+    dcc.Location(id="match-url", refresh=False),
+
     # Page header
     create_page_header(
         title=PAGE_CONFIG["matches"]["title"],
         description=PAGE_CONFIG["matches"]["description"],
         icon="bi-target"
     ),
-    
+
     # Breadcrumb navigation
     html.Div(id="match-breadcrumb"),
     
@@ -83,6 +86,45 @@ layout = html.Div([
 
 
 @callback(
+    Output("match-selector", "value"),
+    Input("match-url", "search")
+)
+def set_match_from_url(search: str) -> Optional[int]:
+    """Set match selector value from URL query parameter.
+
+    Args:
+        search: URL query string (e.g., "?match_id=123")
+
+    Returns:
+        Match ID if found in URL, else None
+    """
+    if not search:
+        return None
+
+    from urllib.parse import parse_qs
+    params = parse_qs(search.lstrip("?"))
+    match_id = params.get("match_id", [None])[0]
+    return int(match_id) if match_id else None
+
+
+@callback(
+    Output("match-url", "search"),
+    Input("match-selector", "value"),
+    prevent_initial_call=True
+)
+def update_url_from_match(match_id: Optional[int]) -> str:
+    """Update URL query parameter when match is selected.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        URL query string
+    """
+    return f"?match_id={match_id}" if match_id else ""
+
+
+@callback(
     Output("match-selector", "options"),
     Input("matches-refresh-btn", "n_clicks"),
     prevent_initial_call=False
@@ -120,7 +162,7 @@ def update_match_options(refresh_clicks: Optional[int]) -> List[Dict[str, Any]]:
                 date_str = 'Unknown Date'
 
             # Include nation with winner name
-            winner_display = f"{winner_civ} ({winner})" if winner_civ != 'Unknown' else winner
+            winner_display = f"{winner} ({winner_civ})" if winner_civ != 'Unknown' else winner
 
             # Use players_with_nations if available, otherwise show game name
             if players_with_nations:
@@ -186,7 +228,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
 
         winner_name = match_data.get('winner_name', 'Unknown')
         winner_civ = match_data.get('winner_civilization', 'Unknown')
-        winner_display = f"{winner_civ} ({winner_name})" if winner_civ != 'Unknown' else winner_name
+        winner_display = f"{winner_name} ({winner_civ})" if winner_civ != 'Unknown' else winner_name
 
         # Create match details layout
         details_content = [
@@ -235,7 +277,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         dbc.Row([
                             dbc.Col([
                                 create_chart_card(
-                                    title="Memory Events Timeline",
+                                    title="Events Timeline (All Event Types)",
                                     chart_id="match-progression-chart",
                                     height="400px"
                                 )
@@ -248,6 +290,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     table_id="match-turns-table",
                                     columns=[
                                         {"name": "Turn", "id": "turn_number", "type": "numeric"},
+                                        {"name": "Category", "id": "event_category"},
+                                        {"name": "Player", "id": "player_name"},
                                         {"name": "Description", "id": "description"}
                                     ]
                                 )
@@ -402,52 +446,57 @@ def update_match_details(match_id: Optional[int]) -> tuple:
     Input("match-selector", "value")
 )
 def update_progression_chart(match_id: Optional[int]):
-    """Update the memory events timeline chart.
+    """Update the events timeline chart with all event types.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Plotly figure for memory events timeline as stacked bar chart
+        Plotly figure for events timeline as stacked bar chart
     """
     if not match_id:
-        return create_empty_chart_placeholder("Select a match to view memory events")
+        return create_empty_chart_placeholder("Select a match to view events")
 
     try:
         queries = get_queries()
-        # Get event timeline from memory events
+        # Get event timeline (includes both MemoryData and LogData events)
         df = queries.get_event_timeline(match_id, None)
 
         if df.empty:
-            return create_empty_chart_placeholder("No memory events data available")
+            return create_empty_chart_placeholder("No event data available")
 
-        # Count events per turn by player
+        # Count events per turn by event category
         import pandas as pd
         import plotly.graph_objects as go
         from tournament_visualizer.components.charts import create_base_figure
         from tournament_visualizer.config import Config
 
-        # Group by turn and player
-        events_by_player = df.groupby(['turn_number', 'player_name']).size().reset_index(name='event_count')
+        # Group by turn and event category
+        events_by_category = df.groupby(['turn_number', 'event_category']).size().reset_index(name='event_count')
 
         # Create stacked bar chart
         fig = create_base_figure(
-            title="Memory Events Timeline",
+            title="Events Timeline (Memory + Game Log Events)",
             x_title="Turn Number",
             y_title="Number of Events"
         )
 
-        # Get unique players
-        players = events_by_player['player_name'].unique()
+        # Get unique categories
+        categories = events_by_category['event_category'].unique()
 
-        # Add a bar trace for each player
-        for i, player in enumerate(players):
-            player_data = events_by_player[events_by_player['player_name'] == player]
+        # Add a bar trace for each category
+        category_colors = {
+            'Game Log': Config.PRIMARY_COLORS[0],  # Blue for LogData
+            'Memory': Config.PRIMARY_COLORS[2]     # Purple for MemoryData
+        }
+
+        for category in categories:
+            category_data = events_by_category[events_by_category['event_category'] == category]
             fig.add_trace(go.Bar(
-                name=player,
-                x=player_data['turn_number'],
-                y=player_data['event_count'],
-                marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+                name=category,
+                x=category_data['turn_number'],
+                y=category_data['event_count'],
+                marker_color=category_colors.get(category, Config.PRIMARY_COLORS[3])
             ))
 
         # Set barmode to stack
@@ -456,7 +505,7 @@ def update_progression_chart(match_id: Optional[int]):
         return fig
 
     except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading memory events: {str(e)}")
+        return create_empty_chart_placeholder(f"Error loading events: {str(e)}")
 
 
 
@@ -466,7 +515,7 @@ def update_progression_chart(match_id: Optional[int]):
     Input("match-selector", "value")
 )
 def update_turns_table(match_id: Optional[int]) -> List[Dict[str, Any]]:
-    """Update the event details table.
+    """Update the event details table with both MemoryData and LogData events.
 
     Args:
         match_id: Selected match ID
@@ -479,14 +528,14 @@ def update_turns_table(match_id: Optional[int]) -> List[Dict[str, Any]]:
 
     try:
         queries = get_queries()
-        # Get event timeline data (from memory events)
+        # Get event timeline data (includes both MemoryData and LogData events)
         df = queries.get_event_timeline(match_id, None)
 
         if df.empty:
             return []
 
-        # Limit to 100 most recent events for display
-        return df.head(100).to_dict('records')
+        # Limit to 500 most recent events for display (increased from 100 to show more LogData events)
+        return df.head(500).to_dict('records')
 
     except Exception as e:
         logger.error(f"Error updating events table: {e}")

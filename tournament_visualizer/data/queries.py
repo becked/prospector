@@ -33,7 +33,7 @@ class TournamentQueries:
             SELECT
                 match_id,
                 STRING_AGG(
-                    COALESCE(civilization, 'Unknown') || ' (' || player_name || ')',
+                    player_name || ' (' || COALESCE(civilization, 'Unknown') || ')',
                     ' vs '
                     ORDER BY player_id
                 ) as players_with_nations
@@ -290,53 +290,70 @@ class TournamentQueries:
             return conn.execute(base_query, params).df()
 
     def get_event_timeline(self, match_id: int, event_types: Optional[List[str]] = None) -> pd.DataFrame:
-        """Get event timeline for a specific match.
+        """Get event timeline for a specific match, including both MemoryData and LogData events.
 
         Args:
             match_id: ID of the match
             event_types: Optional list of event types to filter by
 
         Returns:
-            DataFrame with event timeline data, with MEMORYPLAYER_ATTACKED_UNIT events aggregated
+            DataFrame with event timeline data, showing individual events with better categorization
         """
-        # Get regular events (excluding player attacked unit)
-        # Group by turn and event type to remove duplicates
+        # Build the main query to get all events
+        # Excludes MEMORYPLAYER_* events as they lack useful context
         base_query = """
-        WITH deduplicated_events AS (
+        WITH categorized_events AS (
             SELECT
+                e.event_id,
                 e.turn_number,
                 e.event_type,
-                MIN(e.event_id) as event_id,
-                MAX(p.player_name) as player_name,
-                MAX(e.description) as description,
-                MAX(e.x_coordinate) as x_coordinate,
-                MAX(e.y_coordinate) as y_coordinate,
-                MAX(CASE
-                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.family') IS NOT NULL 
+                p.player_name,
+                e.description,
+                e.x_coordinate,
+                e.y_coordinate,
+                CASE
+                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.family') IS NOT NULL
                         THEN json_extract(e.event_data, '$.family')
-                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.religion') IS NOT NULL 
+                    WHEN e.event_data IS NOT NULL AND json_extract(e.event_data, '$.religion') IS NOT NULL
                         THEN json_extract(e.event_data, '$.religion')
                     ELSE NULL
-                END) as ambition,
-                COUNT(*) as occurrence_count
+                END as ambition,
+                CASE
+                    WHEN e.event_type LIKE 'MEMORY%' THEN 'Memory'
+                    ELSE 'Game Log'
+                END as event_category,
+                CASE
+                    -- LogData events get higher priority for display
+                    WHEN e.event_type = 'LAW_ADOPTED' THEN 1
+                    WHEN e.event_type = 'TECH_DISCOVERED' THEN 2
+                    WHEN e.event_type = 'GOAL_STARTED' THEN 3
+                    WHEN e.event_type = 'GOAL_FINISHED' THEN 4
+                    WHEN e.event_type = 'CITY_FOUNDED' THEN 5
+                    WHEN e.event_type = 'WONDER_ACTIVITY' THEN 6
+                    WHEN e.event_type = 'CHARACTER_BIRTH' THEN 7
+                    WHEN e.event_type = 'CHARACTER_DEATH' THEN 8
+                    WHEN e.event_type = 'RELIGION_FOUNDED' THEN 9
+                    WHEN e.event_type = 'THEOLOGY_ESTABLISHED' THEN 10
+                    WHEN e.event_type LIKE 'TEAM_%' THEN 11
+                    WHEN e.event_type LIKE 'TRIBE_%' THEN 12
+                    ELSE 99
+                END as display_priority
             FROM events e
-            LEFT JOIN players p ON e.player_id = p.player_id
+            LEFT JOIN players p ON e.player_id = p.player_id AND e.match_id = p.match_id
             WHERE e.match_id = ?
-                AND e.event_type != 'MEMORYPLAYER_ATTACKED_UNIT'
-            GROUP BY e.turn_number, e.event_type
+                -- Exclude all MEMORYPLAYER_* events as they lack useful context
+                AND e.event_type NOT LIKE 'MEMORYPLAYER_%'
         )
         SELECT
             turn_number,
             event_type,
             player_name,
-            CASE
-                WHEN occurrence_count > 1 THEN description || ' (' || occurrence_count || 'x)'
-                ELSE description
-            END as description,
+            description,
             x_coordinate,
             y_coordinate,
-            ambition
-        FROM deduplicated_events
+            ambition,
+            event_category
+        FROM categorized_events
         WHERE 1=1
         """
 
@@ -347,62 +364,10 @@ class TournamentQueries:
             base_query += f" AND event_type IN ({placeholders})"
             params.extend(event_types)
 
-        base_query += " ORDER BY turn_number, event_type"
+        base_query += " ORDER BY turn_number DESC, display_priority, event_type, player_name"
 
         with self.db.get_connection() as conn:
-            regular_events = conn.execute(base_query, params).df()
-
-            # Get aggregated attack events
-            attack_query = """
-            WITH attack_summary AS (
-                SELECT
-                    e.turn_number,
-                    e.player_id,
-                    e.match_id,
-                    p1.player_name as attacker_name,
-                    COUNT(*) as attack_count
-                FROM events e
-                LEFT JOIN players p1 ON e.player_id = p1.player_id
-                WHERE e.match_id = ?
-                    AND e.event_type = 'MEMORYPLAYER_ATTACKED_UNIT'
-                GROUP BY e.turn_number, e.player_id, e.match_id, p1.player_name
-            ),
-            target_lookup AS (
-                SELECT
-                    a.turn_number,
-                    a.player_id,
-                    a.match_id,
-                    a.attacker_name,
-                    a.attack_count,
-                    (SELECT p2.player_name
-                     FROM players p2
-                     WHERE p2.match_id = a.match_id
-                       AND p2.player_id != a.player_id
-                     LIMIT 1) as target_name
-                FROM attack_summary a
-            )
-            SELECT
-                turn_number,
-                'MEMORYPLAYER_ATTACKED_UNIT' as event_type,
-                attacker_name as player_name,
-                attacker_name || ' attacked ' || COALESCE(target_name, 'Unknown') || ' ' || attack_count || ' time' ||
-                    CASE WHEN attack_count > 1 THEN 's' ELSE '' END as description,
-                NULL as x_coordinate,
-                NULL as y_coordinate,
-                NULL as ambition
-            FROM target_lookup
-            ORDER BY turn_number
-            """
-
-            attack_events = conn.execute(attack_query, [match_id]).df()
-
-            # Combine and sort
-            if not attack_events.empty:
-                combined = pd.concat([regular_events, attack_events], ignore_index=True)
-                combined = combined.sort_values(['turn_number', 'event_type']).reset_index(drop=True)
-                return combined
-            else:
-                return regular_events
+            return conn.execute(base_query, params).df()
 
     def get_territory_control_summary(self, match_id: int) -> pd.DataFrame:
         """Get territory control summary over time.
@@ -459,29 +424,46 @@ class TournamentQueries:
 
     def get_recent_matches(self, limit: int = 10) -> pd.DataFrame:
         """Get most recently processed matches.
-        
+
         Args:
             limit: Number of matches to return
-            
+
         Returns:
-            DataFrame with recent match data
+            DataFrame with recent match data including player names with nations
         """
         query = """
+        WITH ranked_players AS (
+            SELECT
+                match_id,
+                player_name,
+                civilization,
+                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as player_rank
+            FROM players
+        )
         SELECT
             m.match_id,
             COALESCE(m.game_name, 'Unknown Game') as game_name,
             m.save_date,
             m.processed_date,
             m.total_turns,
-            COALESCE(m.map_size, 'Unknown') as map_size,
+            COALESCE(
+                p1.player_name || ' (' || COALESCE(p1.civilization, 'Unknown') || ')',
+                'Unknown'
+            ) as player1,
+            COALESCE(
+                p2.player_name || ' (' || COALESCE(p2.civilization, 'Unknown') || ')',
+                'Unknown'
+            ) as player2,
             COALESCE(w.player_name, 'Unknown') as winner_name,
-            COUNT(p.player_id) as player_count
+            COALESCE(
+                m.map_size || ' ' || COALESCE(m.map_class, '') || ' ' || COALESCE(m.map_aspect_ratio, ''),
+                'Unknown'
+            ) as map_info
         FROM matches m
-        LEFT JOIN players p ON m.match_id = p.match_id
+        LEFT JOIN ranked_players p1 ON m.match_id = p1.match_id AND p1.player_rank = 1
+        LEFT JOIN ranked_players p2 ON m.match_id = p2.match_id AND p2.player_rank = 2
         LEFT JOIN match_winners mw ON m.match_id = mw.match_id
         LEFT JOIN players w ON mw.winner_player_id = w.player_id
-        GROUP BY m.match_id, m.game_name, m.save_date, m.processed_date,
-                 m.total_turns, m.map_size, w.player_name
         ORDER BY m.processed_date DESC
         LIMIT ?
         """
