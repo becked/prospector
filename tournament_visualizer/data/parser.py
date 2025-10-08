@@ -357,6 +357,156 @@ class OldWorldSaveParser:
 
         return events
 
+    def extract_logdata_events(self) -> List[Dict[str, Any]]:
+        """Extract game events from LogData elements in Player/PermanentLogList sections.
+
+        LogData contains more detailed historical information than MemoryData,
+        including law adoptions, tech discoveries, and goal tracking.
+
+        Returns:
+            List of event dictionaries from LogData
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        events = []
+
+        # Find all Player elements with OnlineID (human players)
+        player_elements = self.root.findall('.//Player[@OnlineID]')
+
+        for player_elem in player_elements:
+            # Get player's XML ID (0-based in XML)
+            player_xml_id = player_elem.get('ID')
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based player_id for database
+            # XML ID="0" is player 1, ID="1" is player 2
+            player_id = int(player_xml_id) + 1
+
+            # Find PermanentLogList for this player (main source of LogData)
+            perm_log_list = player_elem.find('.//PermanentLogList')
+            if perm_log_list is None:
+                continue
+
+            # Extract all LogData elements
+            log_data_elements = perm_log_list.findall('.//LogData')
+
+            for log_elem in log_data_elements:
+                event = self._extract_single_logdata_event(log_elem, player_id)
+                if event:
+                    events.append(event)
+
+        # Sort events by turn number for consistent ordering
+        events.sort(key=lambda e: e['turn_number'])
+
+        return events
+
+    def _extract_single_logdata_event(self, log_elem: ET.Element, player_id: int) -> Optional[Dict[str, Any]]:
+        """Extract a single LogData event.
+
+        Args:
+            log_elem: LogData XML element
+            player_id: Database player ID (1-based)
+
+        Returns:
+            Event dictionary or None if event should be skipped
+        """
+        # Extract basic fields
+        type_elem = log_elem.find('Type')
+        turn_elem = log_elem.find('Turn')
+
+        if type_elem is None or turn_elem is None:
+            return None
+
+        event_type = type_elem.text
+        turn_number = self._safe_int(turn_elem.text)
+
+        if turn_number is None:
+            return None
+
+        # Extract data fields
+        data1_elem = log_elem.find('Data1')
+        data2_elem = log_elem.find('Data2')
+        data3_elem = log_elem.find('Data3')
+
+        data1 = data1_elem.text if data1_elem is not None else None
+        data2 = data2_elem.text if data2_elem is not None else None
+        data3 = data3_elem.text if data3_elem is not None else None
+
+        # Extract human-readable text
+        text_elem = log_elem.find('Text')
+        text = text_elem.text if text_elem is not None else None
+
+        # Build event_data based on event type
+        event_data = self._build_logdata_event_data(event_type, data1, data2, data3)
+
+        # Build description
+        description = self._format_logdata_event(event_type, event_data, text)
+
+        return {
+            'turn_number': turn_number,
+            'event_type': event_type,
+            'player_id': player_id,
+            'description': description,
+            'x_coordinate': None,
+            'y_coordinate': None,
+            'event_data': event_data if event_data else None
+        }
+
+    def _build_logdata_event_data(self, event_type: str, data1: Optional[str],
+                                   data2: Optional[str], data3: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Build event_data dict based on event type.
+
+        Args:
+            event_type: Type of LogData event
+            data1: Primary data field
+            data2: Secondary data field
+            data3: Tertiary data field
+
+        Returns:
+            Dictionary of event data or None
+        """
+        if event_type == 'LAW_ADOPTED' and data1:
+            return {'law': data1}
+
+        if event_type == 'TECH_DISCOVERED' and data1:
+            return {'tech': data1}
+
+        # Add more event types as needed (YAGNI - only implement what we need now)
+
+        return None
+
+    def _format_logdata_event(self, event_type: str, event_data: Optional[Dict[str, Any]],
+                              text: Optional[str]) -> str:
+        """Format a LogData event into a readable description.
+
+        Args:
+            event_type: Type of event
+            event_data: Event data dictionary
+            text: Human-readable text from XML (may contain HTML tags)
+
+        Returns:
+            Human-readable description
+        """
+        if event_type == 'LAW_ADOPTED' and event_data and 'law' in event_data:
+            law_name = event_data['law'].replace('LAW_', '').replace('_', ' ').title()
+            return f"Adopted {law_name}"
+
+        if event_type == 'TECH_DISCOVERED' and event_data and 'tech' in event_data:
+            tech_name = event_data['tech'].replace('TECH_', '').replace('_', ' ').title()
+            return f"Discovered {tech_name}"
+
+        # Fallback: use event type or text
+        if text:
+            # Strip HTML tags for database storage
+            import re
+            clean_text = re.sub(r'<[^>]+>', '', text)
+            return clean_text[:200]  # Limit length
+
+        # Final fallback
+        return event_type.replace('_', ' ').title()
+
     def _format_memory_event(self, event_type: str, context_data: Optional[Dict[str, str]] = None) -> str:
         """Format a memory event type into a readable description.
 
@@ -920,7 +1070,14 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     match_metadata = parser.extract_basic_metadata()
     players = parser.extract_players()
     game_states = parser.extract_game_states()
-    events = parser.extract_events()
+
+    # Extract both MemoryData and LogData events
+    memory_events = parser.extract_events()
+    logdata_events = parser.extract_logdata_events()
+
+    # Merge both event sources (no deduplication needed - separate namespaces)
+    events = memory_events + logdata_events
+
     territories = parser.extract_territories()
     resources = parser.extract_resources()
 
