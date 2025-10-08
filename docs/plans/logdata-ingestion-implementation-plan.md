@@ -1,13 +1,19 @@
 # LogData Ingestion Implementation Plan
 
+> **Updated: 2025-10-08** - Plan corrected based on investigation of actual save file structure.
+> See `docs/plans/logdata-investigation-findings.md` for detailed findings.
+> Key changes: LogData is in `PermanentLogList` (not `TurnSummary`), no deduplication needed.
+
 ## Overview
 
-Currently, the parser only extracts `MemoryData` events from Old World save files, which provides limited historical data (e.g., only 1 law event out of 13 actual law adoptions). The `LogData` sections within `TurnSummary` elements contain comprehensive turn-by-turn historical data including:
+Currently, the parser only extracts `MemoryData` events from Old World save files, which provides limited historical data (e.g., only 1 law event out of 13 actual law adoptions). The `LogData` sections within `Player/PermanentLogList` elements contain comprehensive turn-by-turn historical data including:
 
-- **LAW_ADOPTED**: Which laws were adopted and when (13 events vs 1 memory event)
-- **TECH_DISCOVERED**: Which techs were researched and when (44 events vs 0 memory events)
+- **LAW_ADOPTED**: Which laws were adopted and when (13 events vs 0 memory events)
+- **TECH_DISCOVERED**: Which techs were researched and when (39 events vs 0 memory events)
 - **GOAL_STARTED/GOAL_FINISHED**: Ambition tracking (e.g., "Enact Four Laws")
-- **Other gameplay events**: City founding, character births/deaths, etc. (~79 unique event types)
+- **Other gameplay events**: City founding, character births/deaths, etc. (~26 unique event types)
+
+**IMPORTANT:** MemoryData and LogData have completely separate event type namespaces (e.g., `MEMORY*` vs `LAW_ADOPTED`), so no deduplication is needed.
 
 This plan will guide you through adding LogData parsing to capture law adoption and tech discovery timelines.
 
@@ -23,8 +29,8 @@ This plan will guide you through adding LogData parsing to capture law adoption 
 - XML structure:
   ```xml
   <Root>
-    <Player ID="0" Name="anarkos">
-      <TurnSummary>
+    <Player ID="0" Name="anarkos" OnlineID="...">
+      <PermanentLogList>
         <LogData>
           <Text>Human-readable description</Text>
           <Type>EVENT_TYPE</Type>
@@ -34,16 +40,17 @@ This plan will guide you through adding LogData parsing to capture law adoption 
           <Turn>11</Turn>
           <TeamTurn>0</TeamTurn>
         </LogData>
-        <!-- More LogData entries -->
-      </TurnSummary>
+        <!-- More LogData entries (68 for player 0, 63 for player 1 in test match) -->
+      </PermanentLogList>
     </Player>
   </Root>
   ```
 
 **Player ID Mapping:**
-- XML uses `Player ID="0"` and `ID="1"`
-- Database uses 1-based sequential player_id
-- Help links in Text contain player index: `HELP_LAW,LAW_SLAVERY,0` (0=first player, 1=second player)
+- XML uses `Player ID="0"` and `ID="1"` (0-based)
+- Database uses 1-based sequential player_id (player_id 1, 2, 3...)
+- **Conversion formula: `database_player_id = xml_player_id + 1`**
+- Player ID="0" exists and is valid - it maps to database player_id=1
 
 **Current Architecture:**
 ```
@@ -123,8 +130,8 @@ tournament_visualizer/data/
    ```
 
 4. Manually verify the test file contains:
-   - At least one `<Player>` element
-   - At least one `<TurnSummary>` section
+   - At least one `<Player>` element with `OnlineID` attribute
+   - At least one `<PermanentLogList>` section
    - At least one `<LogData>` with `LAW_ADOPTED`
    - At least one `<LogData>` with `TECH_DISCOVERED`
 
@@ -146,7 +153,7 @@ grep -c "TECH_DISCOVERED" tests/fixtures/sample_save.xml  # Should be > 0
 
 **Questions to answer:**
 1. What does `extract_events()` return? (List of dict with what keys?)
-2. How does it map player IDs? (See line 294-295)
+2. How does it map player IDs? (See line 294-295 - NOTE: This has a bug for player_id 0!)
 3. What lookup tables does it build? (Lines 277-278)
 4. How are events stored in the database? (Check `etl.py` for usage)
 
@@ -155,9 +162,16 @@ grep -c "TECH_DISCOVERED" tests/fixtures/sample_save.xml  # Should be > 0
 """
 Current extract_events() behavior:
 - Returns: List[Dict[str, Any]] with keys: turn_number, event_type, player_id, description, x_coordinate, y_coordinate, event_data
-- Player ID mapping: XML Player="0" becomes None, Player="1+" becomes player_id
+- Player ID mapping: XML Player="0" becomes None (BUG!), Player="1+" becomes player_id
+  - Line 295: player_id = raw_player_id if raw_player_id and raw_player_id > 0 else None
+  - This incorrectly converts player_id 0 to None
 - Extracts from: MemoryData elements only (not LogData)
 - Used by: etl.py process_save_file() to insert into events table
+
+For LogData extraction, we'll use correct mapping:
+- XML Player[@ID="0"] → database player_id = 1
+- XML Player[@ID="1"] → database player_id = 2
+- Formula: database_player_id = int(xml_id) + 1
 """
 ```
 
@@ -254,9 +268,8 @@ class TestLawAdoptionExtraction:
         events = parser.extract_logdata_events()
         law_events = [e for e in events if e['event_type'] == 'LAW_ADOPTED']
 
-        # Count expected law adoptions in fixture
-        # You'll need to manually count these in your fixture
-        # For anarkos-becked match, there should be 13 total
+        # For anarkos-becked match, there are 13 total law adoptions
+        # (6 for anarkos, 7 for becked)
         assert len(law_events) > 0, "Should find at least one law adoption"
 
     def test_law_adoption_event_structure(self, sample_xml_path):
@@ -342,7 +355,7 @@ class TestTechDiscoveryExtraction:
         events = parser.extract_logdata_events()
         tech_events = [e for e in events if e['event_type'] == 'TECH_DISCOVERED']
 
-        # anarkos-becked match has 44 tech discoveries
+        # anarkos-becked match has 39 tech discoveries (19 + 20)
         assert len(tech_events) > 0, "Should find at least one tech discovery"
 
     def test_tech_discovery_event_structure(self, sample_xml_path):
@@ -422,7 +435,7 @@ uv run pytest tests/test_parser_logdata.py::TestTechDiscoveryExtraction -v
 
 ```python
 def extract_logdata_events(self) -> List[Dict[str, Any]]:
-    """Extract game events from LogData elements in TurnSummary sections.
+    """Extract game events from LogData elements in Player/PermanentLogList sections.
 
     LogData contains more detailed historical information than MemoryData,
     including law adoptions, tech discoveries, and goal tracking.
@@ -435,8 +448,8 @@ def extract_logdata_events(self) -> List[Dict[str, Any]]:
 
     events = []
 
-    # Find all Player elements
-    player_elements = self.root.findall('.//Player')
+    # Find all Player elements with OnlineID (human players)
+    player_elements = self.root.findall('.//Player[@OnlineID]')
 
     for player_elem in player_elements:
         # Get player's XML ID (0-based in XML)
@@ -448,13 +461,13 @@ def extract_logdata_events(self) -> List[Dict[str, Any]]:
         # XML ID="0" is player 1, ID="1" is player 2
         player_id = int(player_xml_id) + 1
 
-        # Find TurnSummary for this player
-        turn_summary = player_elem.find('.//TurnSummary')
-        if turn_summary is None:
+        # Find PermanentLogList for this player (main source of LogData)
+        perm_log_list = player_elem.find('.//PermanentLogList')
+        if perm_log_list is None:
             continue
 
         # Extract all LogData elements
-        log_data_elements = turn_summary.findall('.//LogData')
+        log_data_elements = perm_log_list.findall('.//LogData')
 
         for log_elem in log_data_elements:
             event = self._extract_single_logdata_event(log_elem, player_id)
@@ -667,47 +680,18 @@ uv run python import_tournaments.py --directory saves --dry-run
 
 ---
 
-#### Task 3.4: Handle Duplicate Events
-**Goal**: Prevent duplicate events if same match is imported multiple times
+#### ~~Task 3.4: Handle Duplicate Events~~ (REMOVED - NOT NEEDED)
 
-**Context**: Some events exist in both MemoryData and LogData. We need to deduplicate.
+**Investigation Result**: MemoryData and LogData have completely separate event type namespaces:
+- MemoryData uses types like: `MEMORYPLAYER_ATTACKED_UNIT`, `MEMORYFAMILY_FOUNDED_CITY`
+- LogData uses types like: `LAW_ADOPTED`, `TECH_DISCOVERED`, `CITY_FOUNDED`
+- **Zero overlapping event types** - no deduplication needed!
 
-**Files to modify:**
-- `tournament_visualizer/data/etl.py`
-
-**Steps:**
-
-1. After merging events, add deduplication logic:
-
+The events can be safely concatenated:
 ```python
-# Merge both event sources
 all_events = memory_events + logdata_events
-
-# Deduplicate based on (turn_number, event_type, player_id)
-# Keep LogData version if both exist (more detailed)
-seen = set()
-deduplicated_events = []
-
-# Sort to process LogData events first (prefer them)
-all_events.sort(key=lambda e: (
-    e['turn_number'],
-    e['event_type'],
-    e['player_id'] or 0,
-    0 if 'law' in str(e.get('event_data', '')) else 1  # Prefer events with more data
-))
-
-for event in all_events:
-    key = (event['turn_number'], event['event_type'], event.get('player_id'))
-    if key not in seen:
-        seen.add(key)
-        deduplicated_events.append(event)
-
-# Use deduplicated_events for database insertion
+# No deduplication necessary!
 ```
-
-2. Test with a real import to verify no duplicate errors
-
-**Commit**: `fix: Deduplicate events from MemoryData and LogData sources`
 
 ---
 
@@ -1082,7 +1066,7 @@ def test_full_pipeline_with_logdata(temp_db, sample_save_dir):
         WHERE event_type = 'LAW_ADOPTED'
     """)
 
-    assert law_events['count'].iloc[0] > 10, "Should find 13 law adoptions"
+    assert law_events['count'].iloc[0] >= 13, "Should find 13 law adoptions"
 
     # Check that tech events were captured
     tech_events = db.execute_query("""
@@ -1091,7 +1075,7 @@ def test_full_pipeline_with_logdata(temp_db, sample_save_dir):
         WHERE event_type = 'TECH_DISCOVERED'
     """)
 
-    assert tech_events['count'].iloc[0] > 40, "Should find 44 tech discoveries"
+    assert tech_events['count'].iloc[0] >= 39, "Should find 39 tech discoveries"
 
 
 def test_law_milestone_calculation(temp_db, sample_save_dir):
@@ -1233,13 +1217,12 @@ uv run python scripts/validate_logdata.py
 
 ---
 
-#### Task 6.3: Performance Testing
+#### Task 6.3: Performance Testing (OPTIONAL - Lower Priority)
 **Goal**: Ensure LogData extraction doesn't significantly slow down import
 
-**Files to create:**
-- `tests/test_performance_logdata.py`
+**Note**: Performance testing is optional and can be deprioritized. LogData extraction uses the same XML parsing approach as MemoryData, so performance should be similar.
 
-**Create performance test:**
+**If implementing:**
 
 ```python
 """Performance tests for LogData extraction."""
@@ -1267,41 +1250,11 @@ def test_logdata_extraction_performance():
 
     print(f"\nExtracted {len(events)} events in {elapsed:.3f}s")
 
-    # Should complete in under 1 second for a typical match
-    assert elapsed < 1.0, f"LogData extraction too slow: {elapsed:.3f}s"
-
-    # Should find a reasonable number of events
-    assert len(events) > 50, "Should find at least 50 LogData events"
-
-
-def test_full_import_performance():
-    """Full import with LogData should not be significantly slower."""
-    # This is a baseline - you may need to adjust thresholds
-    # Run import and measure time
-    import subprocess
-
-    start = time.time()
-    result = subprocess.run(
-        ["uv", "run", "python", "import_tournaments.py",
-         "--directory", "saves", "--dry-run"],
-        capture_output=True,
-        text=True
-    )
-    elapsed = time.time() - start
-
-    assert result.returncode == 0, "Import should succeed"
-    print(f"\nDry run completed in {elapsed:.2f}s")
-
-    # Adjust this threshold based on your machine and data size
-    assert elapsed < 10.0, "Import taking too long"
+    # Should find expected number of events for this match
+    assert len(events) >= 131, "Should find 131+ LogData events"
 ```
 
-**Run performance tests:**
-```bash
-uv run pytest tests/test_performance_logdata.py -v -s
-```
-
-**Commit**: `test: Add performance tests for LogData extraction`
+**Commit** (if implemented): `test: Add performance tests for LogData extraction`
 
 ---
 
@@ -1567,8 +1520,8 @@ uv run python import_tournaments.py --directory saves --force --verbose
 
 **Expected output:**
 - All 15 matches should import successfully
-- Should see significantly more events (13 law events vs 1 per match)
-- Should see tech discoveries (44 per match)
+- Should see significantly more events (13 law events vs 0 in MemoryData per match)
+- Should see tech discoveries (39+ per match vs 0 in MemoryData)
 
 **Verify import quality:**
 ```bash
@@ -1659,17 +1612,17 @@ Before marking this complete, verify:
 - [ ] Docstrings on all public methods
 
 ### Functionality
-- [ ] LogData events are extracted
+- [ ] LogData events are extracted from Player/PermanentLogList
 - [ ] Law adoptions tracked with turn numbers
 - [ ] Tech discoveries tracked with turn numbers
-- [ ] Player ID mapping is correct
-- [ ] No duplicate events in database
+- [ ] Player ID mapping is correct (xml_id + 1 = database_id)
+- [ ] MemoryData and LogData events are merged (no deduplication needed)
 - [ ] Events table has proper indexes
 
 ### Testing
 - [ ] Unit tests for parser methods
 - [ ] Integration tests for full pipeline
-- [ ] Performance tests pass
+- [ ] Performance tests pass (optional/lower priority)
 - [ ] Data quality validation passes
 - [ ] All matches import successfully
 
@@ -1690,14 +1643,19 @@ Before marking this complete, verify:
 
 - Phase 1 (Setup): 2-3 hours
 - Phase 2 (TDD Setup): 2-3 hours
-- Phase 3 (Implementation): 4-6 hours
+- Phase 3 (Implementation): 3-4 hours (simplified - no deduplication needed)
 - Phase 4 (Database): 1-2 hours
 - Phase 5 (Analytics): 2-3 hours
-- Phase 6 (Testing): 2-3 hours
+- Phase 6 (Testing): 1-2 hours (performance tests optional)
 - Phase 7 (Documentation): 1-2 hours
 - Phase 8 (Deployment): 1 hour
 
-**Total: 15-23 hours** (2-3 full work days)
+**Total: 13-20 hours** (2-3 full work days)
+
+**Time saved**: ~2-3 hours due to:
+- No deduplication logic needed
+- Performance tests optional
+- Simpler XML structure understanding
 
 ## Success Metrics
 
@@ -1705,10 +1663,14 @@ You'll know you're done when:
 
 1. You can answer: "How many turns did it take anarkos to reach 4 laws?" (Answer: 54)
 2. You can answer: "What techs did becked have when reaching 4 laws?" (Should see specific list)
-3. All 15 matches have 10+ law events (vs 0-1 currently)
-4. All 15 matches have 40+ tech events (vs 0 currently)
+3. All 15 matches have 10+ law events (vs 0 in MemoryData)
+4. All 15 matches have 30+ tech events (vs 0 in MemoryData)
 5. Analytics queries run in < 1 second
 6. A new developer can read the docs and understand the system
+
+**Key validation**: anarkos-becked match should show:
+- 13 total LAW_ADOPTED events (6 for anarkos, 7 for becked)
+- 39 total TECH_DISCOVERED events (19 for anarkos, 20 for becked)
 
 ## Getting Help
 
