@@ -170,3 +170,147 @@ class TestTechDiscoveryExtraction:
         # Check that we can order by turn
         turns = [e['turn_number'] for e in tech_events]
         assert turns == sorted(turns), "Should preserve turn order"
+
+
+class TestMemoryDataPlayerIDMapping:
+    """Tests for correct player ID mapping in MemoryData extraction.
+
+    These tests verify that the extract_events() method correctly converts
+    0-based XML player IDs to 1-based database player IDs, matching the
+    behavior of extract_logdata_events().
+    """
+
+    def test_player_zero_maps_to_player_id_one(self, sample_xml_path: Path) -> None:
+        """XML Player=0 should map to database player_id=1, not None.
+
+        Current bug: Player=0 is treated as invalid and converted to None.
+        Expected: Player=0 should be converted to player_id=1 (first player).
+        """
+        parser = OldWorldSaveParser(str(sample_xml_path))
+        parser.parse_xml_file(str(sample_xml_path))
+
+        events = parser.extract_events()
+
+        # Find events that should belong to player 1 (XML Player=0)
+        # These are MEMORYPLAYER_* events that occur around turn 65
+        player_1_events = [
+            e for e in events
+            if e['player_id'] == 1 and e['event_type'].startswith('MEMORYPLAYER_')
+        ]
+
+        # The fixture has 39 events with <Player>0</Player>
+        # They should all have player_id=1
+        assert len(player_1_events) > 0, (
+            "Should find events with player_id=1 for XML Player=0. "
+            "Currently these are being set to None (bug!)"
+        )
+
+        # Verify no events have player_id=None for MEMORYPLAYER_* events
+        player_none_events = [
+            e for e in events
+            if e['player_id'] is None and e['event_type'].startswith('MEMORYPLAYER_')
+        ]
+
+        assert len(player_none_events) == 0, (
+            f"Found {len(player_none_events)} MEMORYPLAYER events with player_id=None. "
+            "These should have player_id=1 (from XML Player=0)."
+        )
+
+    def test_player_one_maps_to_player_id_two(self, sample_xml_path: Path) -> None:
+        """XML Player=1 should map to database player_id=2, not player_id=1.
+
+        Current bug: Player=1 is kept as 1, but should be 2.
+        Expected: Player=1 should be converted to player_id=2 (second player).
+        """
+        parser = OldWorldSaveParser(str(sample_xml_path))
+        parser.parse_xml_file(str(sample_xml_path))
+
+        events = parser.extract_events()
+
+        # Find events that should belong to player 2 (XML Player=1)
+        player_2_events = [
+            e for e in events
+            if e['player_id'] == 2 and e['event_type'].startswith('MEMORYPLAYER_')
+        ]
+
+        # The fixture has 32 events with <Player>1</Player>
+        # They should all have player_id=2
+        assert len(player_2_events) > 0, (
+            "Should find events with player_id=2 for XML Player=1. "
+            "Currently these are incorrectly set to player_id=1 (bug!)"
+        )
+
+    def test_player_id_distribution_matches_xml(self, sample_xml_path: Path) -> None:
+        """The distribution of player IDs should match the XML data.
+
+        From test fixture:
+        - 39 events with <Player>0</Player> → should have player_id=1
+        - 32 events with <Player>1</Player> → should have player_id=2
+        """
+        parser = OldWorldSaveParser(str(sample_xml_path))
+        parser.parse_xml_file(str(sample_xml_path))
+
+        events = parser.extract_events()
+
+        # Count MEMORYPLAYER_* events by player_id
+        from collections import Counter
+        memoryplayer_events = [
+            e for e in events if e['event_type'].startswith('MEMORYPLAYER_')
+        ]
+
+        player_counts = Counter(e.get('player_id') for e in memoryplayer_events)
+
+        # Expected counts from XML
+        expected_player_1_count = 39  # From <Player>0</Player>
+        expected_player_2_count = 32  # From <Player>1</Player>
+
+        # Allow some tolerance (±2) for edge cases in test data
+        assert abs(player_counts.get(1, 0) - expected_player_1_count) <= 2, (
+            f"Expected ~{expected_player_1_count} events for player_id=1, "
+            f"got {player_counts.get(1, 0)}"
+        )
+
+        assert abs(player_counts.get(2, 0) - expected_player_2_count) <= 2, (
+            f"Expected ~{expected_player_2_count} events for player_id=2, "
+            f"got {player_counts.get(2, 0)}"
+        )
+
+        # Should have NO events with player_id=None for MEMORYPLAYER_* events
+        assert player_counts.get(None, 0) == 0, (
+            f"Found {player_counts.get(None, 0)} events with player_id=None. "
+            "All MEMORYPLAYER events should have a valid player_id."
+        )
+
+    def test_memorydata_matches_logdata_player_mapping(self, sample_xml_path: Path) -> None:
+        """MemoryData and LogData should use the same player ID mapping.
+
+        Both extract methods should convert 0-based XML IDs to 1-based DB IDs.
+        This ensures consistency across the codebase.
+        """
+        parser = OldWorldSaveParser(str(sample_xml_path))
+        parser.parse_xml_file(str(sample_xml_path))
+
+        memory_events = parser.extract_events()
+        logdata_events = parser.extract_logdata_events()
+
+        # Get unique player IDs from each source
+        memory_player_ids = set(
+            e['player_id'] for e in memory_events
+            if e['player_id'] is not None
+        )
+
+        logdata_player_ids = set(
+            e['player_id'] for e in logdata_events
+            if e['player_id'] is not None
+        )
+
+        # Both should have the same player IDs (1 and 2 for this fixture)
+        assert memory_player_ids == logdata_player_ids, (
+            f"MemoryData player IDs {memory_player_ids} don't match "
+            f"LogData player IDs {logdata_player_ids}. "
+            "Both should use 1-based IDs (1, 2, ...)."
+        )
+
+        # Specifically, both should have players 1 and 2
+        assert 1 in memory_player_ids, "MemoryData should have player_id=1"
+        assert 2 in memory_player_ids, "MemoryData should have player_id=2"
