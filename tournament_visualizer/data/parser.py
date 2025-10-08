@@ -308,9 +308,15 @@ class OldWorldSaveParser:
                 event_type = type_elem.text
                 turn_number = self._safe_int(turn_elem.text)
 
-                # Get player ID, but convert 0 to None (0 is not a valid player ID)
+                # Get player ID from MemoryData (0-based in XML, like LogData)
+                # Convert to 1-based database player_id to match database schema
                 raw_player_id = self._safe_int(player_elem.text) if player_elem is not None else None
-                player_id = raw_player_id if raw_player_id and raw_player_id > 0 else None
+
+                # Convert 0-based XML player ID to 1-based database player_id
+                # XML Player=0 → database player_id=1
+                # XML Player=1 → database player_id=2
+                # This matches the LogData mapping in extract_logdata_events()
+                player_id = (raw_player_id + 1) if raw_player_id is not None else None
 
                 # Extract additional context fields (note: actual XML uses IDs)
                 context_data = {}
