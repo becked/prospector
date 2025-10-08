@@ -53,10 +53,10 @@ uv run duckdb tournament_data.duckdb -readonly -c "SELECT COUNT(*) FROM events"
 **Re-import data:**
 ```bash
 # Test first (dry-run)
-uv run python import_tournaments.py --directory saves --dry-run
+uv run python scripts/import_tournaments.py --directory saves --dry-run
 
 # Full re-import (removes existing data)
-uv run python import_tournaments.py --directory saves --force --verbose
+uv run python scripts/import_tournaments.py --directory saves --force --verbose
 ```
 
 ### Validation After Changes
@@ -65,6 +65,9 @@ Always run validation scripts after database changes:
 ```bash
 # For LogData-related changes
 uv run python scripts/validate_logdata.py
+
+# For MemoryData-related changes
+uv run python scripts/validate_memorydata_ownership.py
 
 # For analytics queries
 uv run python scripts/verify_analytics.py
@@ -132,6 +135,44 @@ database_player_id = int(xml_id) + 1
 - Event types: `LAW_ADOPTED`, `TECH_DISCOVERED`, `GOAL_STARTED`, etc.
 - Location: `Player/PermanentLogList/LogData` elements
 - **No overlap with MemoryData** - different event type namespaces
+
+### Memory Event Ownership
+
+**Key Concept**: MemoryData events are stored in a player's MemoryList, representing that player's perspective/memory.
+
+**XML Structure:**
+```xml
+<Player ID="0">  <!-- Owner player -->
+  <MemoryList>
+    <MemoryData>
+      <Type>MEMORYPLAYER_ATTACKED_CITY</Type>
+      <Player>1</Player>  <!-- Subject player (opponent) -->
+      <Turn>63</Turn>
+    </MemoryData>
+    <MemoryData>
+      <Type>MEMORYTRIBE_ATTACKED_UNIT</Type>
+      <Tribe>TRIBE_RAIDERS</Tribe>  <!-- NO <Player> child -->
+      <Turn>63</Turn>
+    </MemoryData>
+  </MemoryList>
+</Player>
+```
+
+**Player ID Assignment:**
+
+1. **MEMORYPLAYER_* events**: Use `<Player>` child element (the opponent/subject)
+   - Example: If Becked's memory says "MEMORYPLAYER_ATTACKED_CITY Player=1",
+     it means Becked remembers Fluffbunny (Player 1) attacking a city
+
+2. **MEMORYTRIBE/FAMILY/RELIGION_* events**: Use owner `Player[@ID]` (the viewer)
+   - Example: If Becked's memory says "MEMORYTRIBE_ATTACKED_UNIT Tribe=Raiders",
+     it means Becked witnessed/experienced Raiders attacking units
+   - No `<Player>` child element exists for these events
+
+**Database Mapping:**
+- XML `Player[@ID="0"]` → Database `player_id=1`
+- XML `Player[@ID="1"]` → Database `player_id=2`
+- Consistent with LogData event mapping
 
 ### XML Structure Notes
 

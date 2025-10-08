@@ -80,6 +80,38 @@ Pre-built SQL queries for analytics:
 - **`get_tech_count_by_turn()`**: Cumulative tech counts (for racing charts)
 - **`get_techs_at_law_milestone()`**: Combined law/tech analysis
 
+## Data Parsing
+
+### Parsing MemoryData Events
+
+When parsing MemoryData events, it's critical to preserve player ownership context:
+
+**DO:**
+```python
+# Iterate through Player elements first
+for player_element in root.findall('.//Player[@ID]'):
+    owner_id = player_element.get('ID')
+    memory_list = player_element.find('MemoryList')
+    for mem in memory_list.findall('MemoryData'):
+        # Process with owner_id context
+```
+
+**DON'T:**
+```python
+# Global search loses ownership context!
+for mem in root.findall('.//MemoryData'):  # ❌ WRONG
+    # Can't tell which player owns this memory
+```
+
+**Why:** MemoryData elements without a `<Player>` child (e.g., MEMORYTRIBE_*)
+need to inherit their player_id from the parent `Player[@ID]` that owns the MemoryList.
+
+**Validation:**
+After any parser changes affecting MemoryData, run:
+```bash
+uv run python scripts/validate_memorydata_ownership.py
+```
+
 ## Adding New Event Types
 
 To add support for a new LogData event type:
@@ -334,7 +366,7 @@ Re-import tournament data to verify:
 cp tournament_data.duckdb tournament_data.duckdb.backup
 
 # Force re-import
-uv run python import_tournaments.py --directory saves --force --verbose
+uv run python scripts/import_tournaments.py --directory saves --force --verbose
 ```
 
 ## Debugging Tips
@@ -369,8 +401,11 @@ WHERE match_id = 10 AND event_type = 'LAW_ADOPTED';
 ### 3. Run Validation Scripts
 
 ```bash
-# Data quality validation
+# LogData validation
 uv run python scripts/validate_logdata.py
+
+# MemoryData validation
+uv run python scripts/validate_memorydata_ownership.py
 
 # Analytics verification
 uv run python scripts/verify_analytics.py
