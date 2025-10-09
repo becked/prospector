@@ -1034,7 +1034,7 @@ class TournamentQueries:
             match_id: Match ID to analyze
 
         Returns:
-            DataFrame with columns: player_id, player_name, turn_number, cumulative_techs
+            DataFrame with columns: player_id, player_name, turn_number, cumulative_techs, tech_list, new_techs
         """
         query = """
         WITH tech_events AS (
@@ -1042,6 +1042,8 @@ class TournamentQueries:
                 e.player_id,
                 p.player_name,
                 e.turn_number,
+                e.event_id,
+                json_extract(e.event_data, '$.tech') as tech_name,
                 COUNT(*) OVER (
                     PARTITION BY e.player_id
                     ORDER BY e.turn_number, e.event_id
@@ -1051,15 +1053,45 @@ class TournamentQueries:
             JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
             WHERE e.event_type = 'TECH_DISCOVERED'
                 AND e.match_id = ?
+        ),
+        techs_up_to_turn AS (
+            SELECT
+                te1.player_id,
+                te1.player_name,
+                te1.turn_number,
+                te1.cumulative_techs,
+                te1.event_id,
+                string_agg(te2.tech_name, ', ') FILTER (WHERE te2.tech_name IS NOT NULL) as tech_list
+            FROM tech_events te1
+            LEFT JOIN tech_events te2 ON te1.player_id = te2.player_id
+                AND te2.event_id <= te1.event_id
+            GROUP BY te1.player_id, te1.player_name, te1.turn_number, te1.cumulative_techs, te1.event_id
+        ),
+        new_techs_this_turn AS (
+            SELECT
+                te1.player_id,
+                te1.turn_number,
+                te1.event_id,
+                string_agg(te2.tech_name, ', ') FILTER (WHERE te2.tech_name IS NOT NULL) as new_techs
+            FROM tech_events te1
+            LEFT JOIN tech_events te2 ON te1.player_id = te2.player_id
+                AND te2.turn_number = te1.turn_number
+                AND te2.event_id <= te1.event_id
+            GROUP BY te1.player_id, te1.turn_number, te1.event_id
         )
         SELECT
-            player_id,
-            player_name,
-            turn_number,
-            MAX(cumulative_techs) as cumulative_techs
-        FROM tech_events
-        GROUP BY player_id, player_name, turn_number
-        ORDER BY player_id, turn_number
+            tut.player_id,
+            tut.player_name,
+            tut.turn_number,
+            MAX(tut.cumulative_techs) as cumulative_techs,
+            MAX(tut.tech_list) as tech_list,
+            MAX(ntt.new_techs) as new_techs
+        FROM techs_up_to_turn tut
+        LEFT JOIN new_techs_this_turn ntt ON tut.player_id = ntt.player_id
+            AND tut.turn_number = ntt.turn_number
+            AND tut.event_id = ntt.event_id
+        GROUP BY tut.player_id, tut.player_name, tut.turn_number
+        ORDER BY tut.player_id, tut.turn_number
         """
 
         with self.db.get_connection() as conn:
@@ -1074,7 +1106,7 @@ class TournamentQueries:
             match_id: Match ID to analyze
 
         Returns:
-            DataFrame with columns: player_id, player_name, turn_number, cumulative_laws
+            DataFrame with columns: player_id, player_name, turn_number, cumulative_laws, law_list, new_laws
         """
         query = """
         WITH law_events AS (
@@ -1082,6 +1114,8 @@ class TournamentQueries:
                 e.player_id,
                 p.player_name,
                 e.turn_number,
+                e.event_id,
+                json_extract(e.event_data, '$.law') as law_name,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.player_id
                     ORDER BY e.turn_number, e.event_id
@@ -1090,14 +1124,44 @@ class TournamentQueries:
             JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
             WHERE e.event_type = 'LAW_ADOPTED'
                 AND e.match_id = ?
+        ),
+        laws_up_to_turn AS (
+            SELECT
+                le1.player_id,
+                le1.player_name,
+                le1.turn_number,
+                le1.cumulative_laws,
+                le1.event_id,
+                string_agg(le2.law_name, ', ') FILTER (WHERE le2.law_name IS NOT NULL) as law_list
+            FROM law_events le1
+            LEFT JOIN law_events le2 ON le1.player_id = le2.player_id
+                AND le2.event_id <= le1.event_id
+            GROUP BY le1.player_id, le1.player_name, le1.turn_number, le1.cumulative_laws, le1.event_id
+        ),
+        new_laws_this_turn AS (
+            SELECT
+                le1.player_id,
+                le1.turn_number,
+                le1.event_id,
+                string_agg(le2.law_name, ', ') FILTER (WHERE le2.law_name IS NOT NULL) as new_laws
+            FROM law_events le1
+            LEFT JOIN law_events le2 ON le1.player_id = le2.player_id
+                AND le2.turn_number = le1.turn_number
+                AND le2.event_id <= le1.event_id
+            GROUP BY le1.player_id, le1.turn_number, le1.event_id
         )
         SELECT DISTINCT
-            player_id,
-            player_name,
-            turn_number,
-            cumulative_laws
-        FROM law_events
-        ORDER BY player_id, turn_number, cumulative_laws
+            lut.player_id,
+            lut.player_name,
+            lut.turn_number,
+            lut.cumulative_laws,
+            lut.law_list,
+            nlt.new_laws
+        FROM laws_up_to_turn lut
+        LEFT JOIN new_laws_this_turn nlt ON lut.player_id = nlt.player_id
+            AND lut.turn_number = nlt.turn_number
+            AND lut.event_id = nlt.event_id
+        ORDER BY lut.player_id, lut.turn_number, lut.cumulative_laws
         """
 
         with self.db.get_connection() as conn:

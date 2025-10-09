@@ -2037,10 +2037,37 @@ def create_cumulative_law_count_chart(
         turns = [0] + player_data["turn_number"].tolist()
         laws = [0] + player_data["cumulative_laws"].tolist()
 
+        # Build law list for hover (empty string for turn 0)
+        law_lists = [""] + player_data["law_list"].fillna("").tolist()
+        new_law_lists = [""] + player_data["new_laws"].fillna("").tolist()
+
+        # Create custom hover text - only show new laws added this turn
+        hover_texts = []
+        for turn, law_count, law_list, new_laws in zip(turns, laws, law_lists, new_law_lists):
+            if law_count == 0:
+                hover_texts.append(f"<b>{player}</b><br>Turn {turn}: 0 laws")
+            else:
+                # Only show new laws added this turn
+                if new_laws:
+                    new_laws_array = [
+                        law.strip().replace('"', '').replace('LAW_', '').replace('_', ' ').title()
+                        for law in new_laws.split(',')
+                    ]
+                    new_laws_array.sort()
+
+                    hover_parts = [f"<b>{player}</b><br>Turn {turn}: {law_count} laws total"]
+                    hover_parts.append("<br><br>")
+                    hover_parts.append('<br>'.join([f'• {law}' for law in new_laws_array]))
+                    hover_texts.append(''.join(hover_parts))
+                else:
+                    # No new laws this turn
+                    hover_texts.append(f"<b>{player}</b><br>Turn {turn}: {law_count} laws total")
+
         # Extend line to match end if total_turns provided
         if total_turns and turns[-1] < total_turns:
             turns.append(total_turns)
             laws.append(laws[-1])  # Keep final law count
+            hover_texts.append(hover_texts[-1])  # Reuse last hover text
 
         # Assign last trace to yaxis2 to make right-side labels visible
         yaxis_ref = "y2" if i == len(players) - 1 else "y"
@@ -2053,14 +2080,12 @@ def create_cumulative_law_count_chart(
                 name=player,
                 line=dict(
                     color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
-                    width=3,
+                    width=4,
                 ),
-                marker=dict(size=6),
-                hovertemplate=(
-                    "<b>%{fullData.name}</b><br>"
-                    "Turn %{x}: %{y} laws<br>"
-                    "<extra></extra>"
-                ),
+                marker=dict(size=10),
+                hoveron='points',  # Only trigger hover on marker points, not lines
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_texts,
                 yaxis=yaxis_ref,
             )
         )
@@ -2087,6 +2112,7 @@ def create_cumulative_law_count_chart(
     y_range = [0, max_laws + 1]
 
     # Set Y-axis with labels on both left and right sides
+    # Also increase hoverdistance to make hover targets easier to hit
     fig.update_layout(
         yaxis=dict(
             range=y_range,
@@ -2105,6 +2131,8 @@ def create_cumulative_law_count_chart(
             showgrid=False,
             tickmode="linear",
         ),
+        hovermode='closest',  # Explicitly set hover mode
+        hoverdistance=100,  # Increase hover detection distance (default is 20)
     )
 
     return fig
@@ -2148,10 +2176,37 @@ def create_cumulative_tech_count_chart(
         turns = [0] + player_data["turn_number"].tolist()
         techs = [0] + player_data["cumulative_techs"].tolist()
 
+        # Build tech list for hover (empty string for turn 0)
+        tech_lists = [""] + player_data["tech_list"].fillna("").tolist()
+        new_tech_lists = [""] + player_data["new_techs"].fillna("").tolist()
+
+        # Create custom hover text - only show new techs added this turn
+        hover_texts = []
+        for turn, tech_count, tech_list, new_techs in zip(turns, techs, tech_lists, new_tech_lists):
+            if tech_count == 0:
+                hover_texts.append(f"<b>{player}</b><br>Turn {turn}: 0 techs")
+            else:
+                # Only show new techs added this turn
+                if new_techs:
+                    new_techs_array = [
+                        tech.strip().replace('"', '').replace('TECH_', '').replace('_', ' ').title()
+                        for tech in new_techs.split(',')
+                    ]
+                    new_techs_array.sort()
+
+                    hover_parts = [f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total"]
+                    hover_parts.append("<br><br>")
+                    hover_parts.append('<br>'.join([f'• {tech}' for tech in new_techs_array]))
+                    hover_texts.append(''.join(hover_parts))
+                else:
+                    # No new techs this turn
+                    hover_texts.append(f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total")
+
         # Extend line to match end if total_turns provided
         if total_turns and turns[-1] < total_turns:
             turns.append(total_turns)
             techs.append(techs[-1])  # Keep final tech count
+            hover_texts.append(hover_texts[-1])  # Reuse last hover text
 
         # Assign last trace to yaxis2 to make right-side labels visible
         yaxis_ref = "y2" if i == len(players) - 1 else "y"
@@ -2164,14 +2219,12 @@ def create_cumulative_tech_count_chart(
                 name=player,
                 line=dict(
                     color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
-                    width=3,
+                    width=4,
                 ),
-                marker=dict(size=6),
-                hovertemplate=(
-                    "<b>%{fullData.name}</b><br>"
-                    "Turn %{x}: %{y} techs<br>"
-                    "<extra></extra>"
-                ),
+                marker=dict(size=10),
+                hoveron='points',  # Only trigger hover on marker points, not lines
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_texts,
                 yaxis=yaxis_ref,
             )
         )
@@ -2190,6 +2243,7 @@ def create_cumulative_tech_count_chart(
         )
 
     # Set Y-axis with labels on both left and right sides
+    # Also increase hoverdistance to make hover targets easier to hit
     fig.update_layout(
         yaxis=dict(
             range=y_range,
@@ -2208,6 +2262,8 @@ def create_cumulative_tech_count_chart(
             showgrid=False,
             tickmode="linear",
         ),
+        hovermode='closest',  # Explicitly set hover mode
+        hoverdistance=100,  # Increase hover detection distance (default is 20)
     )
 
     return fig
