@@ -115,41 +115,66 @@ layout = html.Div(
 )
 
 
-@callback(Output("match-selector", "value"), Input("match-url", "search"))
-def set_match_from_url(search: str) -> Optional[int]:
-    """Set match selector value from URL query parameter.
-
-    Args:
-        search: URL query string (e.g., "?match_id=123")
-
-    Returns:
-        Match ID if found in URL, else None
-    """
-    if not search:
-        return None
-
-    from urllib.parse import parse_qs
-
-    params = parse_qs(search.lstrip("?"))
-    match_id = params.get("match_id", [None])[0]
-    return int(match_id) if match_id else None
-
-
 @callback(
-    Output("match-url", "search"),
-    Input("match-selector", "value"),
-    prevent_initial_call=True,
+    [
+        Output("match-selector", "value"),
+        Output("match-url", "search"),
+    ],
+    [
+        Input("match-url", "search"),
+        Input("match-selector", "value"),
+    ],
+    prevent_initial_call=False,
 )
-def update_url_from_match(match_id: Optional[int]) -> str:
-    """Update URL query parameter when match is selected.
+def sync_match_selection(url_search: str, selector_value: Optional[int]) -> tuple:
+    """Synchronize match selection between URL and dropdown.
+
+    This callback handles bidirectional sync without creating a circular dependency
+    by checking which input triggered the callback.
 
     Args:
-        match_id: Selected match ID
+        url_search: URL query string (e.g., "?match_id=123")
+        selector_value: Currently selected match ID from dropdown
 
     Returns:
-        URL query string
+        Tuple of (selector_value, url_search)
     """
-    return f"?match_id={match_id}" if match_id else ""
+    ctx = dash.callback_context
+
+    # On initial load (no trigger), check URL for match_id
+    if not ctx.triggered:
+        from urllib.parse import parse_qs
+
+        if url_search:
+            params = parse_qs(url_search.lstrip("?"))
+            match_id = params.get("match_id", [None])[0]
+            if match_id:
+                return int(match_id), url_search
+        return None, ""
+
+    # Check which input triggered this callback
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    # If URL changed (user navigated), update selector to match
+    if trigger_id == "match-url":
+        from urllib.parse import parse_qs
+
+        if url_search:
+            params = parse_qs(url_search.lstrip("?"))
+            match_id = params.get("match_id", [None])[0]
+            if match_id:
+                return int(match_id), url_search
+        return None, ""
+
+    # If selector changed (user picked from dropdown), update URL to match
+    elif trigger_id == "match-selector":
+        if selector_value:
+            new_url = f"?match_id={selector_value}"
+            return selector_value, new_url
+        return None, ""
+
+    # Fallback (shouldn't reach here)
+    return dash.no_update, dash.no_update
 
 
 @callback(
