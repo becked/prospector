@@ -1122,6 +1122,181 @@ class TournamentDatabase:
                 ],
             )
 
+    def bulk_insert_points_history(self, points_data: List[Dict[str, Any]]) -> None:
+        """Bulk insert points history records.
+
+        Args:
+            points_data: List of points history dictionaries
+        """
+        if not points_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO player_points_history (
+                points_history_id, match_id, player_id, turn_number, points
+            ) VALUES (?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for point in points_data:
+                points_id = conn.execute(
+                    "SELECT nextval('points_history_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        points_id,
+                        point["match_id"],
+                        point["player_id"],
+                        point["turn_number"],
+                        point["points"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
+    def bulk_insert_military_history(
+        self, military_data: List[Dict[str, Any]]
+    ) -> None:
+        """Bulk insert military power history records.
+
+        Args:
+            military_data: List of military history dictionaries
+        """
+        if not military_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO player_military_history (
+                military_history_id, match_id, player_id, turn_number, military_power
+            ) VALUES (?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for military in military_data:
+                military_id = conn.execute(
+                    "SELECT nextval('military_history_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        military_id,
+                        military["match_id"],
+                        military["player_id"],
+                        military["turn_number"],
+                        military["military_power"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
+    def bulk_insert_legitimacy_history(
+        self, legitimacy_data: List[Dict[str, Any]]
+    ) -> None:
+        """Bulk insert legitimacy history records.
+
+        Args:
+            legitimacy_data: List of legitimacy history dictionaries
+        """
+        if not legitimacy_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO player_legitimacy_history (
+                legitimacy_history_id, match_id, player_id, turn_number, legitimacy
+            ) VALUES (?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for legitimacy in legitimacy_data:
+                legitimacy_id = conn.execute(
+                    "SELECT nextval('legitimacy_history_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        legitimacy_id,
+                        legitimacy["match_id"],
+                        legitimacy["player_id"],
+                        legitimacy["turn_number"],
+                        legitimacy["legitimacy"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
+    def bulk_insert_family_opinion_history(
+        self, family_data: List[Dict[str, Any]]
+    ) -> None:
+        """Bulk insert family opinion history records.
+
+        Args:
+            family_data: List of family opinion history dictionaries
+        """
+        if not family_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO family_opinion_history (
+                family_opinion_id, match_id, player_id, turn_number, family_name, opinion
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for family in family_data:
+                family_id = conn.execute(
+                    "SELECT nextval('family_opinion_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        family_id,
+                        family["match_id"],
+                        family["player_id"],
+                        family["turn_number"],
+                        family["family_name"],
+                        family["opinion"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
+    def bulk_insert_religion_opinion_history(
+        self, religion_data: List[Dict[str, Any]]
+    ) -> None:
+        """Bulk insert religion opinion history records.
+
+        Args:
+            religion_data: List of religion opinion history dictionaries
+        """
+        if not religion_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO religion_opinion_history (
+                religion_opinion_id, match_id, player_id, turn_number, religion_name, opinion
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for religion in religion_data:
+                religion_id = conn.execute(
+                    "SELECT nextval('religion_opinion_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        religion_id,
+                        religion["match_id"],
+                        religion["player_id"],
+                        religion["turn_number"],
+                        religion["religion_name"],
+                        religion["opinion"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
 
 # Global database instance
 db = TournamentDatabase()
