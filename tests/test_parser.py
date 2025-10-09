@@ -140,7 +140,7 @@ class TestYieldHistoryExtraction:
         first_record = yield_history[0]
         assert "player_id" in first_record
         assert "turn_number" in first_record
-        assert "yield_type" in first_record
+        assert "resource_type" in first_record
         assert "amount" in first_record
 
         # Verify specific values
@@ -150,7 +150,7 @@ class TestYieldHistoryExtraction:
             for r in yield_history
             if r["player_id"] == 1
             and r["turn_number"] == 2
-            and r["yield_type"] == "YIELD_GROWTH"
+            and r["resource_type"] == "YIELD_GROWTH"
         )
         assert player_1_t2_growth["amount"] == 100
 
@@ -160,7 +160,7 @@ class TestYieldHistoryExtraction:
             for r in yield_history
             if r["player_id"] == 1
             and r["turn_number"] == 5
-            and r["yield_type"] == "YIELD_CIVICS"
+            and r["resource_type"] == "YIELD_CIVICS"
         )
         assert player_1_t5_civics["amount"] == 65
 
@@ -170,7 +170,7 @@ class TestYieldHistoryExtraction:
             for r in yield_history
             if r["player_id"] == 2
             and r["turn_number"] == 3
-            and r["yield_type"] == "YIELD_GROWTH"
+            and r["resource_type"] == "YIELD_GROWTH"
         )
         assert player_2_t3_growth["amount"] == 100
 
