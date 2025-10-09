@@ -41,7 +41,20 @@ def migrate(db_path: Path, backup: bool = True) -> None:
         if count > 0:
             print(f"    WARNING: resources table has {count} rows! Skipping rename.")
         else:
+            # Drop existing indexes first
+            print("    - Dropping existing indexes...")
+            conn.execute("DROP INDEX IF EXISTS idx_resources_match_player")
+            conn.execute("DROP INDEX IF EXISTS idx_resources_match_turn_type")
+            conn.execute("DROP INDEX IF EXISTS idx_resources_turn")
+            conn.execute("DROP INDEX IF EXISTS idx_resources_type")
+            # Now rename the table
             conn.execute("ALTER TABLE resources RENAME TO player_yield_history")
+            # Recreate indexes with new table name
+            print("    - Creating indexes on player_yield_history...")
+            conn.execute("CREATE INDEX idx_yield_history_match_player ON player_yield_history(match_id, player_id)")
+            conn.execute("CREATE INDEX idx_yield_history_match_turn_type ON player_yield_history(match_id, turn_number, resource_type)")
+            conn.execute("CREATE INDEX idx_yield_history_turn ON player_yield_history(turn_number)")
+            conn.execute("CREATE INDEX idx_yield_history_type ON player_yield_history(resource_type)")
 
         # 2.5. Create sequences for new tables
         print("  - Creating sequences for new tables...")
@@ -181,7 +194,7 @@ def migrate(db_path: Path, backup: bool = True) -> None:
 
     except Exception as e:
         print(f"Migration failed: {e}")
-        conn.rollback()
+        # Don't call rollback as DuckDB uses auto-commit by default
         raise
     finally:
         conn.close()
