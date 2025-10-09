@@ -119,3 +119,57 @@ class TestPointsHistoryExtraction:
         # Should have exactly 2 records (T2 and T3), skipping InvalidTag
         assert len(points_history) == 2
         assert all(r["turn_number"] in [2, 3] for r in points_history)
+
+
+class TestYieldHistoryExtraction:
+    """Tests for extracting yield rate history."""
+
+    def test_extract_yield_history(self, sample_history_path: Path) -> None:
+        """Test extraction of yield rate history."""
+        parser = OldWorldSaveParser(str(sample_history_path))
+        parser.parse_xml_file(str(sample_history_path))
+
+        yield_history = parser.extract_yield_history()
+
+        # Player 1 has 2 yield types (GROWTH, CIVICS) × 4 turns = 8 records
+        # Player 2 has 1 yield type (GROWTH) × 4 turns = 4 records
+        # Total: 12 records
+        assert len(yield_history) == 12, f"Expected 12 records, got {len(yield_history)}"
+
+        # Check structure
+        first_record = yield_history[0]
+        assert "player_id" in first_record
+        assert "turn_number" in first_record
+        assert "yield_type" in first_record
+        assert "amount" in first_record
+
+        # Verify specific values
+        # Player 1, Turn 2, YIELD_GROWTH: 100
+        player_1_t2_growth = next(
+            r
+            for r in yield_history
+            if r["player_id"] == 1
+            and r["turn_number"] == 2
+            and r["yield_type"] == "YIELD_GROWTH"
+        )
+        assert player_1_t2_growth["amount"] == 100
+
+        # Player 1, Turn 5, YIELD_CIVICS: 65
+        player_1_t5_civics = next(
+            r
+            for r in yield_history
+            if r["player_id"] == 1
+            and r["turn_number"] == 5
+            and r["yield_type"] == "YIELD_CIVICS"
+        )
+        assert player_1_t5_civics["amount"] == 65
+
+        # Player 2, Turn 3, YIELD_GROWTH: 100
+        player_2_t3_growth = next(
+            r
+            for r in yield_history
+            if r["player_id"] == 2
+            and r["turn_number"] == 3
+            and r["yield_type"] == "YIELD_GROWTH"
+        )
+        assert player_2_t3_growth["amount"] == 100

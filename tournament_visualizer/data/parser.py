@@ -1271,6 +1271,82 @@ class OldWorldSaveParser:
 
         return points_data
 
+    def extract_yield_history(self) -> List[Dict[str, Any]]:
+        """Extract yield production rates over time from YieldRateHistory.
+
+        Parses Player/YieldRateHistory elements which contain turn-by-turn
+        yield production rates for all yield types (GROWTH, CIVICS, TRAINING, etc.).
+
+        Unlike other history types, yields are nested by type:
+        <YieldRateHistory>
+            <YIELD_GROWTH>
+                <T2>100</T2>
+                <T3>120</T3>
+            </YIELD_GROWTH>
+            <YIELD_CIVICS>
+                <T2>50</T2>
+                <T3>55</T3>
+            </YIELD_CIVICS>
+        </YieldRateHistory>
+
+        Returns:
+            List of yield history dictionaries with:
+            - player_id: Database player ID (1-based)
+            - turn_number: Game turn number
+            - yield_type: Type of yield (YIELD_GROWTH, YIELD_CIVICS, etc.)
+            - amount: Production rate for that yield on that turn
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        yield_data = []
+
+        # Find all player elements with OnlineID (human players)
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            # Get player's XML ID (0-based)
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based player_id for database
+            player_id = int(player_xml_id) + 1
+
+            # Find YieldRateHistory for this player
+            yield_history = player_elem.find(".//YieldRateHistory")
+            if yield_history is None:
+                continue
+
+            # Process each yield type (YIELD_GROWTH, YIELD_CIVICS, etc.)
+            for yield_type_elem in yield_history:
+                yield_type = yield_type_elem.tag  # e.g., "YIELD_GROWTH"
+
+                # Process each turn within this yield type (T2, T3, ...)
+                for turn_elem in yield_type_elem:
+                    turn_tag = turn_elem.tag  # e.g., "T2"
+
+                    # Extract turn number from tag (T2 → 2)
+                    if not turn_tag.startswith("T"):
+                        continue
+
+                    turn_number = self._safe_int(turn_tag[1:])
+                    amount = self._safe_int(turn_elem.text)
+
+                    if turn_number is None or amount is None:
+                        continue
+
+                    yield_data.append(
+                        {
+                            "player_id": player_id,
+                            "turn_number": turn_number,
+                            "yield_type": yield_type,
+                            "amount": amount,
+                        }
+                    )
+
+        return yield_data
+
 
 def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     """Parse a tournament save file and extract all data.
