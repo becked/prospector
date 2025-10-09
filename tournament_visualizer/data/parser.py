@@ -1347,6 +1347,196 @@ class OldWorldSaveParser:
 
         return yield_data
 
+    def extract_military_history(self) -> List[Dict[str, Any]]:
+        """Extract military power progression from MilitaryPowerHistory.
+
+        Returns:
+            List of military history dictionaries with:
+            - player_id: Database player ID (1-based)
+            - turn_number: Game turn number
+            - military_power: Military strength for that turn
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        military_data = []
+
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            player_id = int(player_xml_id) + 1
+
+            military_history = player_elem.find(".//MilitaryPowerHistory")
+            if military_history is None:
+                continue
+
+            for turn_elem in military_history:
+                turn_tag = turn_elem.tag
+                if not turn_tag.startswith("T"):
+                    continue
+
+                turn_number = self._safe_int(turn_tag[1:])
+                military_power = self._safe_int(turn_elem.text)
+
+                if turn_number is None or military_power is None:
+                    continue
+
+                military_data.append(
+                    {
+                        "player_id": player_id,
+                        "turn_number": turn_number,
+                        "military_power": military_power,
+                    }
+                )
+
+        return military_data
+
+    def extract_legitimacy_history(self) -> List[Dict[str, Any]]:
+        """Extract legitimacy progression from LegitimacyHistory.
+
+        Returns:
+            List of legitimacy history dictionaries with:
+            - player_id: Database player ID (1-based)
+            - turn_number: Game turn number
+            - legitimacy: Legitimacy value (0-100) for that turn
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        legitimacy_data = []
+
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            player_id = int(player_xml_id) + 1
+
+            legitimacy_history = player_elem.find(".//LegitimacyHistory")
+            if legitimacy_history is None:
+                continue
+
+            for turn_elem in legitimacy_history:
+                turn_tag = turn_elem.tag
+                if not turn_tag.startswith("T"):
+                    continue
+
+                turn_number = self._safe_int(turn_tag[1:])
+                legitimacy = self._safe_int(turn_elem.text)
+
+                if turn_number is None or legitimacy is None:
+                    continue
+
+                legitimacy_data.append(
+                    {
+                        "player_id": player_id,
+                        "turn_number": turn_number,
+                        "legitimacy": legitimacy,
+                    }
+                )
+
+        return legitimacy_data
+
+    def extract_opinion_histories(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Extract family and religion opinion histories.
+
+        Both follow the same nested pattern:
+        <FamilyOpinionHistory>
+            <FAMILY_NAME>
+                <T2>100</T2>
+                <T3>95</T3>
+            </FAMILY_NAME>
+        </FamilyOpinionHistory>
+
+        Returns:
+            Dictionary with two keys:
+            - 'family_opinions': List of family opinion records
+            - 'religion_opinions': List of religion opinion records
+
+            Each record contains:
+            - player_id: Database player ID (1-based)
+            - turn_number: Game turn number
+            - family_name/religion_name: Name of the family/religion
+            - opinion: Opinion value (0-100) for that turn
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        family_opinions = []
+        religion_opinions = []
+
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            player_id = int(player_xml_id) + 1
+
+            # Extract family opinions
+            family_history = player_elem.find(".//FamilyOpinionHistory")
+            if family_history is not None:
+                for family_elem in family_history:
+                    family_name = family_elem.tag  # e.g., "FAMILY_JULII"
+
+                    for turn_elem in family_elem:
+                        turn_tag = turn_elem.tag
+                        if not turn_tag.startswith("T"):
+                            continue
+
+                        turn_number = self._safe_int(turn_tag[1:])
+                        opinion = self._safe_int(turn_elem.text)
+
+                        if turn_number is None or opinion is None:
+                            continue
+
+                        family_opinions.append(
+                            {
+                                "player_id": player_id,
+                                "turn_number": turn_number,
+                                "family_name": family_name,
+                                "opinion": opinion,
+                            }
+                        )
+
+            # Extract religion opinions (same pattern)
+            religion_history = player_elem.find(".//ReligionOpinionHistory")
+            if religion_history is not None:
+                for religion_elem in religion_history:
+                    religion_name = religion_elem.tag  # e.g., "RELIGION_JUPITER"
+
+                    for turn_elem in religion_elem:
+                        turn_tag = turn_elem.tag
+                        if not turn_tag.startswith("T"):
+                            continue
+
+                        turn_number = self._safe_int(turn_tag[1:])
+                        opinion = self._safe_int(turn_elem.text)
+
+                        if turn_number is None or opinion is None:
+                            continue
+
+                        religion_opinions.append(
+                            {
+                                "player_id": player_id,
+                                "turn_number": turn_number,
+                                "religion_name": religion_name,
+                                "opinion": opinion,
+                            }
+                        )
+
+        return {
+            "family_opinions": family_opinions,
+            "religion_opinions": religion_opinions,
+        }
+
 
 def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     """Parse a tournament save file and extract all data.

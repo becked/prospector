@@ -173,3 +173,109 @@ class TestYieldHistoryExtraction:
             and r["yield_type"] == "YIELD_GROWTH"
         )
         assert player_2_t3_growth["amount"] == 100
+
+
+class TestMilitaryHistoryExtraction:
+    """Tests for extracting military power history."""
+
+    def test_extract_military_history(self, sample_history_path: Path) -> None:
+        """Test extraction of military power history."""
+        parser = OldWorldSaveParser(str(sample_history_path))
+        parser.parse_xml_file(str(sample_history_path))
+
+        military_history = parser.extract_military_history()
+
+        # 2 players × 4 turns = 8 records
+        assert len(military_history) == 8
+
+        # Player 1, Turn 5: 40 military power
+        player_1_t5 = next(
+            r for r in military_history if r["player_id"] == 1 and r["turn_number"] == 5
+        )
+        assert player_1_t5["military_power"] == 40
+
+
+class TestLegitimacyHistoryExtraction:
+    """Tests for extracting legitimacy history."""
+
+    def test_extract_legitimacy_history(self, sample_history_path: Path) -> None:
+        """Test extraction of legitimacy history."""
+        parser = OldWorldSaveParser(str(sample_history_path))
+        parser.parse_xml_file(str(sample_history_path))
+
+        legitimacy_history = parser.extract_legitimacy_history()
+
+        # 2 players × 4 turns = 8 records
+        assert len(legitimacy_history) == 8
+
+        # Player 1, Turn 5: 90 legitimacy
+        player_1_t5 = next(
+            r
+            for r in legitimacy_history
+            if r["player_id"] == 1 and r["turn_number"] == 5
+        )
+        assert player_1_t5["legitimacy"] == 90
+
+        # Player 2 maintains 100 legitimacy
+        player_2_t5 = next(
+            r
+            for r in legitimacy_history
+            if r["player_id"] == 2 and r["turn_number"] == 5
+        )
+        assert player_2_t5["legitimacy"] == 100
+
+
+class TestOpinionHistoriesExtraction:
+    """Tests for extracting family and religion opinions."""
+
+    def test_extract_opinion_histories(self, sample_history_path: Path) -> None:
+        """Test extraction of family and religion opinions."""
+        parser = OldWorldSaveParser(str(sample_history_path))
+        parser.parse_xml_file(str(sample_history_path))
+
+        opinion_histories = parser.extract_opinion_histories()
+
+        # Should return dict with two keys
+        assert "family_opinions" in opinion_histories
+        assert "religion_opinions" in opinion_histories
+
+        family_opinions = opinion_histories["family_opinions"]
+        religion_opinions = opinion_histories["religion_opinions"]
+
+        # Player 1: 2 families × 4 turns = 8 records
+        # Player 2: 1 family × 4 turns = 4 records
+        # Total: 12 family opinion records
+        assert len(family_opinions) == 12
+
+        # Player 1: 1 religion × 4 turns = 4 records
+        # Player 2: 1 religion × 4 turns = 4 records
+        # Total: 8 religion opinion records
+        assert len(religion_opinions) == 8
+
+        # Check structure
+        first_family = family_opinions[0]
+        assert "player_id" in first_family
+        assert "turn_number" in first_family
+        assert "family_name" in first_family
+        assert "opinion" in first_family
+
+        # Verify specific value
+        # Player 1, Turn 5, FAMILY_JULII: 85
+        player_1_julii_t5 = next(
+            r
+            for r in family_opinions
+            if r["player_id"] == 1
+            and r["turn_number"] == 5
+            and r["family_name"] == "FAMILY_JULII"
+        )
+        assert player_1_julii_t5["opinion"] == 85
+
+        # Player 2, Turn 2, RELIGION_BAAL: 100
+        player_2_baal_t2 = next(
+            r
+            for r in religion_opinions
+            if r["player_id"] == 2
+            and r["turn_number"] == 2
+            and r["religion_name"] == "RELIGION_BAAL"
+        )
+        assert player_2_baal_t2["opinion"] == 100
