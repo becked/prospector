@@ -1769,3 +1769,106 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
         )
 
     return fig
+
+
+def create_law_progression_heatmap(df: pd.DataFrame) -> go.Figure:
+    """Create a heatmap showing player law progression performance.
+
+    Color coding:
+    - Green: Reached 7 laws (strong performance)
+    - Yellow: Reached 4 laws (moderate performance)
+    - Red: < 4 laws (weak performance)
+    - Gray: No data
+
+    Args:
+        df: DataFrame with player_name, match_id, turn_to_4_laws, turn_to_7_laws
+
+    Returns:
+        Plotly figure with heatmap
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No law progression data available")
+
+    # Create a performance score:
+    # 3 = reached 7 laws
+    # 2 = reached 4 laws (but not 7)
+    # 1 = < 4 laws
+    # 0 = no data (shouldn't happen in valid data)
+    def calculate_performance_score(row: pd.Series) -> int:
+        """Calculate performance score based on milestones reached."""
+        if pd.notna(row["turn_to_7_laws"]):
+            return 3  # Reached 7 laws
+        elif pd.notna(row["turn_to_4_laws"]):
+            return 2  # Reached 4 laws
+        else:
+            return 1  # Didn't reach 4 laws
+
+    df["performance_score"] = df.apply(calculate_performance_score, axis=1)
+
+    # Pivot table: rows = players, columns = matches, values = performance score
+    pivot_data = df.pivot_table(
+        index="player_name",
+        columns="match_id",
+        values="performance_score",
+        aggfunc="first",  # One entry per player per match
+    )
+
+    if pivot_data.empty:
+        return create_empty_chart_placeholder("Insufficient data for heatmap")
+
+    # Create custom colorscale
+    # 1 = red, 2 = yellow, 3 = green
+    colorscale = [
+        [0.0, "#EF5350"],  # Red (poor)
+        [0.33, "#EF5350"],  # Red
+        [0.34, "#FFA726"],  # Yellow (moderate)
+        [0.66, "#FFA726"],  # Yellow
+        [0.67, "#66BB6A"],  # Green (excellent)
+        [1.0, "#66BB6A"],  # Green
+    ]
+
+    fig = create_base_figure(
+        title="Player Law Progression Performance (All Matches)",
+        show_legend=False,
+        height=400 + (len(pivot_data) * 20),  # Scale height with player count
+    )
+
+    # Create hover text
+    hover_text = []
+    for player in pivot_data.index:
+        row_text = []
+        for match_id in pivot_data.columns:
+            score = pivot_data.loc[player, match_id]
+            if pd.notna(score):
+                if score == 3:
+                    text = f"Match {match_id}<br>{player}<br>Reached 7 laws"
+                elif score == 2:
+                    text = f"Match {match_id}<br>{player}<br>Reached 4 laws"
+                else:
+                    text = f"Match {match_id}<br>{player}<br>< 4 laws"
+            else:
+                text = f"Match {match_id}<br>{player}<br>No data"
+            row_text.append(text)
+        hover_text.append(row_text)
+
+    fig.add_trace(
+        go.Heatmap(
+            z=pivot_data.values,
+            x=[f"Match {mid}" for mid in pivot_data.columns],
+            y=pivot_data.index,
+            colorscale=colorscale,
+            hovertext=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(
+                title="Performance",
+                tickvals=[1, 2, 3],
+                ticktext=["< 4 laws", "4 laws", "7 laws"],
+            ),
+        )
+    )
+
+    fig.update_xaxes(title="Match", side="bottom")
+    fig.update_yaxes(title="Player")
+
+    return fig
