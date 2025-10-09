@@ -6,6 +6,7 @@ from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_law_milestone_comparison_chart,
+    create_law_race_timeline_chart,  # ← ADD THIS
     # We'll add more imports as we create more charts
 )
 
@@ -124,3 +125,42 @@ class TestLawMilestoneComparisonChart:
         fig = create_law_milestone_comparison_chart(sample_match_data)
         assert fig.layout.xaxis.title.text is not None
         assert fig.layout.yaxis.title.text is not None
+
+
+class TestLawRaceTimelineChart:
+    """Tests for horizontal timeline chart (Visualization #2)."""
+
+    def test_returns_figure(self, sample_match_data: pd.DataFrame) -> None:
+        """Should return a Plotly Figure object."""
+        fig = create_law_race_timeline_chart(sample_match_data)
+        assert isinstance(fig, go.Figure)
+
+    def test_has_traces_for_both_players(self, sample_match_data: pd.DataFrame) -> None:
+        """Should have separate traces for each player."""
+        fig = create_law_race_timeline_chart(sample_match_data)
+
+        # Should have at least 2 traces (one per player)
+        assert len(fig.data) >= 2
+
+    def test_uses_scatter_plot(self, sample_match_data: pd.DataFrame) -> None:
+        """Timeline should use scatter plot with markers."""
+        fig = create_law_race_timeline_chart(sample_match_data)
+
+        # All traces should be Scatter type
+        for trace in fig.data:
+            assert isinstance(trace, go.Scatter)
+
+    def test_handles_player_who_didnt_reach_7_laws(
+        self, sample_match_data: pd.DataFrame
+    ) -> None:
+        """Should gracefully handle players with fewer milestones."""
+        # anarkos only reached 4 laws, not 7
+        fig = create_law_race_timeline_chart(sample_match_data)
+
+        # Should not raise an error
+        assert isinstance(fig, go.Figure)
+
+    def test_empty_data_returns_placeholder(self, empty_data: pd.DataFrame) -> None:
+        """Should handle empty data."""
+        fig = create_law_race_timeline_chart(empty_data)
+        assert len(fig.data) == 0  # Placeholder has no traces
