@@ -1988,3 +1988,83 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing cumulative law count over time.
+
+    Displays a "racing" view of law progression, making it easy to see
+    who was ahead at any point in the match.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, cumulative_laws
+            (from get_cumulative_law_count_by_turn())
+
+    Returns:
+        Plotly figure with line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No law progression data available for this match"
+        )
+
+    fig = create_base_figure(
+        title="Cumulative Law Count Race",
+        x_title="Turn Number",
+        y_title="Laws Adopted",
+        height=400,
+    )
+
+    # Add a line for each player
+    players = df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player]
+
+        # Add a point at turn 0 with 0 laws for cleaner visualization
+        turns = [0] + player_data["turn_number"].tolist()
+        laws = [0] + player_data["cumulative_laws"].tolist()
+
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=laws,
+                mode="lines+markers",
+                name=player,
+                line=dict(
+                    color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    width=3,
+                ),
+                marker=dict(size=6),
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Turn %{x}: %{y} laws<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Add reference lines for milestones
+    fig.add_hline(
+        y=4,
+        line_dash="dash",
+        line_color="rgba(128,128,128,0.5)",
+        annotation_text="4 Laws",
+        annotation_position="right",
+    )
+
+    fig.add_hline(
+        y=7,
+        line_dash="dash",
+        line_color="rgba(128,128,128,0.5)",
+        annotation_text="7 Laws",
+        annotation_position="right",
+    )
+
+    # Set Y-axis to start at 0 and use integer ticks
+    fig.update_yaxes(
+        rangemode="tozero",
+        dtick=1,  # Tick every 1 law
+    )
+
+    return fig
