@@ -14,7 +14,9 @@ from dash import Input, Output, callback, dcc, html
 from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
+    create_cumulative_law_count_chart,
     create_empty_chart_placeholder,
+    create_law_efficiency_scatter,
     create_law_milestone_comparison_chart,
     create_law_milestone_distribution_chart,
     create_law_progression_heatmap,
@@ -452,6 +454,32 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                 title="Player Performance Heatmap",
                                                 chart_id="match-law-heatmap",
                                                 height="450px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Visualization #5: Efficiency Scatter & #6: Cumulative Count
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Law Progression Efficiency (All Matches)",
+                                                chart_id="match-law-efficiency",
+                                                height="500px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Cumulative Law Count (This Match)",
+                                                chart_id="match-law-cumulative",
+                                                height="400px",
                                             )
                                         ],
                                         width=6,
@@ -1333,4 +1361,63 @@ def update_law_heatmap(match_id: Optional[int]) -> go.Figure:
 
     except Exception as e:
         logger.error(f"Error loading law heatmap: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("match-law-efficiency", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_efficiency(match_id: Optional[int]) -> go.Figure:
+    """Update law efficiency scatter plot.
+
+    Note: Shows data from ALL matches.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with scatter plot
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_law_progression_by_match(match_id=None)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data available")
+
+        return create_law_efficiency_scatter(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law efficiency: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("match-law-cumulative", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
+    """Update cumulative law count chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with cumulative line chart
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match")
+
+    try:
+        queries = get_queries()
+        df = queries.get_cumulative_law_count_by_turn(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No law data for this match")
+
+        return create_cumulative_law_count_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading cumulative law count: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
