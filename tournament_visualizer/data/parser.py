@@ -1579,6 +1579,13 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     units_produced = parser.extract_units_produced()
     detailed_metadata = parser.extract_match_metadata()
 
+    # Extract turn-by-turn history data
+    yield_history = parser.extract_yield_history()
+    points_history = parser.extract_points_history()
+    military_history = parser.extract_military_history()
+    legitimacy_history = parser.extract_legitimacy_history()
+    opinion_histories = parser.extract_opinion_histories()
+
     # Determine winner
     winner_player_id = parser.determine_winner(players)
     match_metadata["winner_player_id"] = winner_player_id
@@ -1594,4 +1601,11 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
         "player_statistics": player_statistics,
         "units_produced": units_produced,
         "detailed_metadata": detailed_metadata,
+        # Turn-by-turn history data
+        "yield_history": yield_history,
+        "points_history": points_history,
+        "military_history": military_history,
+        "legitimacy_history": legitimacy_history,
+        "family_opinion_history": opinion_histories["family_opinions"],
+        "religion_opinion_history": opinion_histories["religion_opinions"],
     }
