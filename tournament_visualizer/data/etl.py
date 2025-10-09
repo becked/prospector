@@ -137,23 +137,6 @@ class TournamentETL:
             self.db.insert_match_winner(match_id, winner_db_id, "parser_determined")
             logger.info(f"Recorded winner: player_id {winner_db_id}")
 
-        # Process game states
-        game_states = parsed_data["game_states"]
-        for state_data in game_states:
-            state_data["match_id"] = match_id
-            # Map active_player_id if present
-            if (
-                state_data.get("active_player_id")
-                and state_data["active_player_id"] in player_id_mapping
-            ):
-                state_data["active_player_id"] = player_id_mapping[
-                    state_data["active_player_id"]
-                ]
-
-        if game_states:
-            self._bulk_insert_game_states(game_states)
-            logger.info(f"Inserted {len(game_states)} game states")
-
         # Process events
         events = parsed_data["events"]
         for event_data in events:
@@ -361,40 +344,6 @@ class TournamentETL:
             logger.info(
                 f"Inserted {len(religion_opinion_history)} religion opinion history records"
             )
-
-    def _bulk_insert_game_states(self, game_states: List[Dict[str, Any]]) -> None:
-        """Bulk insert game state records.
-
-        Args:
-            game_states: List of game state dictionaries
-        """
-        if not game_states:
-            return
-
-        with self.db.get_connection() as conn:
-            query = """
-            INSERT INTO game_state (
-                state_id, match_id, turn_number, active_player_id, game_year, turn_timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """
-
-            values = []
-            for state in game_states:
-                state_id = conn.execute(
-                    "SELECT nextval('game_state_id_seq')"
-                ).fetchone()[0]
-                values.append(
-                    [
-                        state_id,
-                        state["match_id"],
-                        state["turn_number"],
-                        state.get("active_player_id"),
-                        state.get("game_year"),
-                        state.get("turn_timestamp"),
-                    ]
-                )
-
-            conn.executemany(query, values)
 
     def process_directory(
         self, directory_path: str, file_pattern: str = "*.zip"
