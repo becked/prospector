@@ -187,9 +187,8 @@ def sync_match_selection(
         if match_id:
             match_id_int = int(match_id)
             # Only set value if it exists in options and not already set
-            if (
-                selector_value != match_id_int
-                and any(opt["value"] == match_id_int for opt in options)
+            if selector_value != match_id_int and any(
+                opt["value"] == match_id_int for opt in options
             ):
                 return match_id_int, url_search
 
@@ -420,12 +419,61 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Technology & Research",
                         "tab_id": "technology",
                         "content": [
+                            # Final Laws and Technologies panels
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            dbc.Card(
+                                                [
+                                                    dbc.CardHeader(
+                                                        html.H5(
+                                                            "Final Laws",
+                                                            className="mb-0",
+                                                        )
+                                                    ),
+                                                    dbc.CardBody(
+                                                        html.Div(
+                                                            id="match-final-laws-content"
+                                                        ),
+                                                    ),
+                                                ],
+                                                className="h-100",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            dbc.Card(
+                                                [
+                                                    dbc.CardHeader(
+                                                        html.H5(
+                                                            "Final Technologies",
+                                                            className="mb-0",
+                                                        )
+                                                    ),
+                                                    dbc.CardBody(
+                                                        html.Div(
+                                                            id="match-final-techs-content"
+                                                        ),
+                                                    ),
+                                                ],
+                                                className="h-100",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Technology Tempo chart
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Cumulative Technology Count",
+                                                title="Technology Tempo",
                                                 chart_id="match-technology-chart",
                                                 height="400px",
                                             )
@@ -435,12 +483,13 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
+                            # Law Tempo chart
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Cumulative Law Count",
+                                                title="Law Tempo",
                                                 chart_id="match-law-cumulative",
                                                 height="400px",
                                             )
@@ -828,7 +877,9 @@ def update_technology_chart(match_id: Optional[int]) -> go.Figure:
         # Get total turns for the match to extend lines to the end
         match_df = queries.get_match_summary()
         match_info = match_df[match_df["match_id"] == match_id]
-        total_turns = match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        total_turns = (
+            match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        )
 
         return create_cumulative_tech_count_chart(df, total_turns)
 
@@ -1179,6 +1230,172 @@ def update_settings_content(match_id: Optional[int]):
 
 
 @callback(
+    Output("match-final-laws-content", "children"),
+    Input("match-selector", "value"),
+)
+def update_final_laws(match_id: Optional[int]) -> html.Div:
+    """Update final laws display for each player.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML content with player laws
+    """
+    if not match_id:
+        return html.Div("Select a match to view final laws", className="text-muted")
+
+    try:
+        queries = get_queries()
+        df = queries.get_cumulative_law_count_by_turn(match_id)
+
+        if df.empty:
+            return html.Div("No law data available", className="text-muted")
+
+        # Get the final turn data for each player
+        final_laws = df.loc[df.groupby("player_id")["turn_number"].idxmax()]
+
+        # Create player sections
+        player_sections = []
+        for _, row in final_laws.iterrows():
+            player_name = row["player_name"]
+            law_list_str = row.get("law_list", "")
+
+            # Parse and sort laws
+            if law_list_str and pd.notna(law_list_str):
+                laws = [law.strip() for law in str(law_list_str).split(",")]
+                laws.sort()
+            else:
+                laws = []
+
+            # Create law badges
+            law_badges = [
+                dbc.Badge(
+                    law,
+                    color="primary",
+                    className="me-1 mb-1",
+                    pill=True,
+                )
+                for law in laws
+            ]
+
+            player_section = html.Div(
+                [
+                    html.H6(
+                        [
+                            player_name,
+                            dbc.Badge(
+                                f"{len(laws)} laws",
+                                color="info",
+                                className="ms-2",
+                                pill=True,
+                            ),
+                        ],
+                        className="mb-2",
+                    ),
+                    html.Div(
+                        law_badges
+                        if laws
+                        else html.Span("No laws", className="text-muted")
+                    ),
+                ],
+                className="mb-3",
+            )
+            player_sections.append(player_section)
+
+        return html.Div(player_sections)
+
+    except Exception as e:
+        logger.error(f"Error loading final laws: {e}")
+        return html.Div(f"Error loading laws: {str(e)}", className="text-danger")
+
+
+@callback(
+    Output("match-final-techs-content", "children"),
+    Input("match-selector", "value"),
+)
+def update_final_techs(match_id: Optional[int]) -> html.Div:
+    """Update final technologies display for each player.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML content with player technologies
+    """
+    if not match_id:
+        return html.Div(
+            "Select a match to view final technologies", className="text-muted"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_tech_count_by_turn(match_id)
+
+        if df.empty:
+            return html.Div("No technology data available", className="text-muted")
+
+        # Get the final turn data for each player
+        final_techs = df.loc[df.groupby("player_id")["turn_number"].idxmax()]
+
+        # Create player sections
+        player_sections = []
+        for _, row in final_techs.iterrows():
+            player_name = row["player_name"]
+            tech_list_str = row.get("tech_list", "")
+
+            # Parse and sort technologies
+            if tech_list_str and pd.notna(tech_list_str):
+                techs = [tech.strip() for tech in str(tech_list_str).split(",")]
+                techs.sort()
+            else:
+                techs = []
+
+            # Create tech badges
+            tech_badges = [
+                dbc.Badge(
+                    tech,
+                    color="success",
+                    className="me-1 mb-1",
+                    pill=True,
+                )
+                for tech in techs
+            ]
+
+            player_section = html.Div(
+                [
+                    html.H6(
+                        [
+                            player_name,
+                            dbc.Badge(
+                                f"{len(techs)} techs",
+                                color="info",
+                                className="ms-2",
+                                pill=True,
+                            ),
+                        ],
+                        className="mb-2",
+                    ),
+                    html.Div(
+                        tech_badges
+                        if techs
+                        else html.Span("No technologies", className="text-muted")
+                    ),
+                ],
+                className="mb-3",
+            )
+            player_sections.append(player_section)
+
+        return html.Div(player_sections)
+
+    except Exception as e:
+        logger.error(f"Error loading final technologies: {e}")
+        return html.Div(
+            f"Error loading technologies: {str(e)}", className="text-danger"
+        )
+
+
+@callback(
     Output("match-law-cumulative", "figure"),
     Input("match-selector", "value"),
 )
@@ -1204,7 +1421,9 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
         # Get total turns for the match to extend lines to the end
         match_df = queries.get_match_summary()
         match_info = match_df[match_df["match_id"] == match_id]
-        total_turns = match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        total_turns = (
+            match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        )
 
         return create_cumulative_law_count_chart(df, total_turns)
 
