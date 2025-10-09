@@ -200,7 +200,7 @@ class TournamentETL:
                 ]
 
         if resources:
-            self.db.bulk_insert_resources(resources)
+            self.db.bulk_insert_yield_history(resources)
             logger.info(f"Inserted {len(resources)} resource records")
 
         # Process technology progress

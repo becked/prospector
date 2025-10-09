@@ -54,6 +54,9 @@ This restores the database from the automatic backup created before migration.
 
 ## Related Changes
 
-- Parser: `tournament_visualizer/data/parser.py` - New extraction methods
-- Database: `tournament_visualizer/data/database.py` - New table creation methods
+- Parser: `tournament_visualizer/parser/parser.py` - New extraction methods
+- Database: `tournament_visualizer/data/database.py` - New table creation methods AND method rename
+  - `bulk_insert_resources()` → `bulk_insert_yield_history()` (renamed for clarity)
+  - Table reference updated: `resources` → `player_yield_history`
+- ETL: `tournament_visualizer/data/etl.py` - Update calls to use new method name
 - Tests: `tests/test_parser.py` - Tests for new extraction methods

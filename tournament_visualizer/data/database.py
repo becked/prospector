@@ -952,24 +952,24 @@ class TournamentDatabase:
 
             conn.executemany(query, values)
 
-    def bulk_insert_resources(self, resources_data: List[Dict[str, Any]]) -> None:
-        """Bulk insert resource records for better performance.
+    def bulk_insert_yield_history(self, yield_data: List[Dict[str, Any]]) -> None:
+        """Bulk insert yield rate history records.
 
         Args:
-            resources_data: List of resource dictionaries
+            yield_data: List of yield history dictionaries
         """
-        if not resources_data:
+        if not yield_data:
             return
 
         with self.get_connection() as conn:
             query = """
-            INSERT INTO resources (
+            INSERT INTO player_yield_history (
                 resource_id, match_id, player_id, turn_number, resource_type, amount
             ) VALUES (?, ?, ?, ?, ?, ?)
             """
 
             values = []
-            for resource in resources_data:
+            for resource in yield_data:
                 resource_id = conn.execute(
                     "SELECT nextval('resources_id_seq')"
                 ).fetchone()[0]
