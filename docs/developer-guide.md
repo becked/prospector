@@ -80,6 +80,369 @@ Pre-built SQL queries for analytics:
 - **`get_tech_count_by_turn()`**: Cumulative tech counts (for racing charts)
 - **`get_techs_at_law_milestone()`**: Combined law/tech analysis
 
+## Turn-by-Turn History
+
+The system tracks turn-by-turn gameplay progression through six specialized history tables:
+
+### History Tables Overview
+
+| Table | Purpose | Data Per Turn |
+|-------|---------|---------------|
+| `player_points_history` | Victory points | points |
+| `player_yield_history` | Resource production | 14 yield types × amount |
+| `player_military_history` | Military strength | military_power |
+| `player_legitimacy_history` | Legitimacy score | legitimacy |
+| `family_opinion_history` | Family relations | 40 families × opinion |
+| `religion_opinion_history` | Religious standing | 15 religions × opinion |
+
+**Key Characteristics:**
+- All tables share `(match_id, player_id, turn_number)` structure
+- Data is extracted from `Player/TurnList/TurnData` elements in XML
+- Yields can be **negative** (no CHECK constraint on amount)
+- Opinion values range from very negative to very positive
+
+### Extracting History Data (Parser)
+
+The parser extracts history data from `TurnData` elements:
+
+```python
+# In parser.py
+def extract_points_history(self) -> List[Dict[str, Any]]:
+    """Extract points history from TurnData elements."""
+    points_history = []
+
+    for player in self.root.findall('.//Player[@ID]'):
+        player_id = int(player.get('ID')) + 1  # 1-based for database
+
+        turn_list = player.find('TurnList')
+        if turn_list is not None:
+            for turn_data in turn_list.findall('TurnData'):
+                turn_number = int(turn_data.get('Turn', 0))
+                points = int(turn_data.get('Points', 0))
+
+                points_history.append({
+                    'player_id': player_id,
+                    'turn_number': turn_number,
+                    'points': points,
+                })
+
+    return points_history
+```
+
+**Important Details:**
+- **Negative values**: Yields can be negative (e.g., debt, unhappiness)
+- **All turns**: Extract data for every turn, even turn 0 or 1
+- **No filtering**: Don't skip turns with zero or negative values
+- **Player ID**: Always convert XML 0-based to database 1-based
+
+### Loading History Data (ETL)
+
+The ETL maps player IDs and bulk inserts history data:
+
+```python
+# In etl.py
+def _load_tournament_data(self, parsed_data: Dict[str, Any]) -> None:
+    # ... insert match and players first ...
+
+    # Process points history
+    points_history = parsed_data.get("points_history", [])
+    for point_data in points_history:
+        point_data["match_id"] = match_id
+        # Map player_id from XML to database
+        if (
+            point_data.get("player_id")
+            and point_data["player_id"] in player_id_mapping
+        ):
+            point_data["player_id"] = player_id_mapping[point_data["player_id"]]
+
+    if points_history:
+        self.db.bulk_insert_points_history(points_history)
+        logger.info(f"Inserted {len(points_history)} points history records")
+```
+
+**Pattern for all history tables:**
+1. Get history data from parsed_data
+2. Add match_id to each record
+3. Map player_id using player_id_mapping
+4. Bulk insert using appropriate database method
+
+### Querying History Data
+
+Use window functions for turn-by-turn analysis:
+
+```python
+# In queries.py
+def get_points_progression(self, match_id: int) -> pd.DataFrame:
+    """Get victory points progression for a match."""
+    query = """
+    SELECT
+        p.player_name,
+        ph.turn_number,
+        ph.points,
+        -- Calculate change from previous turn
+        ph.points - LAG(ph.points) OVER (
+            PARTITION BY ph.player_id
+            ORDER BY ph.turn_number
+        ) as points_gained
+    FROM player_points_history ph
+    JOIN players p ON ph.player_id = p.player_id
+    WHERE ph.match_id = ?
+    ORDER BY ph.turn_number, p.player_name
+    """
+
+    with self.db.get_connection() as conn:
+        return conn.execute(query, [match_id]).df()
+```
+
+**SQL Tips:**
+- Use `LAG()` to compare with previous turns
+- Use `LEAD()` to compare with future turns
+- `PARTITION BY player_id` for per-player analysis
+- Always filter by `match_id` for performance
+
+### Database Schema
+
+History tables use sequences for auto-increment IDs:
+
+```sql
+-- Sequences (shared across related tables)
+CREATE SEQUENCE IF NOT EXISTS resources_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS points_history_id_seq START 1;
+
+-- Example: player_yield_history
+CREATE TABLE player_yield_history (
+    resource_id BIGINT PRIMARY KEY,
+    match_id BIGINT NOT NULL REFERENCES matches(match_id),
+    player_id BIGINT NOT NULL REFERENCES players(player_id),
+    turn_number INTEGER NOT NULL,
+    resource_type VARCHAR(50) NOT NULL,
+    amount INTEGER NOT NULL,  -- Can be negative!
+
+    CHECK (turn_number >= 0),
+    UNIQUE (match_id, player_id, turn_number, resource_type)
+);
+
+-- Indexes for fast queries
+CREATE INDEX idx_yield_history_match_player
+ON player_yield_history(match_id, player_id);
+
+CREATE INDEX idx_yield_history_turn
+ON player_yield_history(turn_number);
+```
+
+**Schema Design Notes:**
+- No CHECK constraint on `amount` (yields can be negative)
+- UNIQUE constraint prevents duplicate turn records
+- Foreign keys enforce referential integrity
+- Indexes optimize common query patterns
+
+### Adding New History Tables
+
+To add a new history table (e.g., `player_culture_history`):
+
+#### 1. Update Database Schema
+
+Add table creation in `database.py`:
+
+```python
+def _create_player_culture_history_table(self) -> None:
+    """Create the player_culture_history table."""
+    query = """
+    CREATE TABLE IF NOT EXISTS player_culture_history (
+        culture_history_id BIGINT PRIMARY KEY,
+        match_id BIGINT NOT NULL REFERENCES matches(match_id),
+        player_id BIGINT NOT NULL REFERENCES players(player_id),
+        turn_number INTEGER NOT NULL,
+        culture_type VARCHAR(50) NOT NULL,
+        culture_level INTEGER NOT NULL,
+
+        CHECK (turn_number >= 0),
+        UNIQUE (match_id, player_id, turn_number, culture_type)
+    );
+
+    CREATE INDEX idx_culture_history_match_player
+    ON player_culture_history(match_id, player_id);
+    """
+    with self.get_connection() as conn:
+        conn.execute(query)
+```
+
+#### 2. Add Parser Method
+
+Extract data in `parser.py`:
+
+```python
+def extract_culture_history(self) -> List[Dict[str, Any]]:
+    """Extract culture history from TurnData elements."""
+    culture_history = []
+
+    for player in self.root.findall('.//Player[@ID]'):
+        player_id = int(player.get('ID')) + 1
+        turn_list = player.find('TurnList')
+
+        if turn_list is not None:
+            for turn_data in turn_list.findall('TurnData'):
+                turn_number = int(turn_data.get('Turn', 0))
+
+                # Extract culture-related attributes
+                culture_type = turn_data.get('CultureType')
+                culture_level = int(turn_data.get('CultureLevel', 0))
+
+                if culture_type:
+                    culture_history.append({
+                        'player_id': player_id,
+                        'turn_number': turn_number,
+                        'culture_type': culture_type,
+                        'culture_level': culture_level,
+                    })
+
+    return culture_history
+```
+
+#### 3. Add Bulk Insert Method
+
+Add database method in `database.py`:
+
+```python
+def bulk_insert_culture_history(
+    self, culture_data: List[Dict[str, Any]]
+) -> None:
+    """Bulk insert culture history records."""
+    if not culture_data:
+        return
+
+    with self.get_connection() as conn:
+        query = """
+        INSERT INTO player_culture_history (
+            culture_history_id, match_id, player_id,
+            turn_number, culture_type, culture_level
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """
+
+        values = []
+        for culture in culture_data:
+            culture_id = conn.execute(
+                "SELECT nextval('culture_history_id_seq')"
+            ).fetchone()[0]
+            values.append([
+                culture_id,
+                culture["match_id"],
+                culture["player_id"],
+                culture["turn_number"],
+                culture["culture_type"],
+                culture["culture_level"],
+            ])
+
+        conn.executemany(query, values)
+```
+
+#### 4. Update ETL Pipeline
+
+Add to ETL processing in `etl.py`:
+
+```python
+# In _load_tournament_data method
+culture_history = parsed_data.get("culture_history", [])
+for culture_data in culture_history:
+    culture_data["match_id"] = match_id
+    if culture_data.get("player_id") in player_id_mapping:
+        culture_data["player_id"] = player_id_mapping[culture_data["player_id"]]
+
+if culture_history:
+    self.db.bulk_insert_culture_history(culture_history)
+    logger.info(f"Inserted {len(culture_history)} culture history records")
+```
+
+#### 5. Write Tests
+
+Test extraction in `tests/test_parser.py`:
+
+```python
+def test_extract_culture_history():
+    parser = OldWorldSaveParser("test_data.zip")
+    parser.extract_and_parse()
+
+    culture_history = parser.extract_culture_history()
+
+    assert len(culture_history) > 0
+    assert all('player_id' in record for record in culture_history)
+    assert all('turn_number' in record for record in culture_history)
+```
+
+### Validation
+
+After adding history data, run validation:
+
+```bash
+# Validate history data integrity
+uv run python scripts/validate_history_data.py
+```
+
+The validation script checks:
+- Record counts
+- Foreign key integrity
+- Data quality (NULLs, negative values)
+- Turn consistency across tables
+
+### Analytics Examples
+
+See comprehensive analytics examples in:
+- `docs/turn-by-turn-history-analytics.md`
+
+Quick examples:
+
+```sql
+-- Victory points progression
+SELECT
+    p.player_name,
+    ph.turn_number,
+    ph.points
+FROM player_points_history ph
+JOIN players p ON ph.player_id = p.player_id
+WHERE ph.match_id = 1
+ORDER BY ph.turn_number;
+
+-- Economic power (average yields)
+SELECT
+    p.player_name,
+    AVG(CASE WHEN yh.resource_type = 'YIELD_MONEY' THEN yh.amount END) as avg_money,
+    AVG(CASE WHEN yh.resource_type = 'YIELD_SCIENCE' THEN yh.amount END) as avg_science
+FROM player_yield_history yh
+JOIN players p ON yh.player_id = p.player_id
+WHERE yh.match_id = 1
+GROUP BY p.player_name;
+
+-- Military advantage over time
+SELECT
+    p.player_name,
+    mh.turn_number,
+    mh.military_power,
+    mh.military_power - AVG(mh.military_power) OVER (
+        PARTITION BY mh.turn_number
+    ) as military_advantage
+FROM player_military_history mh
+JOIN players p ON mh.player_id = p.player_id
+WHERE mh.match_id = 1;
+```
+
+### Migration Management
+
+History tables were added via migration 002:
+
+```bash
+# Run migration
+uv run python scripts/migrations/002_add_history_tables.py
+
+# Rollback if needed
+uv run python scripts/migrations/002_add_history_tables.py --rollback
+```
+
+**Migration Details:**
+- Drops broken `game_state` table
+- Renames `resources` → `player_yield_history`
+- Creates 5 new history tables
+- See: `docs/migrations/002_add_history_tables.md`
+
 ## Data Parsing
 
 ### Parsing MemoryData Events
@@ -484,6 +847,6 @@ If you get stuck:
 
 ---
 
-**Last Updated:** 2025-01-08
+**Last Updated:** 2025-10-09
 
-**Contributors:** Initial implementation following TDD and YAGNI principles
+**Contributors:** Initial implementation following TDD and YAGNI principles. Turn-by-turn history feature added in October 2025.
