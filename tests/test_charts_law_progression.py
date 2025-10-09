@@ -6,7 +6,8 @@ from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_law_milestone_comparison_chart,
-    create_law_milestone_distribution_chart,  # ← ADD THIS
+    create_law_milestone_distribution_chart,
+    create_law_progression_heatmap,  # ← ADD THIS
     create_law_race_timeline_chart,
     # We'll add more imports as we create more charts
 )
@@ -196,4 +197,29 @@ class TestLawMilestoneDistributionChart:
         fig = create_law_milestone_distribution_chart(sample_all_matches_data)
 
         # Should still create chart
+        assert isinstance(fig, go.Figure)
+
+
+class TestLawProgressionHeatmap:
+    """Tests for player performance heatmap (Visualization #4)."""
+
+    def test_returns_figure(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should return a Plotly Figure object."""
+        fig = create_law_progression_heatmap(sample_all_matches_data)
+        assert isinstance(fig, go.Figure)
+
+    def test_uses_heatmap(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should use heatmap visualization."""
+        fig = create_law_progression_heatmap(sample_all_matches_data)
+
+        # Should have heatmap trace
+        assert any(isinstance(trace, go.Heatmap) for trace in fig.data)
+
+    def test_handles_players_without_milestones(
+        self, sample_all_matches_data: pd.DataFrame
+    ) -> None:
+        """Should show players who never reached milestones."""
+        # Several players in fixture never reached 4 laws
+        fig = create_law_progression_heatmap(sample_all_matches_data)
+
         assert isinstance(fig, go.Figure)
