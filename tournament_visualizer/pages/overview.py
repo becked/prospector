@@ -14,6 +14,8 @@ from dash import Input, Output, callback, html
 
 from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
+    create_law_efficiency_scatter,
+    create_law_milestone_distribution_chart,
     create_map_breakdown_sunburst_chart,
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
@@ -112,6 +114,32 @@ layout = html.Div(
                             title="Map Breakdown",
                             chart_id="overview-map-chart",
                             height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+        # Law Progression Analysis - 2 charts side by side
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Milestone Timing Distribution (All Matches)",
+                            chart_id="overview-law-distribution",
+                            height="450px",
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Law Progression Efficiency (All Matches)",
+                            chart_id="overview-law-efficiency",
+                            height="450px",
                         )
                     ],
                     width=6,
@@ -422,3 +450,62 @@ def check_data_status(refresh_clicks: int) -> html.Div:
         return dbc.Alert(
             f"Error checking data status: {str(e)}", color="danger", dismissable=True
         )
+
+
+@callback(
+    Output("overview-law-distribution", "figure"),
+    Input("overview-refresh-btn", "n_clicks"),
+)
+def update_law_distribution(refresh_clicks: int):
+    """Update law milestone distribution chart.
+
+    Shows data from ALL matches.
+
+    Args:
+        refresh_clicks: Number of refresh button clicks
+
+    Returns:
+        Plotly figure with box plot distribution
+    """
+    try:
+        queries = get_queries()
+        # Get ALL matches data
+        df = queries.get_law_progression_by_match(match_id=None)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No law progression data available")
+
+        return create_law_milestone_distribution_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law distribution: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-law-efficiency", "figure"),
+    Input("overview-refresh-btn", "n_clicks"),
+)
+def update_law_efficiency(refresh_clicks: int):
+    """Update law efficiency scatter plot.
+
+    Shows data from ALL matches.
+
+    Args:
+        refresh_clicks: Number of refresh button clicks
+
+    Returns:
+        Plotly figure with scatter plot
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_law_progression_by_match(match_id=None)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No law progression data available")
+
+        return create_law_efficiency_scatter(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law efficiency: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
