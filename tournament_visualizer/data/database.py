@@ -140,6 +140,11 @@ class TournamentDatabase:
         self._create_player_statistics_table()
         self._create_units_produced_table()
         self._create_unit_classifications_table()
+        self._create_player_points_history_table()
+        self._create_player_military_history_table()
+        self._create_player_legitimacy_history_table()
+        self._create_family_opinion_history_table()
+        self._create_religion_opinion_history_table()
         self._create_schema_migrations_table()
         self._create_views()
 
@@ -163,6 +168,11 @@ class TournamentDatabase:
             "CREATE SEQUENCE IF NOT EXISTS technology_progress_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS player_statistics_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS units_produced_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS points_history_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS military_history_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS legitimacy_history_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS family_opinion_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS religion_opinion_id_seq START 1;",
         ]
 
         with self.get_connection() as conn:
@@ -551,6 +561,128 @@ class TournamentDatabase:
             """
 
             conn.executemany(insert_query, classifications)
+
+    def _create_player_points_history_table(self) -> None:
+        """Create the player_points_history table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS player_points_history (
+            points_history_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            points INTEGER NOT NULL,
+
+            CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT check_points CHECK(points >= 0),
+            CONSTRAINT unique_points_turn UNIQUE(match_id, player_id, turn_number)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_points_history_match_player
+        ON player_points_history(match_id, player_id);
+
+        CREATE INDEX IF NOT EXISTS idx_points_history_turn
+        ON player_points_history(turn_number);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_player_military_history_table(self) -> None:
+        """Create the player_military_history table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS player_military_history (
+            military_history_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            military_power INTEGER NOT NULL,
+
+            CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT check_military_power CHECK(military_power >= 0),
+            CONSTRAINT unique_military_turn UNIQUE(match_id, player_id, turn_number)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_military_history_match_player
+        ON player_military_history(match_id, player_id);
+
+        CREATE INDEX IF NOT EXISTS idx_military_history_turn
+        ON player_military_history(turn_number);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_player_legitimacy_history_table(self) -> None:
+        """Create the player_legitimacy_history table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS player_legitimacy_history (
+            legitimacy_history_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            legitimacy INTEGER NOT NULL,
+
+            CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT check_legitimacy CHECK(legitimacy >= 0 AND legitimacy <= 100),
+            CONSTRAINT unique_legitimacy_turn UNIQUE(match_id, player_id, turn_number)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_legitimacy_history_match_player
+        ON player_legitimacy_history(match_id, player_id);
+
+        CREATE INDEX IF NOT EXISTS idx_legitimacy_history_turn
+        ON player_legitimacy_history(turn_number);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_family_opinion_history_table(self) -> None:
+        """Create the family_opinion_history table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS family_opinion_history (
+            family_opinion_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            family_name VARCHAR NOT NULL,
+            opinion INTEGER NOT NULL,
+
+            CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
+            CONSTRAINT unique_family_opinion_turn UNIQUE(match_id, player_id, turn_number, family_name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_family_opinion_match_player
+        ON family_opinion_history(match_id, player_id);
+
+        CREATE INDEX IF NOT EXISTS idx_family_opinion_family
+        ON family_opinion_history(family_name);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_religion_opinion_history_table(self) -> None:
+        """Create the religion_opinion_history table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS religion_opinion_history (
+            religion_opinion_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            religion_name VARCHAR NOT NULL,
+            opinion INTEGER NOT NULL,
+
+            CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
+            CONSTRAINT unique_religion_opinion_turn UNIQUE(match_id, player_id, turn_number, religion_name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_religion_opinion_match_player
+        ON religion_opinion_history(match_id, player_id);
+
+        CREATE INDEX IF NOT EXISTS idx_religion_opinion_religion
+        ON religion_opinion_history(religion_name);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
 
     def _create_schema_migrations_table(self) -> None:
         """Create the schema migrations tracking table."""
