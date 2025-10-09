@@ -132,7 +132,6 @@ class TournamentDatabase:
         self._create_players_table()
         self._create_match_winners_table()
         self._create_match_metadata_table()
-        self._create_game_state_table()
         self._create_territories_table()
         self._create_events_table()
         self._create_resources_table()
@@ -161,7 +160,6 @@ class TournamentDatabase:
         sequences = [
             "CREATE SEQUENCE IF NOT EXISTS matches_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS players_id_seq START 1;",
-            "CREATE SEQUENCE IF NOT EXISTS game_state_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS territories_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS events_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS resources_id_seq START 1;",
@@ -331,9 +329,9 @@ class TournamentDatabase:
             conn.execute(query)
 
     def _create_resources_table(self) -> None:
-        """Create the resources table."""
+        """Create the player_yield_history table (formerly resources)."""
         query = """
-        CREATE TABLE IF NOT EXISTS resources (
+        CREATE TABLE IF NOT EXISTS player_yield_history (
             resource_id BIGINT PRIMARY KEY,
             match_id BIGINT NOT NULL REFERENCES matches(match_id),
             player_id BIGINT NOT NULL REFERENCES players(player_id),
@@ -342,14 +340,13 @@ class TournamentDatabase:
             amount INTEGER NOT NULL,
 
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
-            CONSTRAINT check_amount CHECK(amount >= 0),
-            CONSTRAINT unique_resource_turn UNIQUE(match_id, player_id, turn_number, resource_type)
+            CONSTRAINT unique_yield_turn UNIQUE(match_id, player_id, turn_number, resource_type)
         );
-        
-        CREATE INDEX IF NOT EXISTS idx_resources_match_player ON resources(match_id, player_id);
-        CREATE INDEX IF NOT EXISTS idx_resources_turn ON resources(turn_number);
-        CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type);
-        CREATE INDEX IF NOT EXISTS idx_resources_match_turn_type ON resources(match_id, turn_number, resource_type);
+
+        CREATE INDEX IF NOT EXISTS idx_yield_history_match_player ON player_yield_history(match_id, player_id);
+        CREATE INDEX IF NOT EXISTS idx_yield_history_turn ON player_yield_history(turn_number);
+        CREATE INDEX IF NOT EXISTS idx_yield_history_type ON player_yield_history(resource_type);
+        CREATE INDEX IF NOT EXISTS idx_yield_history_match_turn_type ON player_yield_history(match_id, turn_number, resource_type);
         """
         with self.get_connection() as conn:
             conn.execute(query)
