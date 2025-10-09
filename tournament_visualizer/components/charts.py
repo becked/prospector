@@ -2077,3 +2077,66 @@ def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_cumulative_tech_count_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing cumulative technology count over time.
+
+    Displays a "racing" view of technology progression, making it easy to see
+    who was ahead at any point in the match.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, cumulative_techs
+            (from get_tech_count_by_turn())
+
+    Returns:
+        Plotly figure with line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No technology progression data available for this match"
+        )
+
+    fig = create_base_figure(
+        title="Cumulative Technology Count Race",
+        x_title="Turn Number",
+        y_title="Technologies Discovered",
+        height=400,
+    )
+
+    # Add a line for each player
+    players = df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player]
+
+        # Add a point at turn 0 with 0 techs for cleaner visualization
+        turns = [0] + player_data["turn_number"].tolist()
+        techs = [0] + player_data["cumulative_techs"].tolist()
+
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=techs,
+                mode="lines+markers",
+                name=player,
+                line=dict(
+                    color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    width=3,
+                ),
+                marker=dict(size=6),
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Turn %{x}: %{y} techs<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Set Y-axis to start at 0 and use integer ticks
+    fig.update_yaxes(
+        rangemode="tozero",
+        dtick=1,  # Tick every 1 tech
+    )
+
+    return fig

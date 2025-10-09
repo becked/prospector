@@ -15,16 +15,10 @@ from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
+    create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
-    create_law_efficiency_scatter,
-    create_law_milestone_comparison_chart,
-    create_law_milestone_distribution_chart,
-    create_law_progression_heatmap,
-    create_law_race_timeline_chart,
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
-    create_technology_comparison_chart,
-    create_technology_detail_chart,
 )
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
@@ -431,100 +425,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Technology Research Comparison",
+                                                title="Cumulative Technology Count (This Match)",
                                                 chart_id="match-technology-chart",
                                                 height="400px",
                                             )
                                         ],
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Top 10 Technologies",
-                                                chart_id="match-technology-detail-chart",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=6,
+                                        width=12,
                                     ),
                                 ],
                                 className="mb-3",
                             ),
-                            # NEW: Law Progression Section
+                            # Law Progression Section
                             html.Hr(),  # Visual separator
                             html.H4("Law Progression Analysis", className="mt-4 mb-3"),
-                            # Visualization #1: Match Comparison
+                            # Cumulative Count
                             dbc.Row(
                                 [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Law Milestone Timing (This Match)",
-                                                chart_id="match-law-milestone-comparison",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Visualization #2: Race Timeline
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Law Milestone Timeline",
-                                                chart_id="match-law-race-timeline",
-                                                height="300px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Visualization #3: Distribution & #4: Heatmap
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Milestone Timing Distribution (All Matches)",
-                                                chart_id="match-law-distribution",
-                                                height="450px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Player Performance Heatmap",
-                                                chart_id="match-law-heatmap",
-                                                height="450px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Visualization #5: Efficiency Scatter & #6: Cumulative Count
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Law Progression Efficiency (All Matches)",
-                                                chart_id="match-law-efficiency",
-                                                height="500px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
                                     dbc.Col(
                                         [
                                             create_chart_card(
@@ -533,7 +449,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                 height="400px",
                                             )
                                         ],
-                                        width=6,
+                                        width=12,
                                     ),
                                 ],
                                 className="mb-3",
@@ -892,66 +808,33 @@ def update_breadcrumb(match_id: Optional[int]) -> html.Div:
 
 
 @callback(Output("match-technology-chart", "figure"), Input("match-selector", "value"))
-def update_technology_chart(match_id: Optional[int]):
-    """Update technology comparison chart.
+def update_technology_chart(match_id: Optional[int]) -> go.Figure:
+    """Update cumulative technology count chart.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Plotly figure for technology comparison
+        Plotly figure for cumulative technology count
     """
     if not match_id:
         return create_empty_chart_placeholder("Select a match to view technology data")
 
     try:
         queries = get_queries()
-        df = queries.get_technology_comparison(match_id)
+        df = queries.get_tech_count_by_turn(match_id)
 
         if df.empty:
             return create_empty_chart_placeholder(
                 "No technology data available for this match"
             )
 
-        return create_technology_comparison_chart(df)
+        return create_cumulative_tech_count_chart(df)
 
     except Exception as e:
+        logger.error(f"Error loading cumulative tech count: {e}")
         return create_empty_chart_placeholder(
             f"Error loading technology data: {str(e)}"
-        )
-
-
-@callback(
-    Output("match-technology-detail-chart", "figure"), Input("match-selector", "value")
-)
-def update_technology_detail_chart(match_id: Optional[int]):
-    """Update technology detail chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure for technology details
-    """
-    if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view technology details"
-        )
-
-    try:
-        queries = get_queries()
-        df = queries.get_technology_comparison(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No technology data available for this match"
-            )
-
-        return create_technology_detail_chart(df, top_n=10)
-
-    except Exception as e:
-        return create_empty_chart_placeholder(
-            f"Error loading technology details: {str(e)}"
         )
 
 
@@ -1292,156 +1175,6 @@ def update_settings_content(match_id: Optional[int]):
         return create_empty_state(
             f"Error loading settings: {str(e)}", icon="bi-exclamation-triangle"
         )
-
-
-@callback(
-    Output("match-law-milestone-comparison", "figure"),
-    Input("match-selector", "value"),
-)
-def update_law_milestone_comparison(match_id: Optional[int]) -> go.Figure:
-    """Update law milestone comparison chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure with law milestone comparison
-    """
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match to view law progression")
-
-    try:
-        queries = get_queries()
-        df = queries.get_law_progression_by_match(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No law progression data available for this match"
-            )
-
-        return create_law_milestone_comparison_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error loading law milestone comparison: {e}")
-        return create_empty_chart_placeholder(f"Error loading data: {str(e)}")
-
-
-@callback(
-    Output("match-law-race-timeline", "figure"),
-    Input("match-selector", "value"),
-)
-def update_law_race_timeline(match_id: Optional[int]) -> go.Figure:
-    """Update law race timeline chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure with timeline
-    """
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match")
-
-    try:
-        queries = get_queries()
-        df = queries.get_law_progression_by_match(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder("No data available")
-
-        return create_law_race_timeline_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error loading law race timeline: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
-@callback(
-    Output("match-law-distribution", "figure"),
-    Input("match-selector", "value"),
-)
-def update_law_distribution(match_id: Optional[int]) -> go.Figure:
-    """Update law milestone distribution chart.
-
-    Note: This chart shows data from ALL matches, not just the selected one.
-
-    Args:
-        match_id: Selected match ID (used to trigger update, but chart shows all data)
-
-    Returns:
-        Plotly figure with box plot distribution
-    """
-    try:
-        queries = get_queries()
-        # Get ALL matches data (pass None to get_law_progression_by_match)
-        df = queries.get_law_progression_by_match(match_id=None)
-
-        if df.empty:
-            return create_empty_chart_placeholder("No law progression data available")
-
-        return create_law_milestone_distribution_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error loading law distribution: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
-@callback(
-    Output("match-law-heatmap", "figure"),
-    Input("match-selector", "value"),
-)
-def update_law_heatmap(match_id: Optional[int]) -> go.Figure:
-    """Update law progression heatmap.
-
-    Note: This chart shows data from ALL matches.
-
-    Args:
-        match_id: Selected match ID (used to trigger update, but chart shows all data)
-
-    Returns:
-        Plotly figure with heatmap
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_law_progression_by_match(match_id=None)
-
-        if df.empty:
-            return create_empty_chart_placeholder("No law progression data available")
-
-        return create_law_progression_heatmap(df)
-
-    except Exception as e:
-        logger.error(f"Error loading law heatmap: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
-@callback(
-    Output("match-law-efficiency", "figure"),
-    Input("match-selector", "value"),
-)
-def update_law_efficiency(match_id: Optional[int]) -> go.Figure:
-    """Update law efficiency scatter plot.
-
-    Note: Shows data from ALL matches.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure with scatter plot
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_law_progression_by_match(match_id=None)
-
-        if df.empty:
-            return create_empty_chart_placeholder("No data available")
-
-        return create_law_efficiency_scatter(df)
-
-    except Exception as e:
-        logger.error(f"Error loading law efficiency: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 
 @callback(
