@@ -1207,6 +1207,70 @@ class OldWorldSaveParser:
 
         return None
 
+    def extract_points_history(self) -> List[Dict[str, Any]]:
+        """Extract victory points progression from PointsHistory.
+
+        Parses Player/PointsHistory elements which contain turn-by-turn
+        victory point totals.
+
+        Returns:
+            List of points history dictionaries with:
+            - player_id: Database player ID (1-based, converted from 0-based XML ID)
+            - turn_number: Game turn number (extracted from TN tags)
+            - points: Victory points for that turn
+
+        Example XML:
+            <Player ID="0" OnlineID="123">
+                <PointsHistory>
+                    <T2>1</T2>
+                    <T3>2</T3>
+                    <T4>5</T4>
+                </PointsHistory>
+            </Player>
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        points_data = []
+
+        # Find all player elements with OnlineID (human players only)
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            # Get player's XML ID (0-based)
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based database player ID
+            player_id = int(player_xml_id) + 1
+
+            # Find PointsHistory element for this player
+            points_history = player_elem.find(".//PointsHistory")
+            if points_history is None:
+                continue
+
+            # Process each turn element (T2, T3, T4, ...)
+            for turn_elem in points_history:
+                turn_tag = turn_elem.tag  # e.g., "T2"
+
+                # Skip if not a turn tag
+                if not turn_tag.startswith("T"):
+                    continue
+
+                # Extract turn number from tag (T2 → 2)
+                turn_number = self._safe_int(turn_tag[1:])
+                points = self._safe_int(turn_elem.text)
+
+                if turn_number is None or points is None:
+                    continue
+
+                points_data.append(
+                    {"player_id": player_id, "turn_number": turn_number, "points": points}
+                )
+
+        return points_data
+
 
 def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     """Parse a tournament save file and extract all data.
