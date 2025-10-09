@@ -6,7 +6,8 @@ from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_law_milestone_comparison_chart,
-    create_law_race_timeline_chart,  # ← ADD THIS
+    create_law_milestone_distribution_chart,  # ← ADD THIS
+    create_law_race_timeline_chart,
     # We'll add more imports as we create more charts
 )
 
@@ -164,3 +165,35 @@ class TestLawRaceTimelineChart:
         """Should handle empty data."""
         fig = create_law_race_timeline_chart(empty_data)
         assert len(fig.data) == 0  # Placeholder has no traces
+
+
+class TestLawMilestoneDistributionChart:
+    """Tests for box plot distribution (Visualization #3)."""
+
+    def test_returns_figure(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should return a Plotly Figure object."""
+        fig = create_law_milestone_distribution_chart(sample_all_matches_data)
+        assert isinstance(fig, go.Figure)
+
+    def test_uses_box_plots(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should use box plots to show distribution."""
+        fig = create_law_milestone_distribution_chart(sample_all_matches_data)
+
+        # Should have box plot traces
+        assert any(isinstance(trace, go.Box) for trace in fig.data)
+
+    def test_has_two_boxes(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should show two distributions (4 laws and 7 laws)."""
+        fig = create_law_milestone_distribution_chart(sample_all_matches_data)
+
+        # Should have 2 box traces
+        box_traces = [trace for trace in fig.data if isinstance(trace, go.Box)]
+        assert len(box_traces) == 2
+
+    def test_handles_sparse_data(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should handle when few players reached milestones."""
+        # Only 2 players reached 4 laws, 1 reached 7 laws in fixture
+        fig = create_law_milestone_distribution_chart(sample_all_matches_data)
+
+        # Should still create chart
+        assert isinstance(fig, go.Figure)
