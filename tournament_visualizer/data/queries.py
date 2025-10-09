@@ -486,14 +486,16 @@ class TournamentQueries:
         tables = [
             "matches",
             "players",
-            "game_state",
             "events",
             "territories",
-            "resources",
+            "player_yield_history",  # Renamed from resources
+            # Note: game_state was removed in migration 002 (had broken data)
         ]
         for table in tables:
             result = self.db.fetch_one(f"SELECT COUNT(*) FROM {table}")
-            stats[f"{table}_count"] = result[0] if result else 0
+            # Use friendly name for yield history
+            key_name = "yield_history" if table == "player_yield_history" else table
+            stats[f"{key_name}_count"] = result[0] if result else 0
 
         # Unique counts
         result = self.db.fetch_one("SELECT COUNT(DISTINCT player_name) FROM players")
