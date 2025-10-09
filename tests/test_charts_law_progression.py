@@ -5,13 +5,13 @@ import pytest
 from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
+    create_cumulative_law_count_chart,  # ← ADD THIS
+    # We'll add more imports as we create more charts
+    create_law_efficiency_scatter,
     create_law_milestone_comparison_chart,
     create_law_milestone_distribution_chart,
     create_law_progression_heatmap,
     create_law_race_timeline_chart,
-    create_law_efficiency_scatter,
-    create_cumulative_law_count_chart,  # ← ADD THIS
-    # We'll add more imports as we create more charts
 )
 
 

@@ -1557,7 +1557,9 @@ def create_law_milestone_comparison_chart(df: pd.DataFrame) -> go.Figure:
             x=df["player_name"],
             y=df["turn_to_4_laws"],
             marker_color=Config.PRIMARY_COLORS[0],
-            text=pd.to_numeric(df["turn_to_4_laws"], errors="coerce").round(0).astype("Int64"),  # Int64 handles NA
+            text=pd.to_numeric(df["turn_to_4_laws"], errors="coerce")
+            .round(0)
+            .astype("Int64"),  # Int64 handles NA
             textposition="auto",
             hovertemplate="<b>%{x}</b><br>4th Law: Turn %{y}<extra></extra>",
         )
@@ -1570,7 +1572,9 @@ def create_law_milestone_comparison_chart(df: pd.DataFrame) -> go.Figure:
             x=df["player_name"],
             y=df["turn_to_7_laws"],
             marker_color=Config.PRIMARY_COLORS[1],
-            text=pd.to_numeric(df["turn_to_7_laws"], errors="coerce").round(0).astype("Int64"),
+            text=pd.to_numeric(df["turn_to_7_laws"], errors="coerce")
+            .round(0)
+            .astype("Int64"),
             textposition="auto",
             hovertemplate="<b>%{x}</b><br>7th Law: Turn %{y}<extra></extra>",
         )
@@ -1627,18 +1631,22 @@ def create_law_race_timeline_chart(df: pd.DataFrame) -> go.Figure:
         milestones = []
 
         if pd.notna(row["turn_to_4_laws"]):
-            milestones.append({
-                "turn": row["turn_to_4_laws"],
-                "label": "4 laws",
-                "symbol": "circle",
-            })
+            milestones.append(
+                {
+                    "turn": row["turn_to_4_laws"],
+                    "label": "4 laws",
+                    "symbol": "circle",
+                }
+            )
 
         if pd.notna(row["turn_to_7_laws"]):
-            milestones.append({
-                "turn": row["turn_to_7_laws"],
-                "label": "7 laws",
-                "symbol": "star",
-            })
+            milestones.append(
+                {
+                    "turn": row["turn_to_7_laws"],
+                    "label": "7 laws",
+                    "symbol": "star",
+                }
+            )
 
         # Add a line connecting the milestones for this player
         if milestones:
@@ -1721,9 +1729,7 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
                 marker_color=Config.PRIMARY_COLORS[0],
                 boxmean="sd",  # Show mean and standard deviation
                 hovertemplate=(
-                    "<b>4 Laws Milestone</b><br>"
-                    "Turn: %{y}<br>"
-                    "<extra></extra>"
+                    "<b>4 Laws Milestone</b><br>" "Turn: %{y}<br>" "<extra></extra>"
                 ),
             )
         )
@@ -1737,9 +1743,7 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
                 marker_color=Config.PRIMARY_COLORS[1],
                 boxmean="sd",
                 hovertemplate=(
-                    "<b>7 Laws Milestone</b><br>"
-                    "Turn: %{y}<br>"
-                    "<extra></extra>"
+                    "<b>7 Laws Milestone</b><br>" "Turn: %{y}<br>" "<extra></extra>"
                 ),
             )
         )
@@ -1756,7 +1760,9 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
             median_7 = df_7_laws["turn_to_7_laws"].median()
             mean_7 = df_7_laws["turn_to_7_laws"].mean()
             count_7 = len(df_7_laws)
-            stats_text += f" | 7 Laws: n={count_7}, median={median_7:.0f}, mean={mean_7:.1f}"
+            stats_text += (
+                f" | 7 Laws: n={count_7}, median={median_7:.0f}, mean={mean_7:.1f}"
+            )
 
         fig.add_annotation(
             text=stats_text,
@@ -1893,9 +1899,7 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
         return create_empty_chart_placeholder("No law progression data available")
 
     # Filter to only players who reached BOTH milestones
-    df_complete = df[
-        df["turn_to_4_laws"].notna() & df["turn_to_7_laws"].notna()
-    ].copy()
+    df_complete = df[df["turn_to_4_laws"].notna() & df["turn_to_7_laws"].notna()].copy()
 
     if df_complete.empty:
         return create_empty_chart_placeholder(
@@ -1917,7 +1921,9 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
     # Color by civilization
     unique_civs = df_complete["civilization"].unique()
     civ_colors = {
-        civ: CIVILIZATION_COLORS.get(civ, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+        civ: CIVILIZATION_COLORS.get(
+            civ, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        )
         for i, civ in enumerate(unique_civs)
     }
 
@@ -1950,7 +1956,10 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
 
     # Add diagonal line showing typical progression ratio
     if not df_complete.empty:
-        x_range = [df_complete["turn_to_4_laws"].min(), df_complete["turn_to_4_laws"].max()]
+        x_range = [
+            df_complete["turn_to_4_laws"].min(),
+            df_complete["turn_to_4_laws"].max(),
+        ]
         # Typical ratio: if 4 laws at turn X, 7 laws around turn 1.5*X
         y_trend = [x * 1.5 for x in x_range]
 
