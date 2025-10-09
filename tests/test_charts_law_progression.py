@@ -1,13 +1,10 @@
 """Tests for law progression chart functions."""
 
-from typing import Any, Dict, List
-
 import pandas as pd
 import pytest
 from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
-    create_empty_chart_placeholder,
     create_law_milestone_comparison_chart,
     # We'll add more imports as we create more charts
 )
@@ -36,8 +33,22 @@ def sample_all_matches_data() -> pd.DataFrame:
         {
             "match_id": [1, 1, 3, 3, 4, 4],
             "player_id": [1, 2, 5, 6, 7, 8],
-            "player_name": ["yagman", "Marauder", "fonder", "aran", "PBM", "MongrelEyes"],
-            "civilization": ["Hittite", "Persia", "Assyria", "Assyria", "Greece", "Aksum"],
+            "player_name": [
+                "yagman",
+                "Marauder",
+                "fonder",
+                "aran",
+                "PBM",
+                "MongrelEyes",
+            ],
+            "civilization": [
+                "Hittite",
+                "Persia",
+                "Assyria",
+                "Assyria",
+                "Greece",
+                "Aksum",
+            ],
             "turn_to_4_laws": [50, pd.NA, 35, 61, pd.NA, pd.NA],
             "turn_to_7_laws": [pd.NA, pd.NA, 68, pd.NA, pd.NA, pd.NA],
             "total_laws": [4, 1, 9, 5, 2, 3],
@@ -81,7 +92,9 @@ class TestLawMilestoneComparisonChart:
         fig = create_law_milestone_comparison_chart(sample_match_data)
         assert isinstance(fig, go.Figure)
 
-    def test_has_correct_number_of_traces(self, sample_match_data: pd.DataFrame) -> None:
+    def test_has_correct_number_of_traces(
+        self, sample_match_data: pd.DataFrame
+    ) -> None:
         """Should have 2 traces (4 laws milestone, 7 laws milestone)."""
         fig = create_law_milestone_comparison_chart(sample_match_data)
         assert len(fig.data) == 2
@@ -103,7 +116,8 @@ class TestLawMilestoneComparisonChart:
         """Chart should have a descriptive title."""
         fig = create_law_milestone_comparison_chart(sample_match_data)
         assert fig.layout.title.text is not None
-        assert "milestone" in fig.layout.title.text.lower() or "law" in fig.layout.title.text.lower()
+        title_lower = fig.layout.title.text.lower()
+        assert "milestone" in title_lower or "law" in title_lower
 
     def test_chart_has_axis_labels(self, sample_match_data: pd.DataFrame) -> None:
         """Chart should have labeled axes."""
