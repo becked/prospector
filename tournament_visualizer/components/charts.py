@@ -1520,3 +1520,74 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(margin=dict(t=0, l=0, r=0, b=0), height=400)
 
     return fig
+
+
+def create_law_milestone_comparison_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a grouped bar chart comparing law milestone timing between players.
+
+    Shows when each player in a match reached the 4-law and 7-law milestones.
+    Useful for head-to-head comparison in a single match.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_to_4_laws, turn_to_7_laws
+            (typically from get_law_progression_by_match() for one match)
+
+    Returns:
+        Plotly figure with grouped bar chart
+
+    Example:
+        >>> queries = get_queries()
+        >>> df = queries.get_law_progression_by_match(match_id=10)
+        >>> fig = create_law_milestone_comparison_chart(df)
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No law progression data for this match")
+
+    fig = create_base_figure(
+        title="Law Milestone Timing Comparison",
+        x_title="Player",
+        y_title="Turn Number",
+        height=400,
+    )
+
+    # Add trace for 4 laws milestone
+    fig.add_trace(
+        go.Bar(
+            name="4 Laws",
+            x=df["player_name"],
+            y=df["turn_to_4_laws"],
+            marker_color=Config.PRIMARY_COLORS[0],
+            text=pd.to_numeric(df["turn_to_4_laws"], errors="coerce").round(0).astype("Int64"),  # Int64 handles NA
+            textposition="auto",
+            hovertemplate="<b>%{x}</b><br>4th Law: Turn %{y}<extra></extra>",
+        )
+    )
+
+    # Add trace for 7 laws milestone
+    fig.add_trace(
+        go.Bar(
+            name="7 Laws",
+            x=df["player_name"],
+            y=df["turn_to_7_laws"],
+            marker_color=Config.PRIMARY_COLORS[1],
+            text=pd.to_numeric(df["turn_to_7_laws"], errors="coerce").round(0).astype("Int64"),
+            textposition="auto",
+            hovertemplate="<b>%{x}</b><br>7th Law: Turn %{y}<extra></extra>",
+        )
+    )
+
+    # Group bars side-by-side
+    fig.update_layout(barmode="group")
+
+    # Add annotation explaining NULL values
+    fig.add_annotation(
+        text="Missing bars indicate milestone not reached",
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=-0.15,
+        showarrow=False,
+        font=dict(size=10, color="gray"),
+    )
+
+    return fig
