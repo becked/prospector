@@ -335,7 +335,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     dbc.Col(
                                         [
                                             create_data_table_card(
-                                                title="Event Details",
+                                                title="Events",
                                                 table_id="match-turns-table",
                                                 columns=[
                                                     {

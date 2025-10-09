@@ -119,13 +119,13 @@ layout = html.Div(
             ],
             className="mb-4",
         ),
-        # Recent matches table
+        # Matches table
         dbc.Row(
             [
                 dbc.Col(
                     [
                         create_data_table_card(
-                            title="Recent Matches",
+                            title="Matches",
                             table_id="overview-matches-table",
                             columns=[
                                 {
@@ -313,7 +313,7 @@ def update_map_chart(refresh_clicks: int):
     Output("overview-matches-table", "data"), Input("overview-refresh-btn", "n_clicks")
 )
 def update_matches_table(refresh_clicks: int) -> List[Dict[str, Any]]:
-    """Update the recent matches table.
+    """Update the matches table.
 
     Args:
         refresh_clicks: Number of refresh button clicks
@@ -323,7 +323,7 @@ def update_matches_table(refresh_clicks: int) -> List[Dict[str, Any]]:
     """
     try:
         queries = get_queries()
-        df = queries.get_recent_matches(limit=20)
+        df = queries.get_recent_matches(limit=None)
 
         if df.empty:
             return []

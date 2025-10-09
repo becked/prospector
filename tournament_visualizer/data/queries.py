@@ -428,11 +428,11 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
-    def get_recent_matches(self, limit: int = 10) -> pd.DataFrame:
+    def get_recent_matches(self, limit: int | None = 10) -> pd.DataFrame:
         """Get most recently processed matches.
 
         Args:
-            limit: Number of matches to return
+            limit: Number of matches to return. If None, returns all matches.
 
         Returns:
             DataFrame with recent match data including player names with nations
@@ -470,12 +470,16 @@ class TournamentQueries:
         LEFT JOIN ranked_players p2 ON m.match_id = p2.match_id AND p2.player_rank = 2
         LEFT JOIN match_winners mw ON m.match_id = mw.match_id
         LEFT JOIN players w ON mw.winner_player_id = w.player_id
-        ORDER BY m.processed_date DESC
-        LIMIT ?
+        ORDER BY m.save_date DESC
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query, [limit]).df()
+        if limit is not None:
+            query += " LIMIT ?"
+            with self.db.get_connection() as conn:
+                return conn.execute(query, [limit]).df()
+        else:
+            with self.db.get_connection() as conn:
+                return conn.execute(query).df()
 
     def get_database_statistics(self) -> Dict[str, Any]:
         """Get comprehensive database statistics.
