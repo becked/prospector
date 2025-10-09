@@ -256,6 +256,97 @@ class TournamentETL:
             self.db.insert_match_metadata(match_id, detailed_metadata)
             logger.info("Inserted match metadata")
 
+        # ========================================================================
+        # Process turn-by-turn history data
+        # ========================================================================
+
+        # Process points history
+        points_history = parsed_data.get("points_history", [])
+        for point_data in points_history:
+            point_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                point_data.get("player_id")
+                and point_data["player_id"] in player_id_mapping
+            ):
+                point_data["player_id"] = player_id_mapping[point_data["player_id"]]
+
+        if points_history:
+            self.db.bulk_insert_points_history(points_history)
+            logger.info(f"Inserted {len(points_history)} points history records")
+
+        # Process military history
+        military_history = parsed_data.get("military_history", [])
+        for military_data in military_history:
+            military_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                military_data.get("player_id")
+                and military_data["player_id"] in player_id_mapping
+            ):
+                military_data["player_id"] = player_id_mapping[
+                    military_data["player_id"]
+                ]
+
+        if military_history:
+            self.db.bulk_insert_military_history(military_history)
+            logger.info(f"Inserted {len(military_history)} military history records")
+
+        # Process legitimacy history
+        legitimacy_history = parsed_data.get("legitimacy_history", [])
+        for legitimacy_data in legitimacy_history:
+            legitimacy_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                legitimacy_data.get("player_id")
+                and legitimacy_data["player_id"] in player_id_mapping
+            ):
+                legitimacy_data["player_id"] = player_id_mapping[
+                    legitimacy_data["player_id"]
+                ]
+
+        if legitimacy_history:
+            self.db.bulk_insert_legitimacy_history(legitimacy_history)
+            logger.info(f"Inserted {len(legitimacy_history)} legitimacy history records")
+
+        # Process family opinion history
+        family_opinion_history = parsed_data.get("family_opinion_history", [])
+        for opinion_data in family_opinion_history:
+            opinion_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                opinion_data.get("player_id")
+                and opinion_data["player_id"] in player_id_mapping
+            ):
+                opinion_data["player_id"] = player_id_mapping[
+                    opinion_data["player_id"]
+                ]
+
+        if family_opinion_history:
+            self.db.bulk_insert_family_opinion_history(family_opinion_history)
+            logger.info(
+                f"Inserted {len(family_opinion_history)} family opinion history records"
+            )
+
+        # Process religion opinion history
+        religion_opinion_history = parsed_data.get("religion_opinion_history", [])
+        for opinion_data in religion_opinion_history:
+            opinion_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                opinion_data.get("player_id")
+                and opinion_data["player_id"] in player_id_mapping
+            ):
+                opinion_data["player_id"] = player_id_mapping[
+                    opinion_data["player_id"]
+                ]
+
+        if religion_opinion_history:
+            self.db.bulk_insert_religion_opinion_history(religion_opinion_history)
+            logger.info(
+                f"Inserted {len(religion_opinion_history)} religion opinion history records"
+            )
+
     def _bulk_insert_game_states(self, game_states: List[Dict[str, Any]]) -> None:
         """Bulk insert game state records.
 
