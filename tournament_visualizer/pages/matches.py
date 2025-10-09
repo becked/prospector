@@ -16,6 +16,8 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_law_milestone_comparison_chart,
+    create_law_milestone_distribution_chart,
+    create_law_progression_heatmap,
     create_law_race_timeline_chart,
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
@@ -427,6 +429,32 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             )
                                         ],
                                         width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Visualization #3: Distribution & #4: Heatmap
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Milestone Timing Distribution (All Matches)",
+                                                chart_id="match-law-distribution",
+                                                height="450px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Player Performance Heatmap",
+                                                chart_id="match-law-heatmap",
+                                                height="450px",
+                                            )
+                                        ],
+                                        width=6,
                                     ),
                                 ],
                                 className="mb-3",
@@ -1246,4 +1274,63 @@ def update_law_race_timeline(match_id: Optional[int]) -> go.Figure:
 
     except Exception as e:
         logger.error(f"Error loading law race timeline: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("match-law-distribution", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_distribution(match_id: Optional[int]) -> go.Figure:
+    """Update law milestone distribution chart.
+
+    Note: This chart shows data from ALL matches, not just the selected one.
+
+    Args:
+        match_id: Selected match ID (used to trigger update, but chart shows all data)
+
+    Returns:
+        Plotly figure with box plot distribution
+    """
+    try:
+        queries = get_queries()
+        # Get ALL matches data (pass None to get_law_progression_by_match)
+        df = queries.get_law_progression_by_match(match_id=None)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No law progression data available")
+
+        return create_law_milestone_distribution_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law distribution: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("match-law-heatmap", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_heatmap(match_id: Optional[int]) -> go.Figure:
+    """Update law progression heatmap.
+
+    Note: This chart shows data from ALL matches.
+
+    Args:
+        match_id: Selected match ID (used to trigger update, but chart shows all data)
+
+    Returns:
+        Plotly figure with heatmap
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_law_progression_by_match(match_id=None)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No law progression data available")
+
+        return create_law_progression_heatmap(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law heatmap: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
