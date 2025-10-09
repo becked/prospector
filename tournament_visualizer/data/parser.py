@@ -1293,7 +1293,7 @@ class OldWorldSaveParser:
             List of yield history dictionaries with:
             - player_id: Database player ID (1-based)
             - turn_number: Game turn number
-            - yield_type: Type of yield (YIELD_GROWTH, YIELD_CIVICS, etc.)
+            - resource_type: Type of yield (YIELD_GROWTH, YIELD_CIVICS, etc.)
             - amount: Production rate for that yield on that turn
         """
         if self.root is None:
@@ -1340,7 +1340,7 @@ class OldWorldSaveParser:
                         {
                             "player_id": player_id,
                             "turn_number": turn_number,
-                            "yield_type": yield_type,
+                            "resource_type": yield_type,
                             "amount": amount,
                         }
                     )
