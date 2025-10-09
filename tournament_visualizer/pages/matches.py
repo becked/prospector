@@ -123,18 +123,23 @@ layout = html.Div(
     [
         Input("match-url", "search"),
         Input("match-selector", "value"),
+        Input("match-selector", "options"),
     ],
     prevent_initial_call=False,
 )
-def sync_match_selection(url_search: str, selector_value: Optional[int]) -> tuple:
+def sync_match_selection(
+    url_search: str, selector_value: Optional[int], options: List[Dict[str, Any]]
+) -> tuple:
     """Synchronize match selection between URL and dropdown.
 
     This callback handles bidirectional sync without creating a circular dependency
-    by checking which input triggered the callback.
+    by checking which input triggered the callback. It also waits for dropdown options
+    to be loaded before setting a value from the URL to avoid race conditions.
 
     Args:
         url_search: URL query string (e.g., "?match_id=123")
         selector_value: Currently selected match ID from dropdown
+        options: Available match options in dropdown
 
     Returns:
         Tuple of (selector_value, url_search)
@@ -145,11 +150,14 @@ def sync_match_selection(url_search: str, selector_value: Optional[int]) -> tupl
     if not ctx.triggered:
         from urllib.parse import parse_qs
 
-        if url_search:
+        if url_search and options:
             params = parse_qs(url_search.lstrip("?"))
             match_id = params.get("match_id", [None])[0]
             if match_id:
-                return int(match_id), url_search
+                match_id_int = int(match_id)
+                # Only set value if it exists in options
+                if any(opt["value"] == match_id_int for opt in options):
+                    return match_id_int, url_search
         return None, ""
 
     # Check which input triggered this callback
@@ -159,11 +167,14 @@ def sync_match_selection(url_search: str, selector_value: Optional[int]) -> tupl
     if trigger_id == "match-url":
         from urllib.parse import parse_qs
 
-        if url_search:
+        if url_search and options:
             params = parse_qs(url_search.lstrip("?"))
             match_id = params.get("match_id", [None])[0]
             if match_id:
-                return int(match_id), url_search
+                match_id_int = int(match_id)
+                # Only set value if it exists in options
+                if any(opt["value"] == match_id_int for opt in options):
+                    return match_id_int, url_search
         return None, ""
 
     # If selector changed (user picked from dropdown), update URL to match
@@ -172,6 +183,21 @@ def sync_match_selection(url_search: str, selector_value: Optional[int]) -> tupl
             new_url = f"?match_id={selector_value}"
             return selector_value, new_url
         return None, ""
+
+    # If options changed and we have a URL parameter, try to set it
+    elif trigger_id == "match-selector" and url_search and options:
+        from urllib.parse import parse_qs
+
+        params = parse_qs(url_search.lstrip("?"))
+        match_id = params.get("match_id", [None])[0]
+        if match_id:
+            match_id_int = int(match_id)
+            # Only set value if it exists in options and not already set
+            if (
+                selector_value != match_id_int
+                and any(opt["value"] == match_id_int for opt in options)
+            ):
+                return match_id_int, url_search
 
     # Fallback (shouldn't reach here)
     return dash.no_update, dash.no_update
