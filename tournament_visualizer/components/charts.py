@@ -1675,3 +1675,97 @@ def create_law_race_timeline_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="rgba(128,128,128,0.2)")
 
     return fig
+
+
+def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a box plot showing distribution of milestone timing across all matches.
+
+    Box plot displays:
+    - Median (middle line)
+    - Quartiles (box boundaries)
+    - Min/max (whiskers)
+    - Outliers (individual points)
+
+    Args:
+        df: DataFrame with turn_to_4_laws and turn_to_7_laws columns
+            (typically from get_law_progression_by_match() for ALL matches)
+
+    Returns:
+        Plotly figure with box plots
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No law progression data available")
+
+    # Filter out players who didn't reach milestones
+    df_4_laws = df[df["turn_to_4_laws"].notna()]
+    df_7_laws = df[df["turn_to_7_laws"].notna()]
+
+    if df_4_laws.empty and df_7_laws.empty:
+        return create_empty_chart_placeholder(
+            "No players reached law milestones in the dataset"
+        )
+
+    fig = create_base_figure(
+        title="Law Milestone Timing Distribution (All Matches)",
+        x_title="Milestone",
+        y_title="Turn Number",
+        height=450,
+    )
+
+    # Add box plot for 4 laws
+    if not df_4_laws.empty:
+        fig.add_trace(
+            go.Box(
+                y=df_4_laws["turn_to_4_laws"],
+                name="4 Laws",
+                marker_color=Config.PRIMARY_COLORS[0],
+                boxmean="sd",  # Show mean and standard deviation
+                hovertemplate=(
+                    "<b>4 Laws Milestone</b><br>"
+                    "Turn: %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Add box plot for 7 laws
+    if not df_7_laws.empty:
+        fig.add_trace(
+            go.Box(
+                y=df_7_laws["turn_to_7_laws"],
+                name="7 Laws",
+                marker_color=Config.PRIMARY_COLORS[1],
+                boxmean="sd",
+                hovertemplate=(
+                    "<b>7 Laws Milestone</b><br>"
+                    "Turn: %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Add statistics annotation
+    if not df_4_laws.empty:
+        median_4 = df_4_laws["turn_to_4_laws"].median()
+        mean_4 = df_4_laws["turn_to_4_laws"].mean()
+        count_4 = len(df_4_laws)
+
+        stats_text = f"4 Laws: n={count_4}, median={median_4:.0f}, mean={mean_4:.1f}"
+
+        if not df_7_laws.empty:
+            median_7 = df_7_laws["turn_to_7_laws"].median()
+            mean_7 = df_7_laws["turn_to_7_laws"].mean()
+            count_7 = len(df_7_laws)
+            stats_text += f" | 7 Laws: n={count_7}, median={median_7:.0f}, mean={mean_7:.1f}"
+
+        fig.add_annotation(
+            text=stats_text,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=1.1,
+            showarrow=False,
+            font=dict(size=11),
+        )
+
+    return fig
