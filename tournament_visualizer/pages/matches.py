@@ -1231,9 +1231,12 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                 law_list_str = row.get("law_list", "")
                 if law_list_str and pd.notna(law_list_str):
                     laws = [law.strip() for law in str(law_list_str).split(",")]
-                    # Remove LAW_ prefix and sort
+                    # Remove LAW_ prefix, humanize, and sort
                     player_data[player_id]["laws"] = sorted(
-                        [law.replace("LAW_", "") for law in laws]
+                        [
+                            law.replace("LAW_", "").replace("_", " ").title()
+                            for law in laws
+                        ]
                     )
 
         if not techs_df.empty:
@@ -1251,9 +1254,12 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                 tech_list_str = row.get("tech_list", "")
                 if tech_list_str and pd.notna(tech_list_str):
                     techs = [tech.strip() for tech in str(tech_list_str).split(",")]
-                    # Remove TECH_ prefix and sort
+                    # Remove TECH_ prefix, humanize, and sort
                     player_data[player_id]["techs"] = sorted(
-                        [tech.replace("TECH_", "") for tech in techs]
+                        [
+                            tech.replace("TECH_", "").replace("_", " ").title()
+                            for tech in techs
+                        ]
                     )
 
         # Create player boxes
