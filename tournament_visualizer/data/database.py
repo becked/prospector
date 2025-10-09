@@ -621,7 +621,7 @@ class TournamentDatabase:
             legitimacy INTEGER NOT NULL,
 
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
-            CONSTRAINT check_legitimacy CHECK(legitimacy >= 0 AND legitimacy <= 100),
+            CONSTRAINT check_legitimacy CHECK(legitimacy >= 0),
             CONSTRAINT unique_legitimacy_turn UNIQUE(match_id, player_id, turn_number)
         );
 
@@ -646,7 +646,6 @@ class TournamentDatabase:
             opinion INTEGER NOT NULL,
 
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
-            CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
             CONSTRAINT unique_family_opinion_turn UNIQUE(match_id, player_id, turn_number, family_name)
         );
 
@@ -671,7 +670,6 @@ class TournamentDatabase:
             opinion INTEGER NOT NULL,
 
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
-            CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
             CONSTRAINT unique_religion_opinion_turn UNIQUE(match_id, player_id, turn_number, religion_name)
         );
 

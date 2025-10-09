@@ -113,7 +113,7 @@ def migrate(db_path: Path, backup: bool = True) -> None:
                 FOREIGN KEY (match_id) REFERENCES matches(match_id),
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 CHECK (turn_number >= 0),
-                CHECK (legitimacy >= 0 AND legitimacy <= 100),
+                CHECK (legitimacy >= 0),
                 UNIQUE (match_id, player_id, turn_number)
             )
         """)
@@ -139,7 +139,6 @@ def migrate(db_path: Path, backup: bool = True) -> None:
                 FOREIGN KEY (match_id) REFERENCES matches(match_id),
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 CHECK (turn_number >= 0),
-                CHECK (opinion >= 0 AND opinion <= 100),
                 UNIQUE (match_id, player_id, turn_number, family_name)
             )
         """)
@@ -165,7 +164,6 @@ def migrate(db_path: Path, backup: bool = True) -> None:
                 FOREIGN KEY (match_id) REFERENCES matches(match_id),
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 CHECK (turn_number >= 0),
-                CHECK (opinion >= 0 AND opinion <= 100),
                 UNIQUE (match_id, player_id, turn_number, religion_name)
             )
         """)
