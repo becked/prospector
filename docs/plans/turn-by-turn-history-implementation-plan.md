@@ -131,8 +131,7 @@ tournament_visualizer/
 │   ├── parser.py           # Main XML parser - YOU'LL MODIFY THIS
 │   └── utils.py            # Helper functions
 ├── data/
-│   ├── database.py         # Database operations - YOU'LL MODIFY THIS
-│   └── schema.py           # Schema definitions - YOU'LL MODIFY THIS
+│   └── database.py         # Database schema AND operations - YOU'LL MODIFY THIS
 tests/
 ├── test_parser.py          # Parser tests - YOU'LL ADD TESTS HERE
 ├── test_database.py        # Database tests - YOU'LL ADD TESTS HERE
@@ -295,124 +294,234 @@ You'll write methods following this exact pattern.
 
 ### Phase 2: Schema Design & Migration
 
-#### Task 2.1: Create Schema Definitions
+#### Task 2.1: Add Schema Definitions to Database Class
 **Time:** 1 hour
-**Files:** `tournament_visualizer/data/schema.py`
+**Files:** `tournament_visualizer/data/database.py`
 
-**Objective:** Define the SQL schema for new history tables.
+**Objective:** Add new table creation methods following the existing pattern.
 
-**Background:** The project likely has a `schema.py` file that defines table schemas. You'll add new table definitions here.
+**Background:** This project keeps all schema definitions in `database.py` inside the `TournamentDatabase` class. Each table has a `_create_TABLENAME_table()` method.
 
 **Steps:**
 
-1. **Read the existing schema file:**
+1. **Read the existing pattern:**
    ```bash
-   cat tournament_visualizer/data/schema.py
+   # Look at how existing tables are created
+   grep -A 20 "_create_events_table" tournament_visualizer/data/database.py
    ```
-   **Look for:** How existing tables are defined. Is it Python code that generates SQL? Raw SQL strings? Adapt to the existing pattern.
+   **Notice:** Each method creates a table with `CREATE TABLE IF NOT EXISTS`, adds indexes, and executes via `self.get_connection()`.
 
-2. **Add new table definitions** (adapt to existing style in the file):
+2. **Add sequences for new tables** to `_create_sequences()` method:
 
-   If the file uses SQL strings, add these definitions:
-
-   ```sql
-   -- Victory points progression
-   CREATE TABLE IF NOT EXISTS player_points_history (
-       points_history_id BIGINT PRIMARY KEY,
-       match_id BIGINT NOT NULL,
-       player_id BIGINT NOT NULL,
-       turn_number INTEGER NOT NULL,
-       points INTEGER NOT NULL,
-       FOREIGN KEY (match_id) REFERENCES matches(match_id),
-       FOREIGN KEY (player_id) REFERENCES players(player_id),
-       CHECK (turn_number >= 0),
-       CHECK (points >= 0),
-       UNIQUE (match_id, player_id, turn_number)
-   );
-   CREATE INDEX idx_points_history_match_player ON player_points_history(match_id, player_id);
-   CREATE INDEX idx_points_history_turn ON player_points_history(turn_number);
-
-   -- Military power progression
-   CREATE TABLE IF NOT EXISTS player_military_history (
-       military_history_id BIGINT PRIMARY KEY,
-       match_id BIGINT NOT NULL,
-       player_id BIGINT NOT NULL,
-       turn_number INTEGER NOT NULL,
-       military_power INTEGER NOT NULL,
-       FOREIGN KEY (match_id) REFERENCES matches(match_id),
-       FOREIGN KEY (player_id) REFERENCES players(player_id),
-       CHECK (turn_number >= 0),
-       CHECK (military_power >= 0),
-       UNIQUE (match_id, player_id, turn_number)
-   );
-   CREATE INDEX idx_military_history_match_player ON player_military_history(match_id, player_id);
-   CREATE INDEX idx_military_history_turn ON player_military_history(turn_number);
-
-   -- Legitimacy tracking
-   CREATE TABLE IF NOT EXISTS player_legitimacy_history (
-       legitimacy_history_id BIGINT PRIMARY KEY,
-       match_id BIGINT NOT NULL,
-       player_id BIGINT NOT NULL,
-       turn_number INTEGER NOT NULL,
-       legitimacy INTEGER NOT NULL,
-       FOREIGN KEY (match_id) REFERENCES matches(match_id),
-       FOREIGN KEY (player_id) REFERENCES players(player_id),
-       CHECK (turn_number >= 0),
-       CHECK (legitimacy >= 0 AND legitimacy <= 100),
-       UNIQUE (match_id, player_id, turn_number)
-   );
-   CREATE INDEX idx_legitimacy_history_match_player ON player_legitimacy_history(match_id, player_id);
-   CREATE INDEX idx_legitimacy_history_turn ON player_legitimacy_history(turn_number);
-
-   -- Family opinion tracking
-   CREATE TABLE IF NOT EXISTS family_opinion_history (
-       family_opinion_id BIGINT PRIMARY KEY,
-       match_id BIGINT NOT NULL,
-       player_id BIGINT NOT NULL,
-       turn_number INTEGER NOT NULL,
-       family_name VARCHAR NOT NULL,
-       opinion INTEGER NOT NULL,
-       FOREIGN KEY (match_id) REFERENCES matches(match_id),
-       FOREIGN KEY (player_id) REFERENCES players(player_id),
-       CHECK (turn_number >= 0),
-       CHECK (opinion >= 0 AND opinion <= 100),
-       UNIQUE (match_id, player_id, turn_number, family_name)
-   );
-   CREATE INDEX idx_family_opinion_match_player ON family_opinion_history(match_id, player_id);
-   CREATE INDEX idx_family_opinion_family ON family_opinion_history(family_name);
-
-   -- Religion opinion tracking
-   CREATE TABLE IF NOT EXISTS religion_opinion_history (
-       religion_opinion_id BIGINT PRIMARY KEY,
-       match_id BIGINT NOT NULL,
-       player_id BIGINT NOT NULL,
-       turn_number INTEGER NOT NULL,
-       religion_name VARCHAR NOT NULL,
-       opinion INTEGER NOT NULL,
-       FOREIGN KEY (match_id) REFERENCES matches(match_id),
-       FOREIGN KEY (player_id) REFERENCES players(player_id),
-       CHECK (turn_number >= 0),
-       CHECK (opinion >= 0 AND opinion <= 100),
-       UNIQUE (match_id, player_id, turn_number, religion_name)
-   );
-   CREATE INDEX idx_religion_opinion_match_player ON religion_opinion_history(match_id, player_id);
-   CREATE INDEX idx_religion_opinion_religion ON religion_opinion_history(religion_name);
+   Find the `_create_sequences()` method (around line 154) and add:
+   ```python
+   def _create_sequences(self) -> None:
+       """Create sequences for auto-increment primary keys."""
+       sequences = [
+           "CREATE SEQUENCE IF NOT EXISTS matches_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS players_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS game_state_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS territories_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS events_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS resources_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS technology_progress_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS player_statistics_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS units_produced_id_seq START 1;",
+           # NEW: Add these sequences
+           "CREATE SEQUENCE IF NOT EXISTS points_history_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS military_history_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS legitimacy_history_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS family_opinion_id_seq START 1;",
+           "CREATE SEQUENCE IF NOT EXISTS religion_opinion_id_seq START 1;",
+       ]
+       # ... rest of method
    ```
 
-3. **Understanding the schema:**
+3. **Add new table creation methods** after existing ones (around line 430, after `_create_units_produced_table()`):
+
+   ```python
+   def _create_player_points_history_table(self) -> None:
+       """Create the player_points_history table."""
+       query = """
+       CREATE TABLE IF NOT EXISTS player_points_history (
+           points_history_id BIGINT PRIMARY KEY,
+           match_id BIGINT NOT NULL REFERENCES matches(match_id),
+           player_id BIGINT NOT NULL REFERENCES players(player_id),
+           turn_number INTEGER NOT NULL,
+           points INTEGER NOT NULL,
+
+           CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+           CONSTRAINT check_points CHECK(points >= 0),
+           CONSTRAINT unique_points_turn UNIQUE(match_id, player_id, turn_number)
+       );
+
+       CREATE INDEX IF NOT EXISTS idx_points_history_match_player
+       ON player_points_history(match_id, player_id);
+
+       CREATE INDEX IF NOT EXISTS idx_points_history_turn
+       ON player_points_history(turn_number);
+       """
+       with self.get_connection() as conn:
+           conn.execute(query)
+
+   def _create_player_military_history_table(self) -> None:
+       """Create the player_military_history table."""
+       query = """
+       CREATE TABLE IF NOT EXISTS player_military_history (
+           military_history_id BIGINT PRIMARY KEY,
+           match_id BIGINT NOT NULL REFERENCES matches(match_id),
+           player_id BIGINT NOT NULL REFERENCES players(player_id),
+           turn_number INTEGER NOT NULL,
+           military_power INTEGER NOT NULL,
+
+           CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+           CONSTRAINT check_military_power CHECK(military_power >= 0),
+           CONSTRAINT unique_military_turn UNIQUE(match_id, player_id, turn_number)
+       );
+
+       CREATE INDEX IF NOT EXISTS idx_military_history_match_player
+       ON player_military_history(match_id, player_id);
+
+       CREATE INDEX IF NOT EXISTS idx_military_history_turn
+       ON player_military_history(turn_number);
+       """
+       with self.get_connection() as conn:
+           conn.execute(query)
+
+   def _create_player_legitimacy_history_table(self) -> None:
+       """Create the player_legitimacy_history table."""
+       query = """
+       CREATE TABLE IF NOT EXISTS player_legitimacy_history (
+           legitimacy_history_id BIGINT PRIMARY KEY,
+           match_id BIGINT NOT NULL REFERENCES matches(match_id),
+           player_id BIGINT NOT NULL REFERENCES players(player_id),
+           turn_number INTEGER NOT NULL,
+           legitimacy INTEGER NOT NULL,
+
+           CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+           CONSTRAINT check_legitimacy CHECK(legitimacy >= 0 AND legitimacy <= 100),
+           CONSTRAINT unique_legitimacy_turn UNIQUE(match_id, player_id, turn_number)
+       );
+
+       CREATE INDEX IF NOT EXISTS idx_legitimacy_history_match_player
+       ON player_legitimacy_history(match_id, player_id);
+
+       CREATE INDEX IF NOT EXISTS idx_legitimacy_history_turn
+       ON player_legitimacy_history(turn_number);
+       """
+       with self.get_connection() as conn:
+           conn.execute(query)
+
+   def _create_family_opinion_history_table(self) -> None:
+       """Create the family_opinion_history table."""
+       query = """
+       CREATE TABLE IF NOT EXISTS family_opinion_history (
+           family_opinion_id BIGINT PRIMARY KEY,
+           match_id BIGINT NOT NULL REFERENCES matches(match_id),
+           player_id BIGINT NOT NULL REFERENCES players(player_id),
+           turn_number INTEGER NOT NULL,
+           family_name VARCHAR NOT NULL,
+           opinion INTEGER NOT NULL,
+
+           CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+           CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
+           CONSTRAINT unique_family_opinion_turn UNIQUE(match_id, player_id, turn_number, family_name)
+       );
+
+       CREATE INDEX IF NOT EXISTS idx_family_opinion_match_player
+       ON family_opinion_history(match_id, player_id);
+
+       CREATE INDEX IF NOT EXISTS idx_family_opinion_family
+       ON family_opinion_history(family_name);
+       """
+       with self.get_connection() as conn:
+           conn.execute(query)
+
+   def _create_religion_opinion_history_table(self) -> None:
+       """Create the religion_opinion_history table."""
+       query = """
+       CREATE TABLE IF NOT EXISTS religion_opinion_history (
+           religion_opinion_id BIGINT PRIMARY KEY,
+           match_id BIGINT NOT NULL REFERENCES matches(match_id),
+           player_id BIGINT NOT NULL REFERENCES players(player_id),
+           turn_number INTEGER NOT NULL,
+           religion_name VARCHAR NOT NULL,
+           opinion INTEGER NOT NULL,
+
+           CONSTRAINT check_turn_number CHECK(turn_number >= 0),
+           CONSTRAINT check_opinion CHECK(opinion >= 0 AND opinion <= 100),
+           CONSTRAINT unique_religion_opinion_turn UNIQUE(match_id, player_id, turn_number, religion_name)
+       );
+
+       CREATE INDEX IF NOT EXISTS idx_religion_opinion_match_player
+       ON religion_opinion_history(match_id, player_id);
+
+       CREATE INDEX IF NOT EXISTS idx_religion_opinion_religion
+       ON religion_opinion_history(religion_name);
+       """
+       with self.get_connection() as conn:
+           conn.execute(query)
+   ```
+
+4. **Call new methods from `create_schema()`**:
+
+   Find the `create_schema()` method (around line 123) and add calls to new methods:
+   ```python
+   def create_schema(self) -> None:
+       """Create the complete database schema."""
+       logger.info("Creating database schema...")
+
+       # Create sequences for auto-increment
+       self._create_sequences()
+
+       # Create tables in dependency order
+       self._create_matches_table()
+       self._create_players_table()
+       self._create_match_winners_table()
+       self._create_match_metadata_table()
+       self._create_game_state_table()
+       self._create_territories_table()
+       self._create_events_table()
+       self._create_resources_table()
+       self._create_technology_progress_table()
+       self._create_player_statistics_table()
+       self._create_units_produced_table()
+       self._create_unit_classifications_table()
+       # NEW: Add these calls
+       self._create_player_points_history_table()
+       self._create_player_military_history_table()
+       self._create_player_legitimacy_history_table()
+       self._create_family_opinion_history_table()
+       self._create_religion_opinion_history_table()
+       # END NEW
+       self._create_schema_migrations_table()
+       self._create_views()
+       # ... rest of method
+   ```
+
+5. **Understanding the schema:**
    - **Primary Keys:** Each table has a unique ID (e.g., `points_history_id`)
-   - **Foreign Keys:** Link to `matches` and `players` tables for referential integrity
+   - **Foreign Keys:** `REFERENCES matches(match_id)` ensures referential integrity
    - **UNIQUE Constraints:** Prevent duplicate entries (e.g., can't have two point values for same player/turn)
    - **CHECK Constraints:** Validate data (e.g., legitimacy must be 0-100)
    - **Indexes:** Speed up common queries (by match/player, by turn)
+   - **Sequences:** DuckDB uses sequences for auto-incrementing IDs
 
 **Testing:**
-Not applicable yet - just definitions.
+Not applicable yet - these methods will be tested when migration runs.
 
 **Commit:**
 ```bash
-git add tournament_visualizer/data/schema.py
-git commit -m "feat: Add schema definitions for turn-by-turn history tables"
+git add tournament_visualizer/data/database.py
+git commit -m "feat: Add table creation methods for turn-by-turn history
+
+- Add 5 new sequences for history tables
+- Create _create_player_points_history_table()
+- Create _create_player_military_history_table()
+- Create _create_player_legitimacy_history_table()
+- Create _create_family_opinion_history_table()
+- Create _create_religion_opinion_history_table()
+- Add calls to create_schema() method"
 ```
 
 ---
@@ -1715,78 +1824,64 @@ git commit -m "feat: Integrate history extraction into main parser
 
 ### Phase 4: Database Integration
 
-#### Task 4.1: Update Database Schema Module
-**Time:** 30 minutes
+#### Task 4.1: Prepare for Insertion Methods
+**Time:** 15 minutes
 **Files:** `tournament_visualizer/data/database.py`
 
-**Objective:** Add table name constants and ID generators for new tables.
+**Objective:** Understand the existing insertion pattern before implementing new methods.
 
 **Steps:**
 
-1. **Examine existing database code:**
+1. **Examine existing bulk insertion methods:**
    ```bash
-   cat tournament_visualizer/data/database.py | head -n 200
+   # Look at how existing bulk inserts work
+   grep -A 30 "def bulk_insert_events" tournament_visualizer/data/database.py
    ```
 
-   Look for:
-   - Table name constants
-   - ID generation logic
-   - Insertion methods
+   **Notice the pattern:**
+   - Methods are on the `TournamentDatabase` class
+   - They use `with self.get_connection() as conn:`
+   - IDs are generated using `conn.execute("SELECT nextval('seq_name')").fetchone()[0]`
+   - They use `conn.executemany()` for bulk operations
+   - They return early if data is empty
 
-2. **Add table name constants** (if not already done in schema.py):
+2. **Note the ID generation pattern:**
 
-   Add near the top of the file:
+   This project uses **DuckDB sequences**, NOT global counters:
    ```python
-   # History tables (new)
-   TABLE_PLAYER_YIELD_HISTORY = "player_yield_history"
-   TABLE_PLAYER_POINTS_HISTORY = "player_points_history"
-   TABLE_PLAYER_MILITARY_HISTORY = "player_military_history"
-   TABLE_PLAYER_LEGITIMACY_HISTORY = "player_legitimacy_history"
-   TABLE_FAMILY_OPINION_HISTORY = "family_opinion_history"
-   TABLE_RELIGION_OPINION_HISTORY = "religion_opinion_history"
+   # ID generation via sequence (existing pattern)
+   event_id = conn.execute("SELECT nextval('events_id_seq')").fetchone()[0]
    ```
 
-3. **Add ID generator state** (if using global counter pattern):
+   You'll use:
+   - `nextval('points_history_id_seq')` for points history
+   - `nextval('military_history_id_seq')` for military history
+   - `nextval('legitimacy_history_id_seq')` for legitimacy history
+   - `nextval('family_opinion_id_seq')` for family opinions
+   - `nextval('religion_opinion_id_seq')` for religion opinions
 
-   Look for existing ID generators like `_next_event_id` and add:
+3. **Understand the bulk insert pattern:**
+
+   All bulk inserts follow this structure:
    ```python
-   _next_yield_history_id = 1
-   _next_points_history_id = 1
-   _next_military_history_id = 1
-   _next_legitimacy_history_id = 1
-   _next_family_opinion_id = 1
-   _next_religion_opinion_id = 1
-   ```
+   def bulk_insert_something(self, data: List[Dict[str, Any]]) -> None:
+       """Bulk insert something records."""
+       if not data:  # Early return if empty
+           return
 
-4. **Add ID generator functions:**
+       with self.get_connection() as conn:
+           query = """INSERT INTO table (...) VALUES (?, ?, ...)"""
 
-   ```python
-   def _get_next_yield_history_id() -> int:
-       """Generate next yield history ID."""
-       global _next_yield_history_id
-       id_val = _next_yield_history_id
-       _next_yield_history_id += 1
-       return id_val
+           values = []
+           for item in data:
+               item_id = conn.execute("SELECT nextval('seq')").fetchone()[0]
+               values.append([item_id, item["field1"], item["field2"], ...])
 
-   def _get_next_points_history_id() -> int:
-       """Generate next points history ID."""
-       global _next_points_history_id
-       id_val = _next_points_history_id
-       _next_points_history_id += 1
-       return id_val
-
-   # Add similar functions for military, legitimacy, family, religion...
+           conn.executemany(query, values)
    ```
 
 **Commit:**
-```bash
-git add tournament_visualizer/data/database.py
-git commit -m "feat: Add database constants for history tables
-
-- Add table name constants for 6 new history tables
-- Add ID generator state and functions
-- Prepare for insertion methods"
-```
+Not needed - this is just exploration.
 
 ---
 
@@ -1908,45 +2003,38 @@ git commit -m "feat: Add database constants for history tables
 
 3. **Implement insertion method:**
 
-   Add to `tournament_visualizer/data/database.py`:
+   Add to the `TournamentDatabase` class in `tournament_visualizer/data/database.py`:
    ```python
-   def insert_points_history(
-       conn: duckdb.DuckDBPyConnection,
-       match_id: int,
-       points_data: List[Dict[str, Any]]
-   ) -> None:
-       """Insert victory points history data.
+   def bulk_insert_points_history(self, points_data: List[Dict[str, Any]]) -> None:
+       """Bulk insert victory points history records.
 
        Args:
-           conn: Database connection
-           match_id: Match ID to associate records with
            points_data: List of points history dictionaries from parser
        """
        if not points_data:
            return
 
-       # Prepare records with generated IDs
-       records = []
-       for data in points_data:
-           record = (
-               _get_next_points_history_id(),
-               match_id,
-               data["player_id"],
-               data["turn_number"],
-               data["points"]
-           )
-           records.append(record)
-
-       # Bulk insert
-       conn.executemany("""
+       with self.get_connection() as conn:
+           query = """
            INSERT INTO player_points_history (
-               points_history_id,
-               match_id,
-               player_id,
-               turn_number,
-               points
+               points_history_id, match_id, player_id, turn_number, points
            ) VALUES (?, ?, ?, ?, ?)
-       """, records)
+           """
+
+           values = []
+           for data in points_data:
+               points_id = conn.execute(
+                   "SELECT nextval('points_history_id_seq')"
+               ).fetchone()[0]
+               values.append([
+                   points_id,
+                   data["match_id"],
+                   data["player_id"],
+                   data["turn_number"],
+                   data["points"]
+               ])
+
+           conn.executemany(query, values)
    ```
 
 4. **Run test (should pass):**
@@ -1956,159 +2044,145 @@ git commit -m "feat: Add database constants for history tables
 
 5. **Implement remaining insertion methods** (similar pattern):
 
-   Add to `tournament_visualizer/data/database.py`:
+   Add to the `TournamentDatabase` class in `tournament_visualizer/data/database.py`:
    ```python
-   def insert_yield_history(
-       conn: duckdb.DuckDBPyConnection,
-       match_id: int,
-       yield_data: List[Dict[str, Any]]
-   ) -> None:
-       """Insert yield rate history data."""
+   def bulk_insert_yield_history(self, yield_data: List[Dict[str, Any]]) -> None:
+       """Bulk insert yield rate history records."""
        if not yield_data:
            return
 
-       records = []
-       for data in yield_data:
-           record = (
-               _get_next_yield_history_id(),
-               match_id,
-               data["player_id"],
-               data["turn_number"],
-               data["yield_type"],
-               data["amount"]
-           )
-           records.append(record)
-
-       conn.executemany("""
-           INSERT INTO player_yield_history (
-               resource_id,
-               match_id,
-               player_id,
-               turn_number,
-               resource_type,
-               amount
+       with self.get_connection() as conn:
+           query = """
+           INSERT INTO resources (
+               resource_id, match_id, player_id, turn_number, resource_type, amount
            ) VALUES (?, ?, ?, ?, ?, ?)
-       """, records)
+           """
 
+           values = []
+           for data in yield_data:
+               resource_id = conn.execute(
+                   "SELECT nextval('resources_id_seq')"
+               ).fetchone()[0]
+               values.append([
+                   resource_id,
+                   data["match_id"],
+                   data["player_id"],
+                   data["turn_number"],
+                   data["yield_type"],
+                   data["amount"]
+               ])
 
-   def insert_military_history(
-       conn: duckdb.DuckDBPyConnection,
-       match_id: int,
-       military_data: List[Dict[str, Any]]
-   ) -> None:
-       """Insert military power history data."""
+           conn.executemany(query, values)
+
+   def bulk_insert_military_history(self, military_data: List[Dict[str, Any]]) -> None:
+       """Bulk insert military power history records."""
        if not military_data:
            return
 
-       records = []
-       for data in military_data:
-           record = (
-               _get_next_military_history_id(),
-               match_id,
-               data["player_id"],
-               data["turn_number"],
-               data["military_power"]
-           )
-           records.append(record)
-
-       conn.executemany("""
+       with self.get_connection() as conn:
+           query = """
            INSERT INTO player_military_history (
-               military_history_id,
-               match_id,
-               player_id,
-               turn_number,
-               military_power
+               military_history_id, match_id, player_id, turn_number, military_power
            ) VALUES (?, ?, ?, ?, ?)
-       """, records)
+           """
 
+           values = []
+           for data in military_data:
+               military_id = conn.execute(
+                   "SELECT nextval('military_history_id_seq')"
+               ).fetchone()[0]
+               values.append([
+                   military_id,
+                   data["match_id"],
+                   data["player_id"],
+                   data["turn_number"],
+                   data["military_power"]
+               ])
 
-   def insert_legitimacy_history(
-       conn: duckdb.DuckDBPyConnection,
-       match_id: int,
-       legitimacy_data: List[Dict[str, Any]]
-   ) -> None:
-       """Insert legitimacy history data."""
+           conn.executemany(query, values)
+
+   def bulk_insert_legitimacy_history(self, legitimacy_data: List[Dict[str, Any]]) -> None:
+       """Bulk insert legitimacy history records."""
        if not legitimacy_data:
            return
 
-       records = []
-       for data in legitimacy_data:
-           record = (
-               _get_next_legitimacy_history_id(),
-               match_id,
-               data["player_id"],
-               data["turn_number"],
-               data["legitimacy"]
-           )
-           records.append(record)
-
-       conn.executemany("""
+       with self.get_connection() as conn:
+           query = """
            INSERT INTO player_legitimacy_history (
-               legitimacy_history_id,
-               match_id,
-               player_id,
-               turn_number,
-               legitimacy
+               legitimacy_history_id, match_id, player_id, turn_number, legitimacy
            ) VALUES (?, ?, ?, ?, ?)
-       """, records)
+           """
 
+           values = []
+           for data in legitimacy_data:
+               legitimacy_id = conn.execute(
+                   "SELECT nextval('legitimacy_history_id_seq')"
+               ).fetchone()[0]
+               values.append([
+                   legitimacy_id,
+                   data["match_id"],
+                   data["player_id"],
+                   data["turn_number"],
+                   data["legitimacy"]
+               ])
 
-   def insert_opinion_histories(
-       conn: duckdb.DuckDBPyConnection,
-       match_id: int,
+           conn.executemany(query, values)
+
+   def bulk_insert_opinion_histories(
+       self,
        family_data: List[Dict[str, Any]],
        religion_data: List[Dict[str, Any]]
    ) -> None:
-       """Insert family and religion opinion history data."""
+       """Bulk insert family and religion opinion history records."""
        # Insert family opinions
        if family_data:
-           family_records = []
-           for data in family_data:
-               record = (
-                   _get_next_family_opinion_id(),
-                   match_id,
-                   data["player_id"],
-                   data["turn_number"],
-                   data["family_name"],
-                   data["opinion"]
-               )
-               family_records.append(record)
-
-           conn.executemany("""
+           with self.get_connection() as conn:
+               query = """
                INSERT INTO family_opinion_history (
-                   family_opinion_id,
-                   match_id,
-                   player_id,
-                   turn_number,
-                   family_name,
-                   opinion
+                   family_opinion_id, match_id, player_id, turn_number, family_name, opinion
                ) VALUES (?, ?, ?, ?, ?, ?)
-           """, family_records)
+               """
+
+               values = []
+               for data in family_data:
+                   family_id = conn.execute(
+                       "SELECT nextval('family_opinion_id_seq')"
+                   ).fetchone()[0]
+                   values.append([
+                       family_id,
+                       data["match_id"],
+                       data["player_id"],
+                       data["turn_number"],
+                       data["family_name"],
+                       data["opinion"]
+                   ])
+
+               conn.executemany(query, values)
 
        # Insert religion opinions
        if religion_data:
-           religion_records = []
-           for data in religion_data:
-               record = (
-                   _get_next_religion_opinion_id(),
-                   match_id,
-                   data["player_id"],
-                   data["turn_number"],
-                   data["religion_name"],
-                   data["opinion"]
-               )
-               religion_records.append(record)
-
-           conn.executemany("""
+           with self.get_connection() as conn:
+               query = """
                INSERT INTO religion_opinion_history (
-                   religion_opinion_id,
-                   match_id,
-                   player_id,
-                   turn_number,
-                   religion_name,
-                   opinion
+                   religion_opinion_id, match_id, player_id, turn_number, religion_name, opinion
                ) VALUES (?, ?, ?, ?, ?, ?)
-           """, religion_records)
+               """
+
+               values = []
+               for data in religion_data:
+                   religion_id = conn.execute(
+                       "SELECT nextval('religion_opinion_id_seq')"
+                   ).fetchone()[0]
+                   values.append([
+                       religion_id,
+                       data["match_id"],
+                       data["player_id"],
+                       data["turn_number"],
+                       data["religion_name"],
+                       data["opinion"]
+                   ])
+
+               conn.executemany(query, values)
    ```
 
 6. **Write tests for all insertion methods:**
@@ -2123,14 +2197,15 @@ git commit -m "feat: Add database constants for history tables
 **Commit:**
 ```bash
 git add tournament_visualizer/data/database.py tests/test_database.py
-git commit -m "feat: Implement database insertion for history tables
+git commit -m "feat: Implement database insertion methods for history tables
 
-- insert_points_history(): Victory points
-- insert_yield_history(): Yield rates
-- insert_military_history(): Military power
-- insert_legitimacy_history(): Legitimacy
-- insert_opinion_histories(): Family and religion opinions
-- All include comprehensive tests with duplicate prevention"
+- bulk_insert_points_history(): Victory points
+- bulk_insert_yield_history(): Yield rates (uses resources table)
+- bulk_insert_military_history(): Military power
+- bulk_insert_legitimacy_history(): Legitimacy
+- bulk_insert_opinion_histories(): Family and religion opinions
+- Follow existing bulk insert pattern with sequences
+- Include comprehensive tests with duplicate prevention"
 ```
 
 ---
@@ -2145,46 +2220,49 @@ git commit -m "feat: Implement database insertion for history tables
 
 1. **Find where data is inserted:**
    ```bash
-   grep -n "insert_events\|insert_players" scripts/import_tournaments.py
+   grep -n "bulk_insert" scripts/import_tournaments.py
    ```
 
-2. **Add history insertion after existing inserts:**
+2. **Examine the existing pattern:**
 
-   Find the section that looks like:
+   The script likely uses a `TournamentDatabase` instance. Look for patterns like:
    ```python
-   # Insert data
-   insert_match(conn, parsed_data["match_metadata"])
-   insert_players(conn, parsed_data["players"])
-   insert_events(conn, match_id, parsed_data["events"])
-   # ... other inserts
+   db = TournamentDatabase(db_path, read_only=False)
+   # ... later ...
+   db.bulk_insert_events(events_data)
    ```
 
-   Add after existing inserts:
+3. **Add history insertion after existing inserts:**
+
+   Find where existing bulk inserts happen (after events, technology, stats, etc.) and add:
    ```python
    # Insert history data (new)
-   insert_yield_history(conn, match_id, parsed_data["yield_history"])
-   insert_points_history(conn, match_id, parsed_data["points_history"])
-   insert_military_history(conn, match_id, parsed_data["military_history"])
-   insert_legitimacy_history(conn, match_id, parsed_data["legitimacy_history"])
-   insert_opinion_histories(
-       conn,
-       match_id,
+   # Add match_id to each history record
+   for record in parsed_data["yield_history"]:
+       record["match_id"] = match_id
+   for record in parsed_data["points_history"]:
+       record["match_id"] = match_id
+   for record in parsed_data["military_history"]:
+       record["match_id"] = match_id
+   for record in parsed_data["legitimacy_history"]:
+       record["match_id"] = match_id
+   for record in parsed_data["family_opinion_history"]:
+       record["match_id"] = match_id
+   for record in parsed_data["religion_opinion_history"]:
+       record["match_id"] = match_id
+
+   # Bulk insert history data
+   db.bulk_insert_yield_history(parsed_data["yield_history"])
+   db.bulk_insert_points_history(parsed_data["points_history"])
+   db.bulk_insert_military_history(parsed_data["military_history"])
+   db.bulk_insert_legitimacy_history(parsed_data["legitimacy_history"])
+   db.bulk_insert_opinion_histories(
        parsed_data["family_opinion_history"],
        parsed_data["religion_opinion_history"]
    )
    ```
 
-3. **Add imports at top of file:**
-   ```python
-   from tournament_visualizer.data.database import (
-       # ... existing imports ...
-       insert_yield_history,
-       insert_points_history,
-       insert_military_history,
-       insert_legitimacy_history,
-       insert_opinion_histories,
-   )
-   ```
+   **Note:** The parser returns records WITHOUT match_id, so we need to add it before insertion.
 
 4. **Test the import script** (dry run):
    ```bash
@@ -2193,13 +2271,16 @@ git commit -m "feat: Implement database insertion for history tables
    uv run python scripts/import_tournaments.py --help
    ```
 
+   **Expected:** No import errors or syntax errors.
+
 **Commit:**
 ```bash
 git add scripts/import_tournaments.py
 git commit -m "feat: Update import script for history data
 
-- Call all new insertion methods
-- Maintain import order (match -> players -> history)
+- Call bulk_insert methods for all history tables
+- Add match_id to history records before insertion
+- Insert after existing data (events, tech, stats)
 - Prepare for re-import after migration"
 ```
 
