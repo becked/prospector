@@ -1,5 +1,31 @@
 We are using uv to manage Python
 
+## Development Principles
+
+### YAGNI (You Ain't Gonna Need It)
+- Only implement features/fixes that are needed NOW
+- Don't add abstractions or features that "might be useful later"
+- Example: "Only fix the player ID mapping, don't refactor other things"
+- Example: "Only implement law and tech events now, not all 79 event types"
+
+### DRY (Don't Repeat Yourself)
+- Reuse existing code patterns and logic
+- If the same logic exists elsewhere (e.g., LogData player ID mapping), use the same approach
+- Don't duplicate code - extract to shared functions if needed
+- Example: MemoryData and LogData should use identical player ID conversion: `database_player_id = xml_player_id + 1`
+
+### Atomic Commits
+- Each commit should represent ONE logical change
+- Commit frequently (after each task/subtask completion)
+- Commit messages should clearly describe what changed and why
+- Don't batch multiple unrelated changes into one commit
+
+### Code Comments
+- Comments should explain **WHY**, not **WHAT**
+- The code itself should be clear enough to show what it does
+- Document edge cases, business rules, and non-obvious decisions
+- Example: Good comment explains XML ID mapping rationale, not just the formula
+
 ## Commit Messages
 
 Do NOT include these lines in commit messages:
