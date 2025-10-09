@@ -2180,11 +2180,20 @@ def create_cumulative_tech_count_chart(
     max_techs = int(df["cumulative_techs"].max()) if not df.empty else 16
     y_range = [0, max_techs + 1]
 
+    # Add horizontal dashed lines at every 5 tickets
+    for y_value in range(5, max_techs + 1, 5):
+        fig.add_hline(
+            y=y_value,
+            line_dash="dash",
+            line_color="rgba(128, 128, 128, 0.5)",
+            line_width=1.5,
+        )
+
     # Set Y-axis with labels on both left and right sides
     fig.update_layout(
         yaxis=dict(
             range=y_range,
-            dtick=1,
+            dtick=5,
             showgrid=True,
             ticks="outside",
             tickmode="linear",
@@ -2193,7 +2202,7 @@ def create_cumulative_tech_count_chart(
             overlaying="y",
             side="right",
             range=y_range,
-            dtick=1,
+            dtick=5,
             showticklabels=True,
             ticks="outside",
             showgrid=False,
