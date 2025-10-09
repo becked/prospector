@@ -829,7 +829,12 @@ def update_technology_chart(match_id: Optional[int]) -> go.Figure:
                 "No technology data available for this match"
             )
 
-        return create_cumulative_tech_count_chart(df)
+        # Get total turns for the match to extend lines to the end
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+        total_turns = match_info.iloc[0]["total_turns"] if not match_info.empty else None
+
+        return create_cumulative_tech_count_chart(df, total_turns)
 
     except Exception as e:
         logger.error(f"Error loading cumulative tech count: {e}")
@@ -1200,7 +1205,12 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
         if df.empty:
             return create_empty_chart_placeholder("No law data for this match")
 
-        return create_cumulative_law_count_chart(df)
+        # Get total turns for the match to extend lines to the end
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+        total_turns = match_info.iloc[0]["total_turns"] if not match_info.empty else None
+
+        return create_cumulative_law_count_chart(df, total_turns)
 
     except Exception as e:
         logger.error(f"Error loading cumulative law count: {e}")

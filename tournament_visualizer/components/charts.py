@@ -1999,7 +1999,9 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
+def create_cumulative_law_count_chart(
+    df: pd.DataFrame, total_turns: Optional[int] = None
+) -> go.Figure:
     """Create a line chart showing cumulative law count over time.
 
     Displays a "racing" view of law progression, making it easy to see
@@ -2008,6 +2010,7 @@ def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
     Args:
         df: DataFrame with columns: player_name, turn_number, cumulative_laws
             (from get_cumulative_law_count_by_turn())
+        total_turns: Optional total turns in the match to extend lines to the end
 
     Returns:
         Plotly figure with line chart
@@ -2033,6 +2036,11 @@ def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
         # Add a point at turn 0 with 0 laws for cleaner visualization
         turns = [0] + player_data["turn_number"].tolist()
         laws = [0] + player_data["cumulative_laws"].tolist()
+
+        # Extend line to match end if total_turns provided
+        if total_turns and turns[-1] < total_turns:
+            turns.append(total_turns)
+            laws.append(laws[-1])  # Keep final law count
 
         fig.add_trace(
             go.Scatter(
@@ -2079,7 +2087,9 @@ def create_cumulative_law_count_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_cumulative_tech_count_chart(df: pd.DataFrame) -> go.Figure:
+def create_cumulative_tech_count_chart(
+    df: pd.DataFrame, total_turns: Optional[int] = None
+) -> go.Figure:
     """Create a line chart showing cumulative technology count over time.
 
     Displays a "racing" view of technology progression, making it easy to see
@@ -2088,6 +2098,7 @@ def create_cumulative_tech_count_chart(df: pd.DataFrame) -> go.Figure:
     Args:
         df: DataFrame with columns: player_name, turn_number, cumulative_techs
             (from get_tech_count_by_turn())
+        total_turns: Optional total turns in the match to extend lines to the end
 
     Returns:
         Plotly figure with line chart
@@ -2113,6 +2124,11 @@ def create_cumulative_tech_count_chart(df: pd.DataFrame) -> go.Figure:
         # Add a point at turn 0 with 0 techs for cleaner visualization
         turns = [0] + player_data["turn_number"].tolist()
         techs = [0] + player_data["cumulative_techs"].tolist()
+
+        # Extend line to match end if total_turns provided
+        if total_turns and turns[-1] < total_turns:
+            turns.append(total_turns)
+            techs.append(techs[-1])  # Keep final tech count
 
         fig.add_trace(
             go.Scatter(
