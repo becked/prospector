@@ -1102,6 +1102,353 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_points_history_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get victory points progression for all players in a match.
+
+        Returns data from the player_points_history table which tracks
+        turn-by-turn victory point totals for each player.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+            - player_id: Database player ID
+            - player_name: Player name
+            - turn_number: Turn number
+            - points: Victory points at that turn
+
+        Example usage:
+            df = queries.get_points_history_by_match(1)
+            # Create a line chart with turn_number on x-axis, points on y-axis,
+            # with separate lines for each player_name
+        """
+        query = """
+        SELECT
+            ph.player_id,
+            p.player_name,
+            p.civilization,
+            ph.turn_number,
+            ph.points
+        FROM player_points_history ph
+        JOIN players p ON ph.player_id = p.player_id AND ph.match_id = p.match_id
+        WHERE ph.match_id = ?
+        ORDER BY ph.turn_number, ph.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_points_history_all_matches(self) -> pd.DataFrame:
+        """Get victory points progression across all matches.
+
+        Useful for aggregate analysis like "how do points typically progress?"
+
+        Returns:
+            DataFrame with match_id, player_id, player_name, turn_number, points
+        """
+        query = """
+        SELECT
+            ph.match_id,
+            ph.player_id,
+            p.player_name,
+            p.civilization,
+            ph.turn_number,
+            ph.points
+        FROM player_points_history ph
+        JOIN players p ON ph.player_id = p.player_id AND ph.match_id = p.match_id
+        ORDER BY ph.match_id, ph.turn_number, ph.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_yield_history_by_match(
+        self, match_id: int, yield_types: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """Get yield production progression for all players in a match.
+
+        Returns data from player_yield_history showing turn-by-turn
+        yield production rates (YIELD_GROWTH, YIELD_CIVICS, etc.)
+
+        Args:
+            match_id: Match ID to query
+            yield_types: Optional list of yield types to filter
+                        (e.g., ['YIELD_GROWTH', 'YIELD_SCIENCE'])
+                        If None, returns all yield types.
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - resource_type: The yield type (YIELD_GROWTH, etc.)
+            - amount: Production rate for that yield on that turn
+        """
+        base_query = """
+        SELECT
+            yh.player_id,
+            p.player_name,
+            p.civilization,
+            yh.turn_number,
+            yh.resource_type,
+            yh.amount
+        FROM player_yield_history yh
+        JOIN players p ON yh.player_id = p.player_id AND yh.match_id = p.match_id
+        WHERE yh.match_id = ?
+        """
+
+        params = [match_id]
+
+        if yield_types:
+            placeholders = ", ".join(["?" for _ in yield_types])
+            base_query += f" AND yh.resource_type IN ({placeholders})"
+            params.extend(yield_types)
+
+        base_query += " ORDER BY yh.turn_number, yh.player_id, yh.resource_type"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
+    def get_yield_types(self, match_id: Optional[int] = None) -> List[str]:
+        """Get list of available yield types.
+
+        Args:
+            match_id: Optional match ID to filter by. If None, returns all yield types
+                     across all matches.
+
+        Returns:
+            List of yield type names (e.g., ['YIELD_GROWTH', 'YIELD_CIVICS', ...])
+        """
+        if match_id:
+            query = """
+            SELECT DISTINCT resource_type
+            FROM player_yield_history
+            WHERE match_id = ?
+            ORDER BY resource_type
+            """
+            params = [match_id]
+        else:
+            query = """
+            SELECT DISTINCT resource_type
+            FROM player_yield_history
+            ORDER BY resource_type
+            """
+            params = []
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+            return df["resource_type"].tolist() if not df.empty else []
+
+    def get_military_history_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get military power progression for all players in a match.
+
+        Returns data from player_military_history showing turn-by-turn
+        military strength values.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - military_power: Military strength value for that turn
+        """
+        query = """
+        SELECT
+            mh.player_id,
+            p.player_name,
+            p.civilization,
+            mh.turn_number,
+            mh.military_power
+        FROM player_military_history mh
+        JOIN players p ON mh.player_id = p.player_id AND mh.match_id = p.match_id
+        WHERE mh.match_id = ?
+        ORDER BY mh.turn_number, mh.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_legitimacy_history_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get legitimacy progression for all players in a match.
+
+        Returns data from player_legitimacy_history showing turn-by-turn
+        legitimacy values (governance stability, 0-100).
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - legitimacy: Legitimacy value (0-100) for that turn
+        """
+        query = """
+        SELECT
+            lh.player_id,
+            p.player_name,
+            p.civilization,
+            lh.turn_number,
+            lh.legitimacy
+        FROM player_legitimacy_history lh
+        JOIN players p ON lh.player_id = p.player_id AND lh.match_id = p.match_id
+        WHERE lh.match_id = ?
+        ORDER BY lh.turn_number, lh.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_family_opinion_history_by_match(
+        self, match_id: int, family_names: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """Get family opinion progression for all players in a match.
+
+        Returns data from family_opinion_history showing turn-by-turn
+        family opinion values (0-100) for each family.
+
+        Args:
+            match_id: Match ID to query
+            family_names: Optional list of family names to filter
+                         (e.g., ['FAMILY_JULII', 'FAMILY_BRUTII'])
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - family_name: Name of the family (e.g., 'FAMILY_JULII')
+            - opinion: Opinion value (0-100) for that family on that turn
+        """
+        base_query = """
+        SELECT
+            fh.player_id,
+            p.player_name,
+            p.civilization,
+            fh.turn_number,
+            fh.family_name,
+            fh.opinion
+        FROM family_opinion_history fh
+        JOIN players p ON fh.player_id = p.player_id AND fh.match_id = p.match_id
+        WHERE fh.match_id = ?
+        """
+
+        params = [match_id]
+
+        if family_names:
+            placeholders = ", ".join(["?" for _ in family_names])
+            base_query += f" AND fh.family_name IN ({placeholders})"
+            params.extend(family_names)
+
+        base_query += " ORDER BY fh.turn_number, fh.player_id, fh.family_name"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
+    def get_family_names(self, match_id: Optional[int] = None) -> List[str]:
+        """Get list of family names that appear in the data.
+
+        Args:
+            match_id: Optional match ID to filter by
+
+        Returns:
+            List of family names (e.g., ['FAMILY_JULII', 'FAMILY_BRUTII', ...])
+        """
+        if match_id:
+            query = """
+            SELECT DISTINCT family_name
+            FROM family_opinion_history
+            WHERE match_id = ?
+            ORDER BY family_name
+            """
+            params = [match_id]
+        else:
+            query = """
+            SELECT DISTINCT family_name
+            FROM family_opinion_history
+            ORDER BY family_name
+            """
+            params = []
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+            return df["family_name"].tolist() if not df.empty else []
+
+    def get_religion_opinion_history_by_match(
+        self, match_id: int, religion_names: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """Get religion opinion progression for all players in a match.
+
+        Returns data from religion_opinion_history showing turn-by-turn
+        religion opinion values (0-100) for each religion.
+
+        Args:
+            match_id: Match ID to query
+            religion_names: Optional list of religion names to filter
+                           (e.g., ['RELIGION_JUPITER', 'RELIGION_BAAL'])
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - religion_name: Name of the religion
+            - opinion: Opinion value (0-100) for that religion on that turn
+        """
+        base_query = """
+        SELECT
+            rh.player_id,
+            p.player_name,
+            p.civilization,
+            rh.turn_number,
+            rh.religion_name,
+            rh.opinion
+        FROM religion_opinion_history rh
+        JOIN players p ON rh.player_id = p.player_id AND rh.match_id = p.match_id
+        WHERE rh.match_id = ?
+        """
+
+        params = [match_id]
+
+        if religion_names:
+            placeholders = ", ".join(["?" for _ in religion_names])
+            base_query += f" AND rh.religion_name IN ({placeholders})"
+            params.extend(religion_names)
+
+        base_query += " ORDER BY rh.turn_number, rh.player_id, rh.religion_name"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
+    def get_religion_names(self, match_id: Optional[int] = None) -> List[str]:
+        """Get list of religion names that appear in the data.
+
+        Args:
+            match_id: Optional match ID to filter by
+
+        Returns:
+            List of religion names (e.g., ['RELIGION_JUPITER', 'RELIGION_BAAL', ...])
+        """
+        if match_id:
+            query = """
+            SELECT DISTINCT religion_name
+            FROM religion_opinion_history
+            WHERE match_id = ?
+            ORDER BY religion_name
+            """
+            params = [match_id]
+        else:
+            query = """
+            SELECT DISTINCT religion_name
+            FROM religion_opinion_history
+            ORDER BY religion_name
+            """
+            params = []
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+            return df["religion_name"].tolist() if not df.empty else []
+
     def get_techs_at_law_milestone(
         self, match_id: int, milestone: int = 4
     ) -> pd.DataFrame:
