@@ -16,6 +16,7 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_law_milestone_comparison_chart,
+    create_law_race_timeline_chart,
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
     create_technology_comparison_chart,
@@ -407,6 +408,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                 title="Law Milestone Timing (This Match)",
                                                 chart_id="match-law-milestone-comparison",
                                                 height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Visualization #2: Race Timeline
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Law Milestone Timeline",
+                                                chart_id="match-law-race-timeline",
+                                                height="300px",
                                             )
                                         ],
                                         width=12,
@@ -1200,3 +1217,33 @@ def update_law_milestone_comparison(match_id: Optional[int]) -> go.Figure:
     except Exception as e:
         logger.error(f"Error loading law milestone comparison: {e}")
         return create_empty_chart_placeholder(f"Error loading data: {str(e)}")
+
+
+@callback(
+    Output("match-law-race-timeline", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_race_timeline(match_id: Optional[int]) -> go.Figure:
+    """Update law race timeline chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with timeline
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match")
+
+    try:
+        queries = get_queries()
+        df = queries.get_law_progression_by_match(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data available")
+
+        return create_law_race_timeline_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law race timeline: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
