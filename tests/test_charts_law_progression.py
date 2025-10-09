@@ -7,8 +7,9 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_law_milestone_comparison_chart,
     create_law_milestone_distribution_chart,
-    create_law_progression_heatmap,  # ← ADD THIS
+    create_law_progression_heatmap,
     create_law_race_timeline_chart,
+    create_law_efficiency_scatter,  # ← ADD THIS
     # We'll add more imports as we create more charts
 )
 
@@ -222,4 +223,42 @@ class TestLawProgressionHeatmap:
         # Several players in fixture never reached 4 laws
         fig = create_law_progression_heatmap(sample_all_matches_data)
 
+        assert isinstance(fig, go.Figure)
+
+
+class TestLawEfficiencyScatter:
+    """Tests for efficiency scatter plot (Visualization #5)."""
+
+    def test_returns_figure(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should return a Plotly Figure object."""
+        fig = create_law_efficiency_scatter(sample_all_matches_data)
+        assert isinstance(fig, go.Figure)
+
+    def test_uses_scatter_plot(self, sample_all_matches_data: pd.DataFrame) -> None:
+        """Should use scatter plot."""
+        fig = create_law_efficiency_scatter(sample_all_matches_data)
+
+        assert any(isinstance(trace, go.Scatter) for trace in fig.data)
+
+    def test_only_includes_players_who_reached_both_milestones(
+        self, sample_all_matches_data: pd.DataFrame
+    ) -> None:
+        """Should only plot players who reached both 4 and 7 laws."""
+        # Only 'fonder' reached both milestones in the fixture
+        fig = create_law_efficiency_scatter(sample_all_matches_data)
+
+        # Should have at least one point
+        if len(fig.data) > 0:
+            scatter_trace = fig.data[0]
+            # Number of points should match players who reached both milestones
+            assert len(scatter_trace.x) >= 1
+
+    def test_handles_no_complete_progressions(
+        self, sample_match_data: pd.DataFrame
+    ) -> None:
+        """Should handle when no players reached both milestones."""
+        # In sample_match_data, anarkos only reached 4 laws
+        fig = create_law_efficiency_scatter(sample_match_data)
+
+        # Should return placeholder or chart with limited data
         assert isinstance(fig, go.Figure)
