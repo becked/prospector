@@ -2042,6 +2042,9 @@ def create_cumulative_law_count_chart(
             turns.append(total_turns)
             laws.append(laws[-1])  # Keep final law count
 
+        # Assign last trace to yaxis2 to make right-side labels visible
+        yaxis_ref = "y2" if i == len(players) - 1 else "y"
+
         fig.add_trace(
             go.Scatter(
                 x=turns,
@@ -2058,6 +2061,7 @@ def create_cumulative_law_count_chart(
                     "Turn %{x}: %{y} laws<br>"
                     "<extra></extra>"
                 ),
+                yaxis=yaxis_ref,
             )
         )
 
@@ -2082,13 +2086,25 @@ def create_cumulative_law_count_chart(
     max_laws = int(df["cumulative_laws"].max()) if not df.empty else 7
     y_range = [0, max_laws + 1]
 
-    # Set Y-axis with ticks and labels on both sides
-    fig.update_yaxes(
-        range=y_range,
-        dtick=1,
-        showgrid=True,
-        ticks="outside",
-        mirror="ticks",  # Show ticks and labels on both left and right
+    # Set Y-axis with labels on both left and right sides
+    fig.update_layout(
+        yaxis=dict(
+            range=y_range,
+            dtick=1,
+            showgrid=True,
+            ticks="outside",
+            tickmode="linear",
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            range=y_range,
+            dtick=1,
+            showticklabels=True,
+            ticks="outside",
+            showgrid=False,
+            tickmode="linear",
+        ),
     )
 
     return fig
@@ -2137,6 +2153,9 @@ def create_cumulative_tech_count_chart(
             turns.append(total_turns)
             techs.append(techs[-1])  # Keep final tech count
 
+        # Assign last trace to yaxis2 to make right-side labels visible
+        yaxis_ref = "y2" if i == len(players) - 1 else "y"
+
         fig.add_trace(
             go.Scatter(
                 x=turns,
@@ -2153,6 +2172,7 @@ def create_cumulative_tech_count_chart(
                     "Turn %{x}: %{y} techs<br>"
                     "<extra></extra>"
                 ),
+                yaxis=yaxis_ref,
             )
         )
 
@@ -2160,13 +2180,25 @@ def create_cumulative_tech_count_chart(
     max_techs = int(df["cumulative_techs"].max()) if not df.empty else 16
     y_range = [0, max_techs + 1]
 
-    # Set Y-axis with ticks and labels on both sides
-    fig.update_yaxes(
-        range=y_range,
-        dtick=1,
-        showgrid=True,
-        ticks="outside",
-        mirror="ticks",  # Show ticks and labels on both left and right
+    # Set Y-axis with labels on both left and right sides
+    fig.update_layout(
+        yaxis=dict(
+            range=y_range,
+            dtick=1,
+            showgrid=True,
+            ticks="outside",
+            tickmode="linear",
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            range=y_range,
+            dtick=1,
+            showticklabels=True,
+            ticks="outside",
+            showgrid=False,
+            tickmode="linear",
+        ),
     )
 
     return fig
