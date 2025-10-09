@@ -1591,3 +1591,87 @@ def create_law_milestone_comparison_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_law_race_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a horizontal timeline showing law milestone progression.
+
+    Displays milestones as markers on a timeline, making it easy to see
+    who reached each milestone first and the gap between players.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_to_4_laws, turn_to_7_laws
+
+    Returns:
+        Plotly figure with scatter plot timeline
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No law progression data available")
+
+    fig = create_base_figure(
+        title="Law Milestone Race Timeline",
+        x_title="Turn Number",
+        y_title="Player",
+        height=300,
+    )
+
+    # Create Y positions for each player (0, 1, 2, ...)
+    player_positions = {name: i for i, name in enumerate(df["player_name"])}
+
+    # For each player, add markers for their milestones
+    for _, row in df.iterrows():
+        player_name = row["player_name"]
+        y_pos = player_positions[player_name]
+
+        # Prepare milestone data (only include milestones that were reached)
+        milestones = []
+
+        if pd.notna(row["turn_to_4_laws"]):
+            milestones.append({
+                "turn": row["turn_to_4_laws"],
+                "label": "4 laws",
+                "symbol": "circle",
+            })
+
+        if pd.notna(row["turn_to_7_laws"]):
+            milestones.append({
+                "turn": row["turn_to_7_laws"],
+                "label": "7 laws",
+                "symbol": "star",
+            })
+
+        # Add a line connecting the milestones for this player
+        if milestones:
+            turns = [m["turn"] for m in milestones]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=turns,
+                    y=[y_pos] * len(turns),
+                    mode="lines+markers+text",
+                    name=player_name,
+                    line=dict(
+                        color=Config.PRIMARY_COLORS[y_pos % len(Config.PRIMARY_COLORS)],
+                        width=2,
+                    ),
+                    marker=dict(
+                        size=12,
+                        symbol=[m["symbol"] for m in milestones],
+                    ),
+                    text=[f"{m['label']}<br>Turn {int(m['turn'])}" for m in milestones],
+                    textposition="top center",
+                    hovertemplate="<b>%{fullData.name}</b><br>%{text}<extra></extra>",
+                )
+            )
+
+    # Update Y-axis to show player names
+    fig.update_yaxes(
+        tickmode="array",
+        tickvals=list(player_positions.values()),
+        ticktext=list(player_positions.keys()),
+    )
+
+    # Add vertical grid lines for easier reading
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="rgba(128,128,128,0.2)")
+
+    return fig
