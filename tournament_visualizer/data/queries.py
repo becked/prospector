@@ -233,29 +233,22 @@ class TournamentQueries:
     def get_turn_progression_data(self, match_id: int) -> pd.DataFrame:
         """Get turn-by-turn progression data for a specific match.
 
-        Args:
-            match_id: ID of the match
+        DEPRECATED: The game_state table was removed in migration 002 because
+        all rows had turn_number=0 (broken data). Use get_event_timeline() or
+        the new history tables instead.
 
         Returns:
-            DataFrame with turn progression data
+            Empty DataFrame with expected columns
         """
-        query = """
-        SELECT
-            gs.turn_number,
-            gs.game_year,
-            p.player_name as active_player,
-            p.civilization,
-            COUNT(e.event_id) as events_count
-        FROM game_state gs
-        LEFT JOIN players p ON gs.active_player_id = p.player_id
-        LEFT JOIN events e ON gs.match_id = e.match_id AND gs.turn_number = e.turn_number
-        WHERE gs.match_id = ?
-        GROUP BY gs.turn_number, gs.game_year, p.player_name, p.civilization
-        ORDER BY gs.turn_number
-        """
-
-        with self.db.get_connection() as conn:
-            return conn.execute(query, [match_id]).df()
+        return pd.DataFrame(
+            columns=[
+                "turn_number",
+                "game_year",
+                "active_player",
+                "civilization",
+                "events_count",
+            ]
+        )
 
     def get_resource_progression(
         self, match_id: int, player_name: Optional[str] = None
@@ -275,7 +268,7 @@ class TournamentQueries:
             p.player_name,
             r.resource_type,
             r.amount
-        FROM resources r
+        FROM player_yield_history r
         JOIN players p ON r.player_id = p.player_id
         WHERE r.match_id = ?
         """
