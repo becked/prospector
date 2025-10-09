@@ -72,9 +72,22 @@ The application will start and be available at: **http://localhost:8050**
 ### Matches
 - Individual match selection and analysis
 - Turn progression tracking
-- Resource development charts
+- Technology research comparison
+- **Law Progression Analysis** - 6 interactive visualizations:
+  1. **Law Milestone Timing** - Compare when each player reached 4 and 7 law milestones
+  2. **Law Milestone Timeline** - Horizontal timeline showing progression race
+  3. **Milestone Timing Distribution** - Box plots showing typical timing across all matches
+  4. **Player Performance Heatmap** - Color-coded matrix showing performance by player and match
+  5. **Law Progression Efficiency** - Scatter plot analyzing speed to milestones
+  6. **Cumulative Law Count Race** - Line chart showing turn-by-turn progression
 - Event timeline visualization
 - Territory control over time
+
+**Law Progression Key Insights:**
+- Only ~64% of players reach 4 laws
+- Only ~29% of players reach 7 laws
+- Average turn to 4 laws: ~45 turns
+- Average turn to 7 laws: ~71 turns
 
 ### Players
 - Player performance rankings
