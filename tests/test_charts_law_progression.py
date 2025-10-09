@@ -9,7 +9,8 @@ from tournament_visualizer.components.charts import (
     create_law_milestone_distribution_chart,
     create_law_progression_heatmap,
     create_law_race_timeline_chart,
-    create_law_efficiency_scatter,  # ← ADD THIS
+    create_law_efficiency_scatter,
+    create_cumulative_law_count_chart,  # ← ADD THIS
     # We'll add more imports as we create more charts
 )
 
@@ -73,6 +74,27 @@ def empty_data() -> pd.DataFrame:
             "turn_to_7_laws",
             "total_laws",
         ]
+    )
+
+
+@pytest.fixture
+def sample_cumulative_data() -> pd.DataFrame:
+    """Sample cumulative law count data for testing."""
+    return pd.DataFrame(
+        {
+            "player_id": [19, 19, 19, 20, 20, 20, 20],
+            "player_name": [
+                "anarkos",
+                "anarkos",
+                "anarkos",
+                "becked",
+                "becked",
+                "becked",
+                "becked",
+            ],
+            "turn_number": [11, 36, 49, 20, 37, 43, 46],
+            "cumulative_laws": [1, 2, 3, 1, 2, 3, 4],
+        }
     )
 
 
@@ -262,3 +284,39 @@ class TestLawEfficiencyScatter:
 
         # Should return placeholder or chart with limited data
         assert isinstance(fig, go.Figure)
+
+
+class TestCumulativeLawCountChart:
+    """Tests for cumulative law count line chart (Visualization #6)."""
+
+    def test_returns_figure(self, sample_cumulative_data: pd.DataFrame) -> None:
+        """Should return a Plotly Figure object."""
+        fig = create_cumulative_law_count_chart(sample_cumulative_data)
+        assert isinstance(fig, go.Figure)
+
+    def test_uses_line_chart(self, sample_cumulative_data: pd.DataFrame) -> None:
+        """Should use line chart (Scatter with lines)."""
+        fig = create_cumulative_law_count_chart(sample_cumulative_data)
+
+        if len(fig.data) > 0:
+            # Should be Scatter traces
+            assert isinstance(fig.data[0], go.Scatter)
+            # Should have mode including "lines"
+            assert "lines" in fig.data[0].mode
+
+    def test_has_trace_per_player(self, sample_cumulative_data: pd.DataFrame) -> None:
+        """Should have one line per player."""
+        fig = create_cumulative_law_count_chart(sample_cumulative_data)
+
+        # Should have 2 traces (one per player in fixture)
+        scatter_traces = [t for t in fig.data if isinstance(t, go.Scatter)]
+        assert len(scatter_traces) == 2
+
+    def test_includes_milestone_reference_lines(
+        self, sample_cumulative_data: pd.DataFrame
+    ) -> None:
+        """Should show horizontal lines for 4 and 7 law milestones."""
+        fig = create_cumulative_law_count_chart(sample_cumulative_data)
+
+        # Check for horizontal lines (shapes in layout)
+        assert len(fig.layout.shapes) >= 2  # At least 4-law and 7-law lines
