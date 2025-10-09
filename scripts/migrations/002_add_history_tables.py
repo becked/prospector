@@ -43,6 +43,14 @@ def migrate(db_path: Path, backup: bool = True) -> None:
         else:
             conn.execute("ALTER TABLE resources RENAME TO player_yield_history")
 
+        # 2.5. Create sequences for new tables
+        print("  - Creating sequences for new tables...")
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS points_history_id_seq START 1")
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS military_history_id_seq START 1")
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS legitimacy_history_id_seq START 1")
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS family_opinion_id_seq START 1")
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS religion_opinion_id_seq START 1")
+
         # 3. Create player_points_history table
         print("  - Creating player_points_history table...")
         conn.execute("""
