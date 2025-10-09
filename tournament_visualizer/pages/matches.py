@@ -11,9 +11,11 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, callback, dcc, html
+from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
+    create_law_milestone_comparison_chart,
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
     create_technology_comparison_chart,
@@ -390,8 +392,28 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         ],
                                         width=6,
                                     ),
-                                ]
-                            )
+                                ],
+                                className="mb-3",
+                            ),
+                            # NEW: Law Progression Section
+                            html.Hr(),  # Visual separator
+                            html.H4("Law Progression Analysis", className="mt-4 mb-3"),
+                            # Visualization #1: Match Comparison
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Law Milestone Timing (This Match)",
+                                                chart_id="match-law-milestone-comparison",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
                         ],
                     },
                     {
@@ -1146,3 +1168,35 @@ def update_settings_content(match_id: Optional[int]):
         return create_empty_state(
             f"Error loading settings: {str(e)}", icon="bi-exclamation-triangle"
         )
+
+
+@callback(
+    Output("match-law-milestone-comparison", "figure"),
+    Input("match-selector", "value"),
+)
+def update_law_milestone_comparison(match_id: Optional[int]) -> go.Figure:
+    """Update law milestone comparison chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with law milestone comparison
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view law progression")
+
+    try:
+        queries = get_queries()
+        df = queries.get_law_progression_by_match(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No law progression data available for this match"
+            )
+
+        return create_law_milestone_comparison_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law milestone comparison: {e}")
+        return create_empty_chart_placeholder(f"Error loading data: {str(e)}")
