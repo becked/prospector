@@ -2021,7 +2021,7 @@ def create_cumulative_law_count_chart(
         )
 
     fig = create_base_figure(
-        title="Cumulative Law Count Race",
+        title="",
         x_title="Turn Number",
         y_title="Laws Adopted",
         height=400,
@@ -2132,7 +2132,7 @@ def create_cumulative_tech_count_chart(
         )
 
     fig = create_base_figure(
-        title="Cumulative Technology Count Race",
+        title="",
         x_title="Turn Number",
         y_title="Technologies Discovered",
         height=400,

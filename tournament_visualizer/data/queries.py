@@ -1044,7 +1044,7 @@ class TournamentQueries:
                 e.turn_number,
                 COUNT(*) OVER (
                     PARTITION BY e.player_id
-                    ORDER BY e.turn_number
+                    ORDER BY e.turn_number, e.event_id
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 ) as cumulative_techs
             FROM events e
@@ -1052,12 +1052,13 @@ class TournamentQueries:
             WHERE e.event_type = 'TECH_DISCOVERED'
                 AND e.match_id = ?
         )
-        SELECT DISTINCT
+        SELECT
             player_id,
             player_name,
             turn_number,
-            cumulative_techs
+            MAX(cumulative_techs) as cumulative_techs
         FROM tech_events
+        GROUP BY player_id, player_name, turn_number
         ORDER BY player_id, turn_number
         """
 
@@ -1083,7 +1084,7 @@ class TournamentQueries:
                 e.turn_number,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.player_id
-                    ORDER BY e.turn_number
+                    ORDER BY e.turn_number, e.event_id
                 ) as cumulative_laws
             FROM events e
             JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
@@ -1096,7 +1097,7 @@ class TournamentQueries:
             turn_number,
             cumulative_laws
         FROM law_events
-        ORDER BY player_id, turn_number
+        ORDER BY player_id, turn_number, cumulative_laws
         """
 
         with self.db.get_connection() as conn:

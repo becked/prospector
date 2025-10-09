@@ -425,7 +425,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Cumulative Technology Count (This Match)",
+                                                title="Cumulative Technology Count",
                                                 chart_id="match-technology-chart",
                                                 height="400px",
                                             )
@@ -435,16 +435,12 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
-                            # Law Progression Section
-                            html.Hr(),  # Visual separator
-                            html.H4("Law Progression Analysis", className="mt-4 mb-3"),
-                            # Cumulative Count
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Cumulative Law Count (This Match)",
+                                                title="Cumulative Law Count",
                                                 chart_id="match-law-cumulative",
                                                 height="400px",
                                             )
