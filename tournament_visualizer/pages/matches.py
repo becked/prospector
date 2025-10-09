@@ -1231,10 +1231,14 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                 law_list_str = row.get("law_list", "")
                 if law_list_str and pd.notna(law_list_str):
                     laws = [law.strip() for law in str(law_list_str).split(",")]
-                    # Remove LAW_ prefix, humanize, and sort
+                    # Remove LAW_ prefix, quotes, humanize, and sort
                     player_data[player_id]["laws"] = sorted(
                         [
-                            law.replace("LAW_", "").replace("_", " ").title()
+                            law.replace("LAW_", "")
+                            .replace("_", " ")
+                            .strip('"')
+                            .strip("'")
+                            .title()
                             for law in laws
                         ]
                     )
@@ -1254,10 +1258,14 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                 tech_list_str = row.get("tech_list", "")
                 if tech_list_str and pd.notna(tech_list_str):
                     techs = [tech.strip() for tech in str(tech_list_str).split(",")]
-                    # Remove TECH_ prefix, humanize, and sort
+                    # Remove TECH_ prefix, quotes, humanize, and sort
                     player_data[player_id]["techs"] = sorted(
                         [
-                            tech.replace("TECH_", "").replace("_", " ").title()
+                            tech.replace("TECH_", "")
+                            .replace("_", " ")
+                            .strip('"')
+                            .strip("'")
+                            .title()
                             for tech in techs
                         ]
                     )
@@ -1303,7 +1311,6 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                                             ),
                                             html.Ul(
                                                 laws_items,
-                                                className="list-unstyled",
                                                 style={"fontSize": "0.9rem"},
                                             ),
                                         ],
@@ -1324,7 +1331,6 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                                             ),
                                             html.Ul(
                                                 techs_items,
-                                                className="list-unstyled",
                                                 style={"fontSize": "0.9rem"},
                                             ),
                                         ],
