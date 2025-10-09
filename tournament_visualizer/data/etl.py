@@ -418,8 +418,8 @@ class TournamentETL:
         result = self.db.fetch_one("SELECT COUNT(*) FROM territories")
         summary["total_territories"] = result[0] if result else 0
 
-        # Count resource records
-        result = self.db.fetch_one("SELECT COUNT(*) FROM resources")
+        # Count yield history records
+        result = self.db.fetch_one("SELECT COUNT(*) FROM player_yield_history")
         summary["total_resources"] = result[0] if result else 0
 
         # Get date range
