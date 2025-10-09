@@ -2079,9 +2079,12 @@ def create_cumulative_law_count_chart(
     )
 
     # Set Y-axis to start at 0 and use integer ticks
+    # Mirror ticks to show on both left and right sides
     fig.update_yaxes(
         rangemode="tozero",
         dtick=1,  # Tick every 1 law
+        mirror=True,
+        showgrid=True,
     )
 
     return fig
@@ -2150,9 +2153,12 @@ def create_cumulative_tech_count_chart(
         )
 
     # Set Y-axis to start at 0 and use integer ticks
+    # Mirror ticks to show on both left and right sides
     fig.update_yaxes(
         rangemode="tozero",
         dtick=1,  # Tick every 1 tech
+        mirror=True,
+        showgrid=True,
     )
 
     return fig
