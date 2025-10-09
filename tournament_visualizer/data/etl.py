@@ -275,6 +275,21 @@ class TournamentETL:
             self.db.bulk_insert_points_history(points_history)
             logger.info(f"Inserted {len(points_history)} points history records")
 
+        # Process yield history
+        yield_history = parsed_data.get("yield_history", [])
+        for yield_data in yield_history:
+            yield_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                yield_data.get("player_id")
+                and yield_data["player_id"] in player_id_mapping
+            ):
+                yield_data["player_id"] = player_id_mapping[yield_data["player_id"]]
+
+        if yield_history:
+            self.db.bulk_insert_yield_history(yield_history)
+            logger.info(f"Inserted {len(yield_history)} yield history records")
+
         # Process military history
         military_history = parsed_data.get("military_history", [])
         for military_data in military_history:
