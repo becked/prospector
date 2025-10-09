@@ -1872,3 +1872,119 @@ def create_law_progression_heatmap(df: pd.DataFrame) -> go.Figure:
     fig.update_yaxes(title="Player")
 
     return fig
+
+
+def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
+    """Create a scatter plot analyzing law progression efficiency.
+
+    X-axis: Turn to reach 4 laws
+    Y-axis: Turn to reach 7 laws
+
+    Players in the lower-left corner are most efficient (reached milestones quickly).
+    Players in the upper-right are slower.
+
+    Args:
+        df: DataFrame with player_name, civilization, turn_to_4_laws, turn_to_7_laws
+
+    Returns:
+        Plotly figure with scatter plot
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No law progression data available")
+
+    # Filter to only players who reached BOTH milestones
+    df_complete = df[
+        df["turn_to_4_laws"].notna() & df["turn_to_7_laws"].notna()
+    ].copy()
+
+    if df_complete.empty:
+        return create_empty_chart_placeholder(
+            "No players reached both 4 and 7 law milestones"
+        )
+
+    fig = create_base_figure(
+        title="Law Progression Efficiency Analysis",
+        x_title="Turn to Reach 4 Laws (lower = faster)",
+        y_title="Turn to Reach 7 Laws (lower = faster)",
+        height=500,
+    )
+
+    # Calculate time between milestones
+    df_complete["time_between"] = (
+        df_complete["turn_to_7_laws"] - df_complete["turn_to_4_laws"]
+    )
+
+    # Color by civilization
+    unique_civs = df_complete["civilization"].unique()
+    civ_colors = {
+        civ: CIVILIZATION_COLORS.get(civ, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+        for i, civ in enumerate(unique_civs)
+    }
+
+    # Group by civilization for separate traces
+    for civ in unique_civs:
+        civ_data = df_complete[df_complete["civilization"] == civ]
+
+        fig.add_trace(
+            go.Scatter(
+                x=civ_data["turn_to_4_laws"],
+                y=civ_data["turn_to_7_laws"],
+                mode="markers+text",
+                name=civ,
+                marker=dict(
+                    size=12,
+                    color=civ_colors[civ],
+                    line=dict(width=1, color="white"),
+                ),
+                text=civ_data["player_name"],
+                textposition="top center",
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    f"{civ}<br>"
+                    "4 Laws: Turn %{x}<br>"
+                    "7 Laws: Turn %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Add diagonal line showing typical progression ratio
+    if not df_complete.empty:
+        x_range = [df_complete["turn_to_4_laws"].min(), df_complete["turn_to_4_laws"].max()]
+        # Typical ratio: if 4 laws at turn X, 7 laws around turn 1.5*X
+        y_trend = [x * 1.5 for x in x_range]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_range,
+                y=y_trend,
+                mode="lines",
+                name="Typical Pace",
+                line=dict(dash="dash", color="gray", width=1),
+                showlegend=True,
+                hoverinfo="skip",
+            )
+        )
+
+    # Add quadrant annotations
+    fig.add_annotation(
+        text="Fast & Efficient",
+        x=0.2,
+        y=0.2,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        font=dict(size=10, color="green"),
+    )
+
+    fig.add_annotation(
+        text="Slow",
+        x=0.8,
+        y=0.8,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        font=dict(size=10, color="red"),
+    )
+
+    return fig
