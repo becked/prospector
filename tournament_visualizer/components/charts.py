@@ -2078,13 +2078,17 @@ def create_cumulative_law_count_chart(
         annotation_position="right",
     )
 
-    # Set Y-axis to start at 0 and use integer ticks
-    # Mirror ticks to show on both left and right sides
+    # Calculate the maximum law count to set consistent y-axis range
+    max_laws = int(df["cumulative_laws"].max()) if not df.empty else 7
+    y_range = [0, max_laws + 1]
+
+    # Set Y-axis with ticks and labels on both sides
     fig.update_yaxes(
-        rangemode="tozero",
-        dtick=1,  # Tick every 1 law
-        mirror=True,
+        range=y_range,
+        dtick=1,
         showgrid=True,
+        ticks="outside",
+        mirror="ticks",  # Show ticks and labels on both left and right
     )
 
     return fig
@@ -2152,13 +2156,17 @@ def create_cumulative_tech_count_chart(
             )
         )
 
-    # Set Y-axis to start at 0 and use integer ticks
-    # Mirror ticks to show on both left and right sides
+    # Calculate the maximum tech count to set consistent y-axis range
+    max_techs = int(df["cumulative_techs"].max()) if not df.empty else 16
+    y_range = [0, max_techs + 1]
+
+    # Set Y-axis with ticks and labels on both sides
     fig.update_yaxes(
-        rangemode="tozero",
-        dtick=1,  # Tick every 1 tech
-        mirror=True,
+        range=y_range,
+        dtick=1,
         showgrid=True,
+        ticks="outside",
+        mirror="ticks",  # Show ticks and labels on both left and right
     )
 
     return fig
