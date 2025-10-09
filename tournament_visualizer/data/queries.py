@@ -1069,6 +1069,44 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_cumulative_law_count_by_turn(self, match_id: int) -> pd.DataFrame:
+        """Get cumulative law count by turn for each player.
+
+        Similar to get_tech_count_by_turn, but for laws.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: player_id, player_name, turn_number, cumulative_laws
+        """
+        query = """
+        WITH law_events AS (
+            SELECT
+                e.player_id,
+                p.player_name,
+                e.turn_number,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.player_id
+                    ORDER BY e.turn_number
+                ) as cumulative_laws
+            FROM events e
+            JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+            WHERE e.event_type = 'LAW_ADOPTED'
+                AND e.match_id = ?
+        )
+        SELECT DISTINCT
+            player_id,
+            player_name,
+            turn_number,
+            cumulative_laws
+        FROM law_events
+        ORDER BY player_id, turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_techs_at_law_milestone(
         self, match_id: int, milestone: int = 4
     ) -> pd.DataFrame:
