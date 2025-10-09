@@ -419,53 +419,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Technology & Research",
                         "tab_id": "technology",
                         "content": [
-                            # Final Laws and Technologies panels
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            dbc.Card(
-                                                [
-                                                    dbc.CardHeader(
-                                                        html.H5(
-                                                            "Final Laws",
-                                                            className="mb-0",
-                                                        )
-                                                    ),
-                                                    dbc.CardBody(
-                                                        html.Div(
-                                                            id="match-final-laws-content"
-                                                        ),
-                                                    ),
-                                                ],
-                                                className="h-100",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Card(
-                                                [
-                                                    dbc.CardHeader(
-                                                        html.H5(
-                                                            "Final Technologies",
-                                                            className="mb-0",
-                                                        )
-                                                    ),
-                                                    dbc.CardBody(
-                                                        html.Div(
-                                                            id="match-final-techs-content"
-                                                        ),
-                                                    ),
-                                                ],
-                                                className="h-100",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
+                            # Final Laws and Technologies by player
+                            html.Div(
+                                id="match-final-laws-techs-content", className="mb-3"
                             ),
                             # Technology Tempo chart
                             dbc.Row(
@@ -1230,169 +1186,157 @@ def update_settings_content(match_id: Optional[int]):
 
 
 @callback(
-    Output("match-final-laws-content", "children"),
+    Output("match-final-laws-techs-content", "children"),
     Input("match-selector", "value"),
 )
-def update_final_laws(match_id: Optional[int]) -> html.Div:
-    """Update final laws display for each player.
+def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
+    """Update final laws and technologies display by player.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        HTML content with player laws
-    """
-    if not match_id:
-        return html.Div("Select a match to view final laws", className="text-muted")
-
-    try:
-        queries = get_queries()
-        df = queries.get_cumulative_law_count_by_turn(match_id)
-
-        if df.empty:
-            return html.Div("No law data available", className="text-muted")
-
-        # Get the final turn data for each player
-        final_laws = df.loc[df.groupby("player_id")["turn_number"].idxmax()]
-
-        # Create player sections
-        player_sections = []
-        for _, row in final_laws.iterrows():
-            player_name = row["player_name"]
-            law_list_str = row.get("law_list", "")
-
-            # Parse and sort laws
-            if law_list_str and pd.notna(law_list_str):
-                laws = [law.strip() for law in str(law_list_str).split(",")]
-                laws.sort()
-            else:
-                laws = []
-
-            # Create law badges
-            law_badges = [
-                dbc.Badge(
-                    law,
-                    color="primary",
-                    className="me-1 mb-1",
-                    pill=True,
-                )
-                for law in laws
-            ]
-
-            player_section = html.Div(
-                [
-                    html.H6(
-                        [
-                            player_name,
-                            dbc.Badge(
-                                f"{len(laws)} laws",
-                                color="info",
-                                className="ms-2",
-                                pill=True,
-                            ),
-                        ],
-                        className="mb-2",
-                    ),
-                    html.Div(
-                        law_badges
-                        if laws
-                        else html.Span("No laws", className="text-muted")
-                    ),
-                ],
-                className="mb-3",
-            )
-            player_sections.append(player_section)
-
-        return html.Div(player_sections)
-
-    except Exception as e:
-        logger.error(f"Error loading final laws: {e}")
-        return html.Div(f"Error loading laws: {str(e)}", className="text-danger")
-
-
-@callback(
-    Output("match-final-techs-content", "children"),
-    Input("match-selector", "value"),
-)
-def update_final_techs(match_id: Optional[int]) -> html.Div:
-    """Update final technologies display for each player.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        HTML content with player technologies
+        HTML content with player boxes containing laws and techs
     """
     if not match_id:
         return html.Div(
-            "Select a match to view final technologies", className="text-muted"
+            "Select a match to view final laws and technologies", className="text-muted"
         )
 
     try:
         queries = get_queries()
-        df = queries.get_tech_count_by_turn(match_id)
 
-        if df.empty:
-            return html.Div("No technology data available", className="text-muted")
+        # Get laws data
+        laws_df = queries.get_cumulative_law_count_by_turn(match_id)
+        # Get techs data
+        techs_df = queries.get_tech_count_by_turn(match_id)
 
-        # Get the final turn data for each player
-        final_techs = df.loc[df.groupby("player_id")["turn_number"].idxmax()]
+        if laws_df.empty and techs_df.empty:
+            return html.Div("No data available", className="text-muted")
 
-        # Create player sections
-        player_sections = []
-        for _, row in final_techs.iterrows():
-            player_name = row["player_name"]
-            tech_list_str = row.get("tech_list", "")
+        # Get final turn data for each player
+        player_data = {}
 
-            # Parse and sort technologies
-            if tech_list_str and pd.notna(tech_list_str):
-                techs = [tech.strip() for tech in str(tech_list_str).split(",")]
-                techs.sort()
-            else:
-                techs = []
-
-            # Create tech badges
-            tech_badges = [
-                dbc.Badge(
-                    tech,
-                    color="success",
-                    className="me-1 mb-1",
-                    pill=True,
-                )
-                for tech in techs
+        if not laws_df.empty:
+            final_laws = laws_df.loc[
+                laws_df.groupby("player_id")["turn_number"].idxmax()
             ]
+            for _, row in final_laws.iterrows():
+                player_id = row["player_id"]
+                player_data[player_id] = {
+                    "name": row["player_name"],
+                    "laws": [],
+                    "techs": [],
+                }
+                law_list_str = row.get("law_list", "")
+                if law_list_str and pd.notna(law_list_str):
+                    laws = [law.strip() for law in str(law_list_str).split(",")]
+                    # Remove LAW_ prefix and sort
+                    player_data[player_id]["laws"] = sorted(
+                        [law.replace("LAW_", "") for law in laws]
+                    )
 
-            player_section = html.Div(
-                [
-                    html.H6(
-                        [
-                            player_name,
-                            dbc.Badge(
-                                f"{len(techs)} techs",
-                                color="info",
-                                className="ms-2",
-                                pill=True,
-                            ),
-                        ],
-                        className="mb-2",
-                    ),
-                    html.Div(
-                        tech_badges
-                        if techs
-                        else html.Span("No technologies", className="text-muted")
-                    ),
-                ],
-                className="mb-3",
+        if not techs_df.empty:
+            final_techs = techs_df.loc[
+                techs_df.groupby("player_id")["turn_number"].idxmax()
+            ]
+            for _, row in final_techs.iterrows():
+                player_id = row["player_id"]
+                if player_id not in player_data:
+                    player_data[player_id] = {
+                        "name": row["player_name"],
+                        "laws": [],
+                        "techs": [],
+                    }
+                tech_list_str = row.get("tech_list", "")
+                if tech_list_str and pd.notna(tech_list_str):
+                    techs = [tech.strip() for tech in str(tech_list_str).split(",")]
+                    # Remove TECH_ prefix and sort
+                    player_data[player_id]["techs"] = sorted(
+                        [tech.replace("TECH_", "") for tech in techs]
+                    )
+
+        # Create player boxes
+        player_cols = []
+        for player_id in sorted(player_data.keys()):
+            data = player_data[player_id]
+
+            # Create laws list
+            laws_items = (
+                [html.Li(law, className="mb-1") for law in data["laws"]]
+                if data["laws"]
+                else [html.Span("No laws", className="text-muted")]
             )
-            player_sections.append(player_section)
 
-        return html.Div(player_sections)
+            # Create techs list
+            techs_items = (
+                [html.Li(tech, className="mb-1") for tech in data["techs"]]
+                if data["techs"]
+                else [html.Span("No technologies", className="text-muted")]
+            )
+
+            player_card = dbc.Card(
+                [
+                    dbc.CardHeader(html.H5(data["name"], className="mb-0")),
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            html.H6(
+                                                [
+                                                    "Laws ",
+                                                    dbc.Badge(
+                                                        len(data["laws"]),
+                                                        color="primary",
+                                                        pill=True,
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            html.Ul(
+                                                laws_items,
+                                                className="list-unstyled",
+                                                style={"fontSize": "0.9rem"},
+                                            ),
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            html.H6(
+                                                [
+                                                    "Technologies ",
+                                                    dbc.Badge(
+                                                        len(data["techs"]),
+                                                        color="success",
+                                                        pill=True,
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            html.Ul(
+                                                techs_items,
+                                                className="list-unstyled",
+                                                style={"fontSize": "0.9rem"},
+                                            ),
+                                        ],
+                                        width=6,
+                                    ),
+                                ]
+                            )
+                        ]
+                    ),
+                ]
+            )
+            player_cols.append(dbc.Col(player_card, width=12 // len(player_data)))
+
+        return dbc.Row(player_cols)
 
     except Exception as e:
-        logger.error(f"Error loading final technologies: {e}")
-        return html.Div(
-            f"Error loading technologies: {str(e)}", className="text-danger"
-        )
+        logger.error(f"Error loading final laws and technologies: {e}")
+        return html.Div(f"Error loading data: {str(e)}", className="text-danger")
 
 
 @callback(
