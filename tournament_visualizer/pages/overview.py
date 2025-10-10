@@ -46,14 +46,6 @@ layout = html.Div(
             title=PAGE_CONFIG["overview"]["title"],
             description=PAGE_CONFIG["overview"]["description"],
             icon="bi-bar-chart-fill",
-            actions=[
-                dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise me-2"), "Refresh"],
-                    id="overview-refresh-btn",
-                    color="outline-primary",
-                    size="sm",
-                )
-            ],
         ),
         # Alert area
         html.Div(id="overview-alerts"),
@@ -180,14 +172,12 @@ layout = html.Div(
 )
 
 
-@callback(
-    Output("overview-metrics", "children"), Input("overview-refresh-btn", "n_clicks")
-)
-def update_overview_metrics(refresh_clicks: int) -> html.Div:
+@callback(Output("overview-metrics", "children"), Input("refresh-interval", "n_intervals"))
+def update_overview_metrics(n_intervals: int) -> html.Div:
     """Update the overview metrics cards.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Metrics grid component
@@ -211,13 +201,13 @@ def update_overview_metrics(refresh_clicks: int) -> html.Div:
 
 @callback(
     Output("overview-nation-win-chart", "figure"),
-    Input("overview-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_nation_win_chart(refresh_clicks: int):
+def update_nation_win_chart(n_intervals: int):
     """Update the nation win percentage chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for nation win percentage
@@ -237,13 +227,13 @@ def update_nation_win_chart(refresh_clicks: int):
 
 @callback(
     Output("overview-nation-loss-chart", "figure"),
-    Input("overview-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_nation_loss_chart(refresh_clicks: int):
+def update_nation_loss_chart(n_intervals: int):
     """Update the nation loss percentage chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for nation loss percentage
@@ -263,13 +253,13 @@ def update_nation_loss_chart(refresh_clicks: int):
 
 @callback(
     Output("overview-nation-popularity-chart", "figure"),
-    Input("overview-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_nation_popularity_chart(refresh_clicks: int):
+def update_nation_popularity_chart(n_intervals: int):
     """Update the nation popularity chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for nation popularity
@@ -288,13 +278,13 @@ def update_nation_popularity_chart(refresh_clicks: int):
 
 
 @callback(
-    Output("overview-units-chart", "figure"), Input("overview-refresh-btn", "n_clicks")
+    Output("overview-units-chart", "figure"), Input("refresh-interval", "n_intervals")
 )
-def update_units_chart(refresh_clicks: int):
+def update_units_chart(n_intervals: int):
     """Update the unit popularity sunburst chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for unit popularity
@@ -313,13 +303,13 @@ def update_units_chart(refresh_clicks: int):
 
 
 @callback(
-    Output("overview-map-chart", "figure"), Input("overview-refresh-btn", "n_clicks")
+    Output("overview-map-chart", "figure"), Input("refresh-interval", "n_intervals")
 )
-def update_map_chart(refresh_clicks: int):
+def update_map_chart(n_intervals: int):
     """Update the map breakdown sunburst chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for map breakdown
@@ -338,13 +328,13 @@ def update_map_chart(refresh_clicks: int):
 
 
 @callback(
-    Output("overview-matches-table", "data"), Input("overview-refresh-btn", "n_clicks")
+    Output("overview-matches-table", "data"), Input("refresh-interval", "n_intervals")
 )
-def update_matches_table(refresh_clicks: int) -> List[Dict[str, Any]]:
+def update_matches_table(n_intervals: int) -> List[Dict[str, Any]]:
     """Update the matches table.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         List of dictionaries for table data
@@ -385,13 +375,13 @@ def update_matches_table(refresh_clicks: int) -> List[Dict[str, Any]]:
 
 
 @callback(
-    Output("overview-alerts", "children"), Input("overview-refresh-btn", "n_clicks")
+    Output("overview-alerts", "children"), Input("refresh-interval", "n_intervals")
 )
-def check_data_status(refresh_clicks: int) -> html.Div:
+def check_data_status(n_intervals: int) -> html.Div:
     """Check data status and show alerts if needed.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Alert components if needed
@@ -454,15 +444,15 @@ def check_data_status(refresh_clicks: int) -> html.Div:
 
 @callback(
     Output("overview-law-distribution", "figure"),
-    Input("overview-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_law_distribution(refresh_clicks: int):
+def update_law_distribution(n_intervals: int):
     """Update law milestone distribution chart.
 
     Shows data from ALL matches.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure with box plot distribution
@@ -484,15 +474,15 @@ def update_law_distribution(refresh_clicks: int):
 
 @callback(
     Output("overview-law-efficiency", "figure"),
-    Input("overview-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_law_efficiency(refresh_clicks: int):
+def update_law_efficiency(n_intervals: int):
     """Update law efficiency scatter plot.
 
     Shows data from ALL matches.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure with scatter plot

@@ -7,6 +7,7 @@ support for tournament data visualization.
 import atexit
 import logging
 import signal
+import sys
 
 # Set up logging to both file and console
 from datetime import datetime
@@ -124,14 +125,6 @@ app.layout = dbc.Container(
                 ),
                 # Database status indicator
                 dbc.Badge(id="db-status-badge", color="secondary", className="me-2"),
-                # Refresh button
-                dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise")],
-                    id="refresh-button",
-                    color="outline-light",
-                    size="sm",
-                    className="me-2",
-                ),
                 # Settings dropdown
                 dbc.DropdownMenu(
                     children=[
@@ -231,14 +224,12 @@ app.layout = dbc.Container(
     Output("db-status-badge", "children"),
     Output("db-status-badge", "color"),
     Input("refresh-interval", "n_intervals"),
-    Input("refresh-button", "n_clicks"),
 )
-def update_database_status(n_intervals: int, refresh_clicks: int) -> tuple[str, str]:
+def update_database_status(n_intervals: int) -> tuple[str, str]:
     """Update the database status indicator.
 
     Args:
         n_intervals: Number of interval triggers
-        refresh_clicks: Number of refresh button clicks
 
     Returns:
         Tuple of (badge_text, badge_color)

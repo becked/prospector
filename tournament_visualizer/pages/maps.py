@@ -47,14 +47,6 @@ layout = html.Div(
             title=PAGE_CONFIG["maps"]["title"],
             description=PAGE_CONFIG["maps"]["description"],
             icon="bi-map-fill",
-            actions=[
-                dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise me-2"), "Refresh"],
-                    id="maps-refresh-btn",
-                    color="outline-primary",
-                    size="sm",
-                )
-            ],
         ),
         # Filters section
         create_filter_card(
@@ -347,14 +339,14 @@ layout = html.Div(
         Input("maps-date-dropdown", "value"),
         Input("maps-settings-size-dropdown", "value"),
         Input("maps-settings-class-dropdown", "value"),
-        Input("maps-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_map_summary_metrics(
     date_range: Optional[int],
     map_sizes: Optional[List[str]],
     map_classes: Optional[List[str]],
-    refresh_clicks: int,
+    n_intervals: int,
 ) -> html.Div:
     """Update map summary metrics.
 
@@ -362,7 +354,7 @@ def update_map_summary_metrics(
         date_range: Selected date range in days
         map_sizes: Selected map sizes filter
         map_classes: Selected map classes filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Metrics grid component
@@ -440,14 +432,14 @@ def update_map_summary_metrics(
         Input("maps-date-dropdown", "value"),
         Input("maps-settings-size-dropdown", "value"),
         Input("maps-settings-class-dropdown", "value"),
-        Input("maps-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_map_length_chart(
     date_range: Optional[int],
     map_sizes: Optional[List[str]],
     map_classes: Optional[List[str]],
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update map length chart.
 
@@ -455,7 +447,7 @@ def update_map_length_chart(
         date_range: Selected date range in days
         map_sizes: Selected map sizes filter
         map_classes: Selected map classes filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for map length analysis
@@ -506,14 +498,14 @@ def update_map_length_chart(
         Input("maps-date-dropdown", "value"),
         Input("maps-settings-size-dropdown", "value"),
         Input("maps-settings-class-dropdown", "value"),
-        Input("maps-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_map_popularity_chart(
     date_range: Optional[int],
     map_sizes: Optional[List[str]],
     map_classes: Optional[List[str]],
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update map popularity chart.
 
@@ -521,7 +513,7 @@ def update_map_popularity_chart(
         date_range: Selected date range in days
         map_sizes: Selected map sizes filter
         map_classes: Selected map classes filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for map popularity
@@ -565,13 +557,13 @@ def update_map_popularity_chart(
 
 
 @callback(
-    Output("territory-match-selector", "options"), Input("maps-refresh-btn", "n_clicks")
+    Output("territory-match-selector", "options"), Input("refresh-interval", "n_intervals")
 )
-def update_territory_match_options(refresh_clicks: int) -> List[Dict[str, Any]]:
+def update_territory_match_options(n_intervals: int) -> List[Dict[str, Any]]:
     """Update territory match selector options.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         List of match options for territory analysis
@@ -795,14 +787,14 @@ def update_territory_heatmap(match_id: Optional[int]):
         Input("maps-date-dropdown", "value"),
         Input("maps-settings-size-dropdown", "value"),
         Input("maps-settings-class-dropdown", "value"),
-        Input("maps-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_map_stats_table(
     date_range: Optional[int],
     map_sizes: Optional[List[str]],
     map_classes: Optional[List[str]],
-    refresh_clicks: int,
+    n_intervals: int,
 ) -> List[Dict[str, Any]]:
     """Update map statistics table.
 
@@ -810,7 +802,7 @@ def update_map_stats_table(
         date_range: Selected date range in days
         map_sizes: Selected map sizes filter
         map_classes: Selected map classes filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         List of map statistics data
@@ -837,13 +829,13 @@ def update_map_stats_table(
 
 # Additional charts for strategic analysis tab
 @callback(
-    Output("starting-position-chart", "figure"), Input("maps-refresh-btn", "n_clicks")
+    Output("starting-position-chart", "figure"), Input("refresh-interval", "n_intervals")
 )
-def update_starting_position_chart(refresh_clicks: int):
+def update_starting_position_chart(n_intervals: int):
     """Update starting position impact chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for starting position analysis
@@ -857,13 +849,13 @@ def update_starting_position_chart(refresh_clicks: int):
 
 @callback(
     Output("map-class-performance-chart", "figure"),
-    Input("maps-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_map_class_performance_chart(refresh_clicks: int):
+def update_map_class_performance_chart(n_intervals: int):
     """Update map class performance chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for map class performance
@@ -905,13 +897,13 @@ def update_map_class_performance_chart(refresh_clicks: int):
 
 
 @callback(
-    Output("expansion-patterns-chart", "figure"), Input("maps-refresh-btn", "n_clicks")
+    Output("expansion-patterns-chart", "figure"), Input("refresh-interval", "n_intervals")
 )
-def update_expansion_patterns_chart(refresh_clicks: int):
+def update_expansion_patterns_chart(n_intervals: int):
     """Update expansion patterns chart.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for expansion patterns

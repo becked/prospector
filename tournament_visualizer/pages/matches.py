@@ -76,36 +76,11 @@ layout = html.Div(
                 dbc.CardBody(
                     [
                         html.H5("Select Match", className="card-title"),
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        dcc.Dropdown(
-                                            id="match-selector",
-                                            placeholder="Choose a match to analyze...",
-                                            options=[],
-                                            value=None,
-                                        )
-                                    ],
-                                    width=8,
-                                ),
-                                dbc.Col(
-                                    [
-                                        dbc.Button(
-                                            [
-                                                html.I(
-                                                    className="bi bi-arrow-clockwise me-2"
-                                                ),
-                                                "Refresh",
-                                            ],
-                                            id="matches-refresh-btn",
-                                            color="outline-primary",
-                                            className="w-100",
-                                        )
-                                    ],
-                                    width=4,
-                                ),
-                            ]
+                        dcc.Dropdown(
+                            id="match-selector",
+                            placeholder="Choose a match to analyze...",
+                            options=[],
+                            value=None,
                         ),
                     ]
                 )
@@ -218,14 +193,14 @@ def sync_match_selection(
 
 @callback(
     Output("match-selector", "options"),
-    Input("matches-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
     prevent_initial_call=False,
 )
-def update_match_options(refresh_clicks: Optional[int]) -> List[Dict[str, Any]]:
+def update_match_options(n_intervals: int) -> List[Dict[str, Any]]:
     """Update match selector options.
 
     Args:
-        refresh_clicks: Number of refresh button clicks (None on initial load)
+        n_intervals: Number of interval triggers
 
     Returns:
         List of match options for dropdown

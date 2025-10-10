@@ -48,14 +48,6 @@ layout = html.Div(
             title=PAGE_CONFIG["players"]["title"],
             description=PAGE_CONFIG["players"]["description"],
             icon="bi-people-fill",
-            actions=[
-                dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise me-2"), "Refresh"],
-                    id="players-refresh-btn",
-                    color="outline-primary",
-                    size="sm",
-                )
-            ],
         ),
         # Filters section
         create_filter_card(
@@ -372,14 +364,14 @@ layout = html.Div(
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_player_summary_metrics(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ) -> html.Div:
     """Update player summary metrics.
 
@@ -387,7 +379,7 @@ def update_player_summary_metrics(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Metrics grid component
@@ -472,14 +464,14 @@ def update_player_summary_metrics(
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_winrate_chart(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update player win rate chart.
 
@@ -487,7 +479,7 @@ def update_winrate_chart(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for win rate chart
@@ -522,14 +514,14 @@ def update_winrate_chart(
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_activity_chart(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update player activity chart.
 
@@ -537,7 +529,7 @@ def update_activity_chart(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for activity chart
@@ -591,18 +583,18 @@ def update_activity_chart(
     [
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_civilization_performance_chart(
-    date_range: Optional[int], civilizations: Optional[List[str]], refresh_clicks: int
+    date_range: Optional[int], civilizations: Optional[List[str]], n_intervals: int
 ):
     """Update civilization performance chart.
 
     Args:
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for civilization performance
@@ -631,18 +623,18 @@ def update_civilization_performance_chart(
     [
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_civilization_popularity_chart(
-    date_range: Optional[int], civilizations: Optional[List[str]], refresh_clicks: int
+    date_range: Optional[int], civilizations: Optional[List[str]], n_intervals: int
 ):
     """Update civilization popularity chart.
 
     Args:
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for civilization popularity
@@ -679,13 +671,13 @@ def update_civilization_popularity_chart(
         Output("h2h-player1-selector", "options"),
         Output("h2h-player2-selector", "options"),
     ],
-    Input("players-refresh-btn", "n_clicks"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_h2h_player_options(refresh_clicks: int) -> tuple:
+def update_h2h_player_options(n_intervals: int) -> tuple:
     """Update head-to-head player selector options.
 
     Args:
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Tuple of (player1_options, player2_options)
@@ -846,14 +838,14 @@ def update_h2h_chart(player1: Optional[str], player2: Optional[str]):
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_rankings_table(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ) -> List[Dict[str, Any]]:
     """Update player rankings table.
 
@@ -861,7 +853,7 @@ def update_rankings_table(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         List of player ranking data
@@ -900,18 +892,18 @@ def update_rankings_table(
     [
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_civilization_stats_table(
-    date_range: Optional[int], civilizations: Optional[List[str]], refresh_clicks: int
+    date_range: Optional[int], civilizations: Optional[List[str]], n_intervals: int
 ) -> List[Dict[str, Any]]:
     """Update civilization statistics table.
 
     Args:
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         List of civilization statistics data
@@ -943,14 +935,14 @@ def update_civilization_stats_table(
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_player_civ_heatmap(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update player vs civilization heatmap.
 
@@ -958,7 +950,7 @@ def update_player_civ_heatmap(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for player-civ heatmap
@@ -1040,14 +1032,14 @@ def update_player_civ_heatmap(
         Input("players-date-dropdown", "value"),
         Input("players-civilizations-dropdown", "value"),
         Input("min-matches-slider", "value"),
-        Input("players-refresh-btn", "n_clicks"),
+        Input("refresh-interval", "n_intervals"),
     ],
 )
 def update_performance_timeline(
     date_range: Optional[int],
     civilizations: Optional[List[str]],
     min_matches: int,
-    refresh_clicks: int,
+    n_intervals: int,
 ):
     """Update performance over time chart.
 
@@ -1055,7 +1047,7 @@ def update_performance_timeline(
         date_range: Selected date range in days
         civilizations: Selected civilizations filter
         min_matches: Minimum matches threshold
-        refresh_clicks: Number of refresh button clicks
+        n_intervals: Number of interval triggers
 
     Returns:
         Plotly figure for performance timeline
