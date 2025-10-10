@@ -124,7 +124,11 @@ app.layout = dbc.Container(
                     navbar=True,
                 ),
                 # Database status indicator
-                dbc.Badge(id="db-status-badge", color="secondary", className="me-2"),
+                dbc.Badge(
+                    id="db-status-badge",
+                    color="secondary",
+                    className="me-2 align-self-center",
+                ),
                 # Settings dropdown
                 dbc.DropdownMenu(
                     children=[
