@@ -1444,40 +1444,72 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
 
 
 @callback(
-    Output("match-food-yields-chart", "figure"),
+    # Generate outputs for all 14 yield charts dynamically
+    [
+        Output(f"match-{yield_type.lower().replace('_', '-')}-chart", "figure")
+        for yield_type, _ in YIELD_TYPES
+    ],
     Input("match-selector", "value"),
 )
-def update_food_yields_chart(match_id: Optional[int]) -> go.Figure:
-    """Update food yields chart.
+def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
+    """Update all yield charts when a match is selected.
+
+    Fetches data for all 14 yield types in a single query and creates
+    individual charts for each yield type.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Plotly figure with food yields line chart
+        List of 14 Plotly figures (one for each yield type)
     """
+    # If no match selected, return empty placeholders for all charts
     if not match_id:
-        return create_empty_chart_placeholder("Select a match to view food yields")
+        return [
+            create_empty_chart_placeholder(f"Select a match to view {display_name} yields")
+            for _, display_name in YIELD_TYPES
+        ]
 
     try:
         queries = get_queries()
-        # Get yield history filtered to food
-        df = queries.get_yield_history_by_match(match_id, yield_types=["YIELD_FOOD"])
 
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No food yield data available for this match"
-            )
+        # SINGLE query fetches ALL yield data for the match
+        all_yields_df = queries.get_yield_history_by_match(match_id)
 
-        # Get total turns for the match to extend lines to the end
+        if all_yields_df.empty:
+            return [
+                create_empty_chart_placeholder(f"No {display_name} yield data available")
+                for _, display_name in YIELD_TYPES
+            ]
+
+        # Get total turns for the match to extend chart lines
         match_df = queries.get_match_summary()
         match_info = match_df[match_df["match_id"] == match_id]
         total_turns = (
             match_info.iloc[0]["total_turns"] if not match_info.empty else None
         )
 
-        return create_food_yields_chart(df, total_turns)
+        # Create all 14 charts from the same DataFrame
+        charts = []
+        for yield_type, display_name in YIELD_TYPES:
+            # Filter to this specific yield type
+            df_yield = all_yields_df[all_yields_df["resource_type"] == yield_type]
+
+            # Create chart using generic function
+            chart = create_yield_chart(
+                df_yield,
+                total_turns=total_turns,
+                yield_type=yield_type,
+                display_name=display_name
+            )
+            charts.append(chart)
+
+        return charts
 
     except Exception as e:
-        logger.error(f"Error loading food yields: {e}")
-        return create_empty_chart_placeholder(f"Error loading food yields: {str(e)}")
+        logger.error(f"Error loading yield charts: {e}")
+        # Return error charts for all yields
+        return [
+            create_empty_chart_placeholder(f"Error loading {display_name} yields: {str(e)}")
+            for _, display_name in YIELD_TYPES
+        ]
