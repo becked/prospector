@@ -2274,8 +2274,7 @@ def create_food_yields_chart(
 ) -> go.Figure:
     """Create a line chart showing food yields over time.
 
-    Shows food production per turn for each player, making it easy to compare
-    food economy development throughout the match.
+    DEPRECATED: Use create_yield_chart() instead. Kept for backward compatibility.
 
     Args:
         df: DataFrame with columns: player_name, turn_number, amount
@@ -2285,15 +2284,50 @@ def create_food_yields_chart(
     Returns:
         Plotly figure with line chart
     """
+    return create_yield_chart(df, total_turns, yield_type="YIELD_FOOD", display_name="Food")
+
+
+def create_yield_chart(
+    df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    yield_type: str = "YIELD_FOOD",
+    display_name: Optional[str] = None
+) -> go.Figure:
+    """Create a line chart showing yield production over time.
+
+    Generic function that works for any yield type (Food, Science, Culture, etc.).
+    Shows yield production per turn for each player, making it easy to compare
+    yield economy development throughout the match.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, amount, resource_type
+            (from get_yield_history_by_match() filtered to specific yield type)
+        total_turns: Optional total turns in the match to extend lines to the end
+        yield_type: The yield type being displayed (e.g., "YIELD_FOOD", "YIELD_SCIENCE")
+                   Used for validation and error messages
+        display_name: Optional human-readable name for the yield (e.g., "Food", "Science")
+                     If not provided, derives from yield_type (removes YIELD_ prefix)
+
+    Returns:
+        Plotly figure with line chart
+
+    Example:
+        >>> df = queries.get_yield_history_by_match(match_id=1, yield_types=["YIELD_SCIENCE"])
+        >>> fig = create_yield_chart(df, total_turns=100, yield_type="YIELD_SCIENCE", display_name="Science")
+    """
+    # Derive display name if not provided
+    if display_name is None:
+        display_name = yield_type.replace("YIELD_", "").replace("_", " ").title()
+
     if df.empty:
         return create_empty_chart_placeholder(
-            "No food yield data available for this match"
+            f"No {display_name} yield data available for this match"
         )
 
     fig = create_base_figure(
         title="",
         x_title="Turn Number",
-        y_title="Food Yield",
+        y_title=f"{display_name} Yield",
         height=400,
     )
 
@@ -2309,7 +2343,7 @@ def create_food_yields_chart(
 
         # Create hover text
         hover_texts = [
-            f"<b>{player}</b><br>Turn {turn}: {yield_val} food"
+            f"<b>{player}</b><br>Turn {turn}: {yield_val} {display_name.lower()}"
             for turn, yield_val in zip(turns, yields)
         ]
 
