@@ -17,7 +17,8 @@ from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
-    create_food_yields_chart,
+    create_food_yields_chart,  # Keep for backward compat (currently unused)
+    create_yield_chart,  # NEW: Generic yield chart function
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
 )
