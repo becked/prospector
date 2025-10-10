@@ -35,6 +35,24 @@ from tournament_visualizer.data.queries import get_queries
 
 logger = logging.getLogger(__name__)
 
+# All 14 yield types tracked in Old World
+YIELD_TYPES = [
+    ("YIELD_FOOD", "Food"),
+    ("YIELD_GROWTH", "Growth"),
+    ("YIELD_SCIENCE", "Science"),
+    ("YIELD_CULTURE", "Culture"),
+    ("YIELD_CIVICS", "Civics"),
+    ("YIELD_TRAINING", "Training"),
+    ("YIELD_MONEY", "Money"),
+    ("YIELD_ORDERS", "Orders"),
+    ("YIELD_HAPPINESS", "Happiness"),
+    ("YIELD_DISCONTENT", "Discontent"),
+    ("YIELD_IRON", "Iron"),
+    ("YIELD_STONE", "Stone"),
+    ("YIELD_WOOD", "Wood"),
+    ("YIELD_MAINTENANCE", "Maintenance"),
+]
+
 # Register this page
 dash.register_page(__name__, path="/matches", name="Matches")
 
@@ -462,21 +480,36 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Yields",
                         "tab_id": "yields",
                         "content": [
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Food",
-                                                chart_id="match-food-yields-chart",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
+                            # Generate rows of charts dynamically
+                            # Each row contains 2 charts side-by-side
+                            *[
+                                dbc.Row(
+                                    [
+                                        dbc.Col(
+                                            [
+                                                create_chart_card(
+                                                    title=YIELD_TYPES[i][1],  # Display name
+                                                    chart_id=f"match-{YIELD_TYPES[i][0].lower().replace('_', '-')}-chart",
+                                                    height="400px",
+                                                )
+                                            ],
+                                            width=6,
+                                        ),
+                                        dbc.Col(
+                                            [
+                                                create_chart_card(
+                                                    title=YIELD_TYPES[i + 1][1] if i + 1 < len(YIELD_TYPES) else "",
+                                                    chart_id=f"match-{YIELD_TYPES[i + 1][0].lower().replace('_', '-')}-chart" if i + 1 < len(YIELD_TYPES) else "match-empty-chart",
+                                                    height="400px",
+                                                )
+                                            ],
+                                            width=6,
+                                        ) if i + 1 < len(YIELD_TYPES) else dbc.Col(width=6),  # Empty column if odd number
+                                    ],
+                                    className="mb-3",
+                                )
+                                for i in range(0, len(YIELD_TYPES), 2)  # Step by 2 to create pairs
+                            ],
                         ],
                     },
                     {
