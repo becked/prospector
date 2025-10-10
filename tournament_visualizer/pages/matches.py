@@ -17,6 +17,7 @@ from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
+    create_food_yields_chart,
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
 )
@@ -447,6 +448,27 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             create_chart_card(
                                                 title="Law Tempo",
                                                 chart_id="match-law-cumulative",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                        ],
+                    },
+                    {
+                        "label": "Yields",
+                        "tab_id": "yields",
+                        "content": [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Food",
+                                                chart_id="match-food-yields-chart",
                                                 height="400px",
                                             )
                                         ],
@@ -1386,3 +1408,43 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
     except Exception as e:
         logger.error(f"Error loading cumulative law count: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("match-food-yields-chart", "figure"),
+    Input("match-selector", "value"),
+)
+def update_food_yields_chart(match_id: Optional[int]) -> go.Figure:
+    """Update food yields chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with food yields line chart
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view food yields")
+
+    try:
+        queries = get_queries()
+        # Get yield history filtered to food
+        df = queries.get_yield_history_by_match(match_id, yield_types=["YIELD_FOOD"])
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No food yield data available for this match"
+            )
+
+        # Get total turns for the match to extend lines to the end
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+        total_turns = (
+            match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        )
+
+        return create_food_yields_chart(df, total_turns)
+
+    except Exception as e:
+        logger.error(f"Error loading food yields: {e}")
+        return create_empty_chart_placeholder(f"Error loading food yields: {str(e)}")

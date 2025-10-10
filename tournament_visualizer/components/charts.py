@@ -2267,3 +2267,100 @@ def create_cumulative_tech_count_chart(
     )
 
     return fig
+
+
+def create_food_yields_chart(
+    df: pd.DataFrame, total_turns: Optional[int] = None
+) -> go.Figure:
+    """Create a line chart showing food yields over time.
+
+    Shows food production per turn for each player, making it easy to compare
+    food economy development throughout the match.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, amount
+            (from get_yield_history_by_match() filtered to YIELD_FOOD)
+        total_turns: Optional total turns in the match to extend lines to the end
+
+    Returns:
+        Plotly figure with line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No food yield data available for this match"
+        )
+
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Food Yield",
+        height=400,
+    )
+
+    # Add a line for each player
+    players = df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player].sort_values("turn_number")
+
+        # Get turn and yield data
+        turns = player_data["turn_number"].tolist()
+        yields = player_data["amount"].tolist()
+
+        # Create hover text
+        hover_texts = [
+            f"<b>{player}</b><br>Turn {turn}: {yield_val} food"
+            for turn, yield_val in zip(turns, yields)
+        ]
+
+        # Extend line to match end if total_turns provided
+        if total_turns and turns and turns[-1] < total_turns:
+            turns.append(total_turns)
+            yields.append(yields[-1])  # Keep final yield value
+            hover_texts.append(hover_texts[-1])  # Reuse last hover text
+
+        # Assign last trace to yaxis2 to make right-side labels visible
+        yaxis_ref = "y2" if i == len(players) - 1 else "y"
+
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=yields,
+                mode="lines+markers",
+                name=player,
+                line=dict(
+                    color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    width=4,
+                ),
+                marker=dict(size=8),
+                hoveron='points',  # Only trigger hover on marker points, not lines
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_texts,
+                yaxis=yaxis_ref,
+            )
+        )
+
+    # Calculate the maximum yield to set appropriate y-axis range
+    max_yield = int(df["amount"].max()) if not df.empty else 100
+    y_range = [0, max_yield + 20]  # Add some padding at the top
+
+    # Set Y-axis with labels on both left and right sides
+    fig.update_layout(
+        yaxis=dict(
+            range=y_range,
+            showgrid=True,
+            ticks="outside",
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            range=y_range,
+            showticklabels=True,
+            ticks="outside",
+            showgrid=False,
+        ),
+        hovermode='closest',  # Explicitly set hover mode
+        hoverdistance=100,  # Increase hover detection distance (default is 20)
+    )
+
+    return fig
