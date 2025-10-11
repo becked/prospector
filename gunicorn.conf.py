@@ -12,9 +12,10 @@ bind = f"0.0.0.0:{os.getenv('PORT', '8080')}"
 backlog = 2048
 
 # Worker processes
-# Use 2-4 workers for 512MB-1GB RAM
-# Formula: (2 x $num_cores) + 1, but cap at 4 for our small instance
-workers = min(multiprocessing.cpu_count() * 2 + 1, 4)
+# For Fly.io shared-cpu-1x (1 shared CPU, 1GB RAM): use 2 workers max
+# Each worker loads the full Dash app (Pandas, DuckDB, Plotly) into memory
+# More workers = more memory usage and CPU contention on shared CPU
+workers = int(os.getenv("WEB_CONCURRENCY", "2"))  # Default to 2, can override via env var
 worker_class = "sync"
 worker_connections = 1000
 timeout = 120  # 2 minutes - important for slow analytics queries
