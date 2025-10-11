@@ -2,7 +2,7 @@
 # See: https://fly.io/docs/reference/configuration/
 
 app = "prospector"
-primary_region = "sjc"        # San Jose - change to your preferred region
+primary_region = "ewr"
 
 # Enable experimental HTTP/2 support
 [experimental]
