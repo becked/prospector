@@ -43,10 +43,10 @@ Thumbs.db
 !.env.example
 
 # Data and logs (will use volume mount instead)
-data/*.duckdb
-data/*.duckdb.wal
+# Exclude entire data and saves directories - they're mounted as volumes
+data/
+saves/
 logs/*.log
-saves/*.zip
 
 # Documentation and development files
 docs/
