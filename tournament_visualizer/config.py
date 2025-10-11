@@ -92,11 +92,28 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production-specific configuration."""
+    """Production-specific configuration for Fly.io and other hosts."""
 
     DEBUG_MODE = False
-    CACHE_TIMEOUT = 3600  # Longer cache for production
+
+    # Bind to 0.0.0.0 to accept external connections
+    APP_HOST = "0.0.0.0"
+
+    # Longer cache for production
+    CACHE_TIMEOUT = 3600  # 1 hour
+
+    # Enable lazy loading for better performance
     LAZY_LOADING = True
+
+    def __init__(self) -> None:
+        """Initialize production config with environment-specific values."""
+        super().__init__()
+        # Use PORT environment variable (Fly.io sets this to 8080)
+        self.APP_PORT = int(os.getenv("PORT", "8080"))
+        # Database path from environment (volume mount on Fly.io)
+        self.DATABASE_PATH = os.getenv("TOURNAMENT_DB_PATH", "data/tournament_data.duckdb")
+        # Saves directory from environment (volume mount on Fly.io)
+        self.SAVES_DIRECTORY = os.getenv("SAVES_DIRECTORY", "saves")
 
 
 class TestConfig(Config):
@@ -115,19 +132,27 @@ CONFIG_MAP = {
 }
 
 
-def get_config(config_name: str = None) -> Config:
+def get_config(config_name: str | None = None) -> Config:
     """Get configuration object based on environment.
 
     Args:
-        config_name: Configuration name (development/production/testing)
+        config_name: Configuration name (development/production/testing).
+                    If None, auto-detects from FLASK_ENV or PORT environment variable.
 
     Returns:
-        Configuration object
+        Configuration object (Config subclass instance)
     """
     if config_name is None:
+        # Check FLASK_ENV first
         config_name = os.getenv("FLASK_ENV", "development")
 
-    return CONFIG_MAP.get(config_name, DevelopmentConfig)
+        # If PORT is set (Fly.io, Heroku), assume production
+        # This handles cases where FLASK_ENV isn't explicitly set
+        if os.getenv("PORT") and config_name == "development":
+            config_name = "production"
+
+    config_class = CONFIG_MAP.get(config_name, DevelopmentConfig)
+    return config_class()  # Return instance, not class
 
 
 # Application constants
