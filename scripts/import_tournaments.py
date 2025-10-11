@@ -31,12 +31,16 @@ def setup_logging(verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+    # Ensure logs directory exists
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
     logging.basicConfig(
         level=level,
         format=format_string,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler("tournament_import.log"),
+            logging.FileHandler(log_dir / "tournament_import.log"),
         ],
     )
 
