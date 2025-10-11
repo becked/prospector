@@ -59,6 +59,12 @@ primary_region = "sjc"
     protocol = "http"
     tls_skip_verify = false
 
+# VM resources - increase memory for data processing
+[vm]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
 # Persistent volume for database and save files
 [mounts]
   source = "tournament_data"
