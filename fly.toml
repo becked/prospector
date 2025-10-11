@@ -2,7 +2,7 @@
 # See: https://fly.io/docs/reference/configuration/
 
 app = "prospector"
-primary_region = "ewr"
+primary_region = "sjc"
 
 # Enable experimental HTTP/2 support
 [experimental]
