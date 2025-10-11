@@ -1,0 +1,66 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Local development
+.env
+.env.*
+!.env.example
+
+# Data and logs (will use volume mount instead)
+data/*.duckdb
+data/*.duckdb.wal
+logs/*.log
+saves/*.zip
+
+# Documentation and development files
+docs/
+tests/
+*.md
+!README.md
+
+# CI/CD
+.github/
+
+# Development scripts
+.server.pid
+test_*.sh
+
+# Temporary files
+tmp/
+*.tmp
