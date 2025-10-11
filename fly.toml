@@ -1,0 +1,71 @@
+# Fly.io deployment configuration for Old World Tournament Visualizer
+# See: https://fly.io/docs/reference/configuration/
+
+app = "prospector"
+primary_region = "sjc"        # San Jose - change to your preferred region
+
+# Enable experimental HTTP/2 support
+[experimental]
+  auto_rollback = true
+
+# Build configuration
+[build]
+  dockerfile = "Dockerfile"
+
+# Environment variables (non-secret)
+[env]
+  PORT = "8080"
+  DASH_HOST = "0.0.0.0"
+  DASH_PORT = "8080"
+  FLASK_ENV = "production"
+  TOURNAMENT_DB_PATH = "/data/tournament_data.duckdb"
+  SAVES_DIRECTORY = "/data/saves"
+
+# HTTP service configuration
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  # Concurrency settings
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  # HTTP checks
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["http", "tls"]
+
+  # Health check - verify app is responding
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "10s"
+    grace_period = "30s"
+    restart_limit = 0
+
+  # HTTP health check
+  [[services.http_checks]]
+    interval = 30000        # 30 seconds
+    timeout = 10000         # 10 seconds
+    grace_period = "30s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+    tls_skip_verify = false
+
+# Persistent volume for database and save files
+[mounts]
+  source = "tournament_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+# Release command - runs before deployment completes
+# This downloads attachments and imports them into the database
+[deploy]
+  release_command = "uv run python scripts/download_attachments.py && uv run python scripts/import_attachments.py --directory /data/saves --verbose"
