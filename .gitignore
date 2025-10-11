@@ -43,6 +43,9 @@ temp/
 saves/*.zip
 saves/*.xml
 
+# Tournament attachments (downloaded save files)
+tournament_attachments/
+
 # Backup files
 *.backup
 *.backup_*

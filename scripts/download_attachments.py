@@ -1,45 +1,47 @@
 #!/usr/bin/env python3
 """
 Script to download all attachments from a Challonge tournament.
-Uses pychallonge library to interact with the Challonge API.
+Uses chyllonge library to interact with the Challonge API.
 """
 
 import os
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-import challonge
+from chyllonge.api import ChallongeApi
 from dotenv import load_dotenv
 
 
-def load_config() -> tuple[str, str, str]:
-    """Load username, API key and tournament ID from environment variables."""
+def load_config() -> str:
+    """Load tournament ID from environment variables.
+
+    Note: chyllonge uses CHALLONGE_KEY and CHALLONGE_USER env vars automatically.
+    """
     load_dotenv()
 
-    username = os.getenv("challonge_username")
-    api_key = os.getenv("challonge_api_key")
     tournament_id = os.getenv("challonge_tournament_id")
 
-    if not username:
-        raise ValueError("challonge_username not found in .env file")
-    if not api_key:
-        raise ValueError("challonge_api_key not found in .env file")
     if not tournament_id:
         raise ValueError("challonge_tournament_id not found in .env file")
 
-    return username, api_key, tournament_id
+    return tournament_id
 
 
-def setup_challonge_client(username: str, api_key: str) -> None:
-    """Initialize the Challonge client with username and API key."""
-    challonge.set_credentials(username, api_key)
+def create_challonge_client() -> ChallongeApi:
+    """Create and return a Challonge API client.
+
+    Requires CHALLONGE_KEY and CHALLONGE_USER environment variables.
+    """
+    return ChallongeApi()
 
 
-def get_tournament_matches(tournament_id: str) -> List[Dict[str, Any]]:
+def get_tournament_matches(
+    api: ChallongeApi, tournament_id: str
+) -> list[dict[str, Any]]:
     """Retrieve all matches from the tournament."""
     try:
-        matches = challonge.matches.index(tournament_id)
+        matches = api.matches.get_all(tournament_id)
         return matches
     except Exception as e:
         print(f"Error retrieving matches: {e}")
@@ -59,32 +61,27 @@ def download_attachment(url: str, filename: str, save_dir: Path) -> bool:
 
 
 def extract_attachments_from_matches(
-    matches: List[Dict[str, Any]], tournament_id: str
-) -> List[Dict[str, str]]:
+    api: ChallongeApi, matches: list[dict[str, Any]], tournament_id: str
+) -> list[dict[str, str]]:
     """Extract attachment information from matches."""
     attachments = []
 
     for match in matches:
-        # Handle both nested and flat API response structure
-        if "match" in match:
-            match_data = match["match"]
-        else:
-            match_data = match
+        # chyllonge get_all() returns flat dictionaries
+        # (already extracted from nested structure)
+        match_data = match
 
         attachment_count = match_data.get("attachment_count", 0)
 
         if attachment_count and attachment_count > 0:
             match_id = match_data.get("id")
-            # Get match attachments using correct API call
+            # Get match attachments using chyllonge API
             try:
-                match_attachments = challonge.attachments.index(tournament_id, match_id)
+                match_attachments = api.attachments.get_all(tournament_id, match_id)
 
                 for attachment in match_attachments:
-                    # Handle both nested and flat attachment structure
-                    if "match_attachment" in attachment:
-                        att_data = attachment["match_attachment"]
-                    else:
-                        att_data = attachment
+                    # chyllonge get_all() returns flat dictionaries
+                    att_data = attachment
 
                     # Use asset_url instead of url, and asset_file_name for filename
                     asset_url = att_data.get("asset_url")
@@ -118,19 +115,19 @@ def main() -> None:
     """Main function to download all tournament attachments."""
     try:
         # Load configuration
-        username, api_key, tournament_id = load_config()
+        tournament_id = load_config()
 
-        # Setup Challonge client
-        setup_challonge_client(username, api_key)
+        # Create Challonge API client
+        api = create_challonge_client()
 
         # Create downloads directory
-        downloads_dir = Path("tournament_attachments")
+        downloads_dir = Path("saves")
         downloads_dir.mkdir(exist_ok=True)
 
         print(f"Downloading attachments for tournament: {tournament_id}")
 
         # Get tournament matches
-        matches = get_tournament_matches(tournament_id)
+        matches = get_tournament_matches(api, tournament_id)
         if not matches:
             print("No matches found or error retrieving matches")
             return
@@ -138,7 +135,7 @@ def main() -> None:
         print(f"Found {len(matches)} matches")
 
         # Extract attachments from matches
-        attachments = extract_attachments_from_matches(matches, tournament_id)
+        attachments = extract_attachments_from_matches(api, matches, tournament_id)
 
         if not attachments:
             print("No attachments found in tournament")
@@ -160,7 +157,8 @@ def main() -> None:
                 successful_downloads += 1
 
         print(
-            f"\nDownload complete: {successful_downloads}/{len(attachments)} files downloaded successfully"
+            f"\nDownload complete: {successful_downloads}/{len(attachments)} "
+            "files downloaded successfully"
         )
         print(f"Files saved to: {downloads_dir.absolute()}")
 
