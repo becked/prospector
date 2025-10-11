@@ -531,8 +531,10 @@ def initialize_database() -> TournamentDatabase:
     Returns:
         Initialized database instance
     """
+    from ..config import Config
+
     # Create a new database instance with write access for schema creation
-    db = TournamentDatabase(read_only=False)
+    db = TournamentDatabase(db_path=Config.DATABASE_PATH, read_only=False)
     db.create_schema()
     logger.info("Database initialized successfully")
     return db

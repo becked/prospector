@@ -1293,8 +1293,11 @@ class TournamentDatabase:
             conn.executemany(query, values)
 
 
+# Import Config for database path
+from ..config import Config
+
 # Global database instance
-db = TournamentDatabase()
+db = TournamentDatabase(db_path=Config.DATABASE_PATH)
 
 
 def get_database() -> TournamentDatabase:
