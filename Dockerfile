@@ -2,7 +2,7 @@
 # Multi-stage build for smaller final image
 
 # Stage 1: Build stage - install dependencies
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Install system dependencies needed for Python packages
 RUN apt-get update && apt-get install -y \
@@ -11,16 +11,19 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (fast Python package installer)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+# Download and install uv, then move to a location accessible to all layers
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files first (for Docker layer caching)
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and source code for building
+COPY pyproject.toml uv.lock README.md ./
+COPY tournament_visualizer/ ./tournament_visualizer/
 
-# Install dependencies using uv
+# Install dependencies and package using uv
 RUN uv sync --frozen --no-dev
 
 # Stage 2: Runtime stage - minimal image
