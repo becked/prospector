@@ -68,4 +68,4 @@ primary_region = "ewr"
 # Release command - runs before deployment completes
 # This downloads attachments and imports them into the database
 [deploy]
-  release_command = "uv run python scripts/download_attachments.py && uv run python scripts/import_attachments.py --directory /data/saves --verbose"
+  release_command = "python scripts/download_attachments.py && python scripts/import_attachments.py --directory /data/saves --verbose"
