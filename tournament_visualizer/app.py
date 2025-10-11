@@ -451,13 +451,9 @@ def health_check():
     from flask import jsonify
 
     try:
-        # Check database connection
-        db_healthy = check_database_connection()
-
-        if db_healthy:
-            return jsonify({"status": "healthy", "database": "connected"}), 200
-        else:
-            return jsonify({"status": "unhealthy", "database": "disconnected"}), 503
+        # Simple health check - just verify the app is responding
+        # Don't check database to avoid lock conflicts and slow responses
+        return jsonify({"status": "healthy", "app": "running"}), 200
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
