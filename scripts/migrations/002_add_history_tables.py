@@ -219,7 +219,7 @@ def rollback(db_path: Path) -> None:
 if __name__ == "__main__":
     import sys
 
-    db_path = Path("tournament_data.duckdb")
+    db_path = Path("data/tournament_data.duckdb")
 
     if len(sys.argv) > 1 and sys.argv[1] == "--rollback":
         rollback(db_path)

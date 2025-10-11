@@ -48,10 +48,10 @@ def main() -> int:
 
     # Connect to database
     try:
-        conn = duckdb.connect("tournament_data.duckdb", read_only=True)
+        conn = duckdb.connect("data/tournament_data.duckdb", read_only=True)
     except Exception as e:
         print(f"❌ Error connecting to database: {e}")
-        print("   Make sure tournament_data.duckdb exists")
+        print("   Make sure data/tournament_data.duckdb exists")
         return 1
 
     # Check different event type categories

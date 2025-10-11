@@ -28,8 +28,8 @@ htmlcov/
 coverage.xml
 
 # Database files (large binary files)
-*.duckdb
-*.duckdb.*
+data/*.duckdb
+data/*.duckdb.*
 *.db
 *.sqlite
 *.sqlite3

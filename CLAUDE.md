@@ -57,23 +57,23 @@ The server runs on http://localhost:8050 by default.
 
 ### DuckDB Operations
 
-The project uses DuckDB (`tournament_data.duckdb`) for analytics.
+The project uses DuckDB (`data/tournament_data.duckdb`) for analytics.
 
 **Always backup before major changes:**
 ```bash
-cp tournament_data.duckdb tournament_data.duckdb.backup_$(date +%Y%m%d_%H%M%S)
+cp data/tournament_data.duckdb data/tournament_data.duckdb.backup_$(date +%Y%m%d_%H%M%S)
 ```
 
 **Inspect database:**
 ```bash
 # Read-only mode (safe)
-uv run duckdb tournament_data.duckdb -readonly
+uv run duckdb data/tournament_data.duckdb -readonly
 
 # Check schema
-uv run duckdb tournament_data.duckdb -readonly -c "DESCRIBE events"
+uv run duckdb data/tournament_data.duckdb -readonly -c "DESCRIBE events"
 
 # Query data
-uv run duckdb tournament_data.duckdb -readonly -c "SELECT COUNT(*) FROM events"
+uv run duckdb data/tournament_data.duckdb -readonly -c "SELECT COUNT(*) FROM events"
 ```
 
 **Re-import data:**
@@ -239,23 +239,31 @@ For complex features, create an implementation plan in `docs/plans/`:
 
 See `docs/plans/logdata-ingestion-implementation-plan.md` as an example.
 
-## PyChallonge Library Notes
+## Chyllonge Library Notes
 
-When working with the pychallonge library:
+When working with the chyllonge library (Challonge API client):
+
+### Setup
+- Requires environment variables:
+  - `CHALLONGE_KEY`: API key from https://challonge.com/settings/developer
+  - `CHALLONGE_USER`: Challonge username
+- Initialize client: `api = ChallongeAPI()`
 
 ### API Response Structure
 - The library returns **flat dictionaries**, not nested under keys like 'tournament' or 'match'
-- Always handle both flat and nested structures for compatibility:
-  ```python
-  # Handle both nested and flat structure
-  if 'match' in match:
-      match_data = match['match']
-  else:
-      match_data = match
-  ```
+- Access fields directly: `match['id']`, `tournament['name']`
+- No need to check for nested structures like `match['match']` or `tournament['tournament']`
+
+### Common API Calls
+```python
+# Get all matches
+matches = api.matches.get_all(tournament_id)
+
+# Get all attachments for a match
+attachments = api.attachments.get_all(tournament_id, match_id)
+```
 
 ### Attachments
-- Use `challonge.attachments.index(tournament_id, match_id)` (NOT `challonge.match_attachments`)
 - Available fields:
   - `asset_url`: Download URL (missing protocol prefix, prepend 'https:')
   - `asset_file_name`: Original filename
@@ -265,5 +273,5 @@ When working with the pychallonge library:
 
 ### Common Gotchas
 - `attachment_count` can be `None`, always check `if attachment_count and attachment_count > 0:`
-- Tournament data structure is flat, access directly: `tournament['name']` not `tournament['tournament']['name']`
-- Match data structure is also flat: `match['id']` not `match['match']['id']`
+- All responses are flat dictionaries, consistent API design
+- Supports Python 3.8-3.11

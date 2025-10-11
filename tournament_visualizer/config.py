@@ -13,7 +13,7 @@ class Config:
     """Main configuration class for the tournament visualizer."""
 
     # Database settings
-    DATABASE_PATH = os.getenv("TOURNAMENT_DB_PATH", "tournament_data.duckdb")
+    DATABASE_PATH = os.getenv("TOURNAMENT_DB_PATH", "data/tournament_data.duckdb")
 
     # Application settings
     APP_TITLE = "Old World Tournament Visualizer"

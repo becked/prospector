@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple
 import duckdb
 
 
-def connect_db(db_path: str = "tournament_data.duckdb") -> duckdb.DuckDBPyConnection:
+def connect_db(db_path: str = "data/tournament_data.duckdb") -> duckdb.DuckDBPyConnection:
     """Connect to the database in read-only mode."""
     return duckdb.connect(db_path, read_only=True)
 
@@ -307,7 +307,7 @@ def get_summary_statistics(conn: duckdb.DuckDBPyConnection) -> Dict[str, Dict[st
 
 def main() -> int:
     """Run all validation checks and print report."""
-    db_path = Path("tournament_data.duckdb")
+    db_path = Path("data/tournament_data.duckdb")
     if not db_path.exists():
         print(f"ERROR: Database not found at {db_path}")
         return 1

@@ -162,7 +162,7 @@ def main() -> None:
 
         # Handle force option
         if args.force:
-            db_path = Path("tournament_data.duckdb")
+            db_path = Path("data/tournament_data.duckdb")
             if db_path.exists():
                 print(f"Removing existing database: {db_path}")
                 db_path.unlink()

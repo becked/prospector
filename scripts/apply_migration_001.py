@@ -28,7 +28,7 @@ def apply_migration() -> bool:
     print("=" * 60)
 
     # Open database in write mode
-    db = TournamentDatabase(db_path="tournament_data.duckdb", read_only=False)
+    db = TournamentDatabase(db_path="data/tournament_data.duckdb", read_only=False)
 
     try:
         # Connect to database

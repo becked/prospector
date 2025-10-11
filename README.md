@@ -131,7 +131,7 @@ The application can be configured via environment variables:
 
 ```bash
 # Database path
-export TOURNAMENT_DB_PATH="custom_tournament_data.duckdb"
+export TOURNAMENT_DB_PATH="data/custom_tournament_data.duckdb"
 
 # Application host and port
 export DASH_HOST="0.0.0.0"
@@ -257,7 +257,7 @@ ls saves/*.zip
 **Database errors:**
 ```bash
 # Remove existing database to start fresh
-rm tournament_data.duckdb
+rm data/tournament_data.duckdb
 uv run python scripts/import_tournaments.py --force
 ```
 

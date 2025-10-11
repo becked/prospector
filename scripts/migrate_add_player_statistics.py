@@ -170,7 +170,7 @@ def main() -> None:
         "--rollback", action="store_true", help="Rollback the migration"
     )
     parser.add_argument(
-        "--db", default="tournament_data.duckdb", help="Database file path"
+        "--db", default="data/tournament_data.duckdb", help="Database file path"
     )
     args = parser.parse_args()
 
