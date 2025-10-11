@@ -5,6 +5,7 @@ Uses chyllonge library to interact with the Challonge API.
 """
 
 import os
+import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -17,13 +18,34 @@ def load_config() -> str:
     """Load tournament ID from environment variables.
 
     Note: chyllonge uses CHALLONGE_KEY and CHALLONGE_USER env vars automatically.
+
+    Environment variables are loaded from .env file in development,
+    or directly from environment in production (Fly.io secrets).
     """
+    # Try to load .env file (development), silently skip if not found (production)
     load_dotenv()
 
     tournament_id = os.getenv("challonge_tournament_id")
 
     if not tournament_id:
-        raise ValueError("challonge_tournament_id not found in .env file")
+        raise ValueError(
+            "challonge_tournament_id not found in environment variables. "
+            "In development: check .env file. "
+            "In production: set via 'flyctl secrets set challonge_tournament_id=VALUE'"
+        )
+
+    # Verify other required environment variables
+    if not os.getenv("CHALLONGE_KEY"):
+        raise ValueError(
+            "CHALLONGE_KEY not found in environment variables. "
+            "Required for Challonge API access."
+        )
+
+    if not os.getenv("CHALLONGE_USER"):
+        raise ValueError(
+            "CHALLONGE_USER not found in environment variables. "
+            "Required for Challonge API access."
+        )
 
     return tournament_id
 
@@ -121,7 +143,8 @@ def main() -> None:
         api = create_challonge_client()
 
         # Create downloads directory
-        downloads_dir = Path("saves")
+        # Use SAVES_DIRECTORY env var if set, otherwise default to "saves"
+        downloads_dir = Path(os.getenv("SAVES_DIRECTORY", "saves"))
         downloads_dir.mkdir(exist_ok=True)
 
         print(f"Downloading attachments for tournament: {tournament_id}")
@@ -162,8 +185,16 @@ def main() -> None:
         )
         print(f"Files saved to: {downloads_dir.absolute()}")
 
+    except ValueError as e:
+        # Configuration errors (missing env vars)
+        print(f"Configuration Error: {e}", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
-        print(f"Error: {e}")
+        # Unexpected errors
+        print(f"Unexpected Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

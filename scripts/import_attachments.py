@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -133,8 +134,8 @@ def main() -> None:
     parser.add_argument(
         "--directory",
         "-d",
-        default="saves",
-        help="Directory containing tournament save files (default: saves)",
+        default=os.getenv("SAVES_DIRECTORY", "saves"),
+        help="Directory containing tournament save files (default: $SAVES_DIRECTORY or 'saves')",
     )
 
     parser.add_argument(
@@ -216,7 +217,12 @@ def main() -> None:
 
     except Exception as e:
         logger.error(f"Import failed: {e}")
-        print(f"\n❌ Import failed: {e}")
+        print(f"\n❌ Import failed: {e}", file=sys.stderr)
+
+        # Import traceback for detailed error output
+        import traceback
+        traceback.print_exc()
+
         sys.exit(1)
 
 
