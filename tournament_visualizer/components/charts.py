@@ -1203,100 +1203,161 @@ def create_player_law_performance_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def create_nation_win_percentage_chart(df: pd.DataFrame) -> go.Figure:
-    """Create a pie chart showing nation win percentages.
+    """Create a horizontal bar chart showing nation win rates.
 
     Args:
-        df: DataFrame with nation, wins columns
+        df: DataFrame with nation, wins, total_matches, win_percentage columns
 
     Returns:
-        Plotly figure with pie chart
+        Plotly figure with horizontal bar chart
     """
     if df.empty:
         return create_empty_chart_placeholder("No nation data available")
 
-    fig = create_base_figure(title="Nation Win Percentage", show_legend=False)
+    # Sort by win percentage descending
+    df_sorted = df.sort_values("win_percentage", ascending=True)
+
+    fig = create_base_figure(
+        title="Nation Win Rate",
+        x_title="Win Rate (%)",
+        y_title="Nation",
+        show_legend=False,
+    )
 
     # Use nation colors from nation_colors.py
-    colors = [get_nation_color(nation) for nation in df["nation"]]
+    colors = [get_nation_color(nation) for nation in df_sorted["nation"]]
+
+    # Create hover text with detailed stats
+    hover_text = [
+        f"<b>{row['nation']}</b><br>"
+        f"Win Rate: {row['win_percentage']:.1f}%<br>"
+        f"Wins: {row['wins']}<br>"
+        f"Games Played: {row['total_matches']}"
+        for _, row in df_sorted.iterrows()
+    ]
 
     fig.add_trace(
-        go.Pie(
-            labels=df["nation"],
-            values=df["wins"],
-            marker=dict(colors=colors),
-            textposition="inside",
-            textinfo="label",
-            hovertemplate="<b>%{label}</b><br>Wins: %{value}<br>Percentage: %{percent}<extra></extra>",
+        go.Bar(
+            x=df_sorted["win_percentage"],
+            y=df_sorted["nation"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{pct:.1f}%" for pct in df_sorted["win_percentage"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
         )
     )
 
-    fig.update_layout(showlegend=False)
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+        xaxis={"range": [0, 100]},
+    )
 
     return fig
 
 
 def create_nation_loss_percentage_chart(df: pd.DataFrame) -> go.Figure:
-    """Create a pie chart showing nation loss percentages.
+    """Create a horizontal bar chart showing nation loss rates.
 
     Args:
-        df: DataFrame with nation, losses columns
+        df: DataFrame with nation, losses, total_matches, loss_percentage columns
 
     Returns:
-        Plotly figure with pie chart
+        Plotly figure with horizontal bar chart
     """
     if df.empty:
         return create_empty_chart_placeholder("No nation data available")
 
-    fig = create_base_figure(title="Nation Loss Percentage", show_legend=False)
+    # Sort by loss percentage ascending (so lowest loss rate is at top)
+    df_sorted = df.sort_values("loss_percentage", ascending=False)
+
+    fig = create_base_figure(
+        title="Nation Loss Rate",
+        x_title="Loss Rate (%)",
+        y_title="Nation",
+        show_legend=False,
+    )
 
     # Use nation colors from nation_colors.py
-    colors = [get_nation_color(nation) for nation in df["nation"]]
+    colors = [get_nation_color(nation) for nation in df_sorted["nation"]]
+
+    # Create hover text with detailed stats
+    hover_text = [
+        f"<b>{row['nation']}</b><br>"
+        f"Loss Rate: {row['loss_percentage']:.1f}%<br>"
+        f"Losses: {row['losses']}<br>"
+        f"Games Played: {row['total_matches']}"
+        for _, row in df_sorted.iterrows()
+    ]
 
     fig.add_trace(
-        go.Pie(
-            labels=df["nation"],
-            values=df["losses"],
-            marker=dict(colors=colors),
-            textposition="inside",
-            textinfo="label",
-            hovertemplate="<b>%{label}</b><br>Losses: %{value}<br>Percentage: %{percent}<extra></extra>",
+        go.Bar(
+            x=df_sorted["loss_percentage"],
+            y=df_sorted["nation"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{pct:.1f}%" for pct in df_sorted["loss_percentage"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
         )
     )
 
-    fig.update_layout(showlegend=False)
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+        xaxis={"range": [0, 100]},
+    )
 
     return fig
 
 
 def create_nation_popularity_chart(df: pd.DataFrame) -> go.Figure:
-    """Create a pie chart showing nation popularity (matches played).
+    """Create a horizontal bar chart showing nation popularity (matches played).
 
     Args:
         df: DataFrame with nation, total_matches columns
 
     Returns:
-        Plotly figure with pie chart
+        Plotly figure with horizontal bar chart
     """
     if df.empty:
         return create_empty_chart_placeholder("No nation data available")
 
-    fig = create_base_figure(title="Nation Popularity", show_legend=False)
+    # Sort by total matches descending
+    df_sorted = df.sort_values("total_matches", ascending=True)
+
+    fig = create_base_figure(
+        title="Nation Popularity",
+        x_title="Games Played",
+        y_title="Nation",
+        show_legend=False,
+    )
 
     # Use nation colors from nation_colors.py
-    colors = [get_nation_color(nation) for nation in df["nation"]]
+    colors = [get_nation_color(nation) for nation in df_sorted["nation"]]
+
+    # Create hover text with detailed stats
+    hover_text = [
+        f"<b>{row['nation']}</b><br>"
+        f"Games Played: {row['total_matches']}"
+        for _, row in df_sorted.iterrows()
+    ]
 
     fig.add_trace(
-        go.Pie(
-            labels=df["nation"],
-            values=df["total_matches"],
-            marker=dict(colors=colors),
-            textposition="inside",
-            textinfo="label",
-            hovertemplate="<b>%{label}</b><br>Matches: %{value}<br>Percentage: %{percent}<extra></extra>",
+        go.Bar(
+            x=df_sorted["total_matches"],
+            y=df_sorted["nation"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=df_sorted["total_matches"],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
         )
     )
 
-    fig.update_layout(showlegend=False)
+    fig.update_layout(yaxis={"categoryorder": "total ascending"})
 
     return fig
 
