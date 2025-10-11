@@ -55,7 +55,7 @@ primary_region = "sjc"        # San Jose - change to your preferred region
     timeout = 10000         # 10 seconds
     grace_period = "30s"
     method = "GET"
-    path = "/"
+    path = "/health"
     protocol = "http"
     tls_skip_verify = false
 

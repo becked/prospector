@@ -440,6 +440,30 @@ def create_production_server():
 server = app.server
 
 
+# Health check endpoint for Fly.io and other platforms
+@server.route("/health")
+def health_check():
+    """Health check endpoint for monitoring.
+
+    Returns:
+        JSON response with health status
+    """
+    from flask import jsonify
+
+    try:
+        # Check database connection
+        db_healthy = check_database_connection()
+
+        if db_healthy:
+            return jsonify({"status": "healthy", "database": "connected"}), 200
+        else:
+            return jsonify({"status": "unhealthy", "database": "disconnected"}), 503
+
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({"status": "unhealthy", "error": str(e)}), 503
+
+
 if __name__ == "__main__":
     # Run development server
     run_development_server()
