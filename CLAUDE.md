@@ -79,10 +79,10 @@ uv run duckdb data/tournament_data.duckdb -readonly -c "SELECT COUNT(*) FROM eve
 **Re-import data:**
 ```bash
 # Test first (dry-run)
-uv run python scripts/import_tournaments.py --directory saves --dry-run
+uv run python scripts/import_attachments.py --directory saves --dry-run
 
 # Full re-import (removes existing data)
-uv run python scripts/import_tournaments.py --directory saves --force --verbose
+uv run python scripts/import_attachments.py --directory saves --force --verbose
 ```
 
 ### Validation After Changes
