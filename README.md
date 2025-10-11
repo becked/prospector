@@ -144,6 +144,75 @@ export DASH_DEBUG="False"
 export SAVES_DIRECTORY="path/to/saves"
 ```
 
+## 🚢 Deployment
+
+### Deploy to Fly.io
+
+The application is production-ready and can be deployed to Fly.io with persistent storage for the database and tournament files.
+
+**Quick Deployment:**
+```bash
+# Automated deployment script (recommended)
+./scripts/deploy_to_flyio.sh
+```
+
+The deployment script will:
+- ✓ Check prerequisites (flyctl, authentication)
+- ✓ Validate git status and run tests
+- ✓ Verify volume and secrets configuration
+- ✓ Deploy to Fly.io
+- ✓ Perform post-deployment health checks
+
+**Manual Deployment:**
+
+1. **First-Time Setup:**
+   ```bash
+   # Install and authenticate with Fly.io
+   brew install flyctl  # macOS
+   flyctl auth login
+
+   # Launch app (creates but doesn't deploy yet)
+   flyctl launch --no-deploy
+
+   # Create persistent volume
+   flyctl volumes create tournament_data --size 1 --region sjc
+
+   # Set environment secrets
+   flyctl secrets set CHALLONGE_KEY="your_api_key"
+   flyctl secrets set CHALLONGE_USER="your_username"
+   flyctl secrets set challonge_tournament_id="your_tournament_id"
+   ```
+
+2. **Deploy:**
+   ```bash
+   flyctl deploy
+   ```
+
+3. **Verify:**
+   ```bash
+   flyctl status
+   flyctl open
+   ```
+
+**Deployment Documentation:**
+- 📚 [Comprehensive Deployment Guide](docs/deployment/flyio-deployment-guide.md)
+- ✅ [Pre-Deployment Checklist](docs/deployment/pre-deployment-checklist.md)
+- 📋 [Implementation Plan](docs/plans/flyio-deployment-implementation-plan.md)
+
+**Cost Estimate:** ~$4-8/month
+- Shared CPU with 512MB-1GB RAM
+- 1GB persistent volume
+- Free SSL/TLS certificates
+
+**Production Features:**
+- ✓ Gunicorn WSGI server with 2-4 workers
+- ✓ Persistent volume for database storage
+- ✓ Automatic data import on deployment
+- ✓ Health check endpoint (`/health`)
+- ✓ Docker multi-stage builds
+- ✓ Environment-based configuration
+- ✓ SSL/TLS termination
+
 ## 🔧 Development
 
 ### Install Development Dependencies
