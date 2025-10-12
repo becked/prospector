@@ -2425,6 +2425,11 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     - Middle ring: Map classes (Continent, Inland Sea, etc.)
     - Outer ring: Aspect ratios (Square, Wide, etc.)
 
+    Color scheme:
+    - Continent: Shades of green
+    - Inland Sea: Shades of blue
+    - Coastal Rain Basin: Shades of red
+
     Args:
         df: DataFrame with map_class, map_aspect_ratio, map_size, count columns
 
@@ -2434,16 +2439,65 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return create_empty_chart_placeholder("No map data available")
 
+    # Define color mapping for map classes and their aspect ratios
+    # Green shades for Continent (darkest to lightest)
+    # Blue shades for Inland Sea (darkest to lightest)
+    # Red shades for Coastal Rain Basin (darkest to lightest)
+    color_map = {
+        # Root node - neutral gray
+        "All Maps": "#808080",
+        # Size level - light neutral colors
+        "Duel": "#A0A0A0",
+        "Tiny": "#B0B0B0",
+        # Continent - Green shades (middle ring and outer ring)
+        "Duel - Continent": "#2E7D32",  # Dark green
+        "Tiny - Continent": "#388E3C",  # Medium-dark green
+        "Duel - Continent - Square": "#1B5E20",  # Darkest green
+        "Duel - Continent - Wide": "#2E7D32",  # Dark green
+        "Duel - Continent - Ultrawide": "#43A047",  # Medium green
+        "Duel - Continent - Dynamic": "#66BB6A",  # Light green
+        "Tiny - Continent - Square": "#2E7D32",  # Dark green
+        "Tiny - Continent - Wide": "#43A047",  # Medium green
+        "Tiny - Continent - Ultrawide": "#66BB6A",  # Light green
+        "Tiny - Continent - Dynamic": "#81C784",  # Lightest green
+        # Inland Sea - Blue shades (middle ring and outer ring)
+        "Duel - Inland Sea": "#1565C0",  # Dark blue
+        "Tiny - Inland Sea": "#1976D2",  # Medium-dark blue
+        "Duel - Inland Sea - Square": "#0D47A1",  # Darkest blue
+        "Duel - Inland Sea - Wide": "#1565C0",  # Dark blue
+        "Duel - Inland Sea - Ultrawide": "#1976D2",  # Medium blue
+        "Duel - Inland Sea - Dynamic": "#42A5F5",  # Light blue
+        "Tiny - Inland Sea - Square": "#1565C0",  # Dark blue
+        "Tiny - Inland Sea - Wide": "#1976D2",  # Medium blue
+        "Tiny - Inland Sea - Ultrawide": "#42A5F5",  # Light blue
+        "Tiny - Inland Sea - Dynamic": "#64B5F6",  # Lightest blue
+        # Coastal Rain Basin - Red shades (middle ring and outer ring)
+        "Duel - Coastal Rain Basin": "#C62828",  # Dark red
+        "Tiny - Coastal Rain Basin": "#D32F2F",  # Medium-dark red
+        "Duel - Coastal Rain Basin - Square": "#B71C1C",  # Darkest red
+        "Duel - Coastal Rain Basin - Wide": "#C62828",  # Dark red
+        "Duel - Coastal Rain Basin - Ultrawide": "#D32F2F",  # Medium red
+        "Duel - Coastal Rain Basin - Dynamic": "#E57373",  # Light red
+        "Tiny - Coastal Rain Basin - Square": "#C62828",  # Dark red
+        "Tiny - Coastal Rain Basin - Wide": "#D32F2F",  # Medium red
+        "Tiny - Coastal Rain Basin - Ultrawide": "#E57373",  # Light red
+        "Tiny - Coastal Rain Basin - Dynamic": "#EF5350",  # Lightest red
+    }
+
     # Build hierarchical data for sunburst
     labels = []
     parents = []
     values = []
+    colors = []
+    hover_texts = []
 
     # Root node
     total_maps = int(df["count"].sum())
     labels.append("All Maps")
     parents.append("")
     values.append(total_maps)
+    colors.append(color_map.get("All Maps", "#808080"))
+    hover_texts.append(f"<b>All Maps</b><br>Count: {total_maps}")
 
     # Level 1: Map sizes
     size_totals = df.groupby("map_size")["count"].sum()
@@ -2451,14 +2505,19 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         labels.append(size)
         parents.append("All Maps")
         values.append(int(size_totals[size]))
+        colors.append(color_map.get(size, "#A0A0A0"))
+        hover_texts.append(f"<b>{size}</b><br>Count: {int(size_totals[size])}")
 
     # Level 2: Map classes within each size
     class_by_size = df.groupby(["map_size", "map_class"])["count"].sum()
     for (size, map_class), count in class_by_size.items():
-        label = f"{size} - {map_class}"
-        labels.append(label)
+        # Use full label for internal reference but display only class name
+        full_label = f"{size} - {map_class}"
+        labels.append(full_label)
         parents.append(size)
         values.append(int(count))
+        colors.append(color_map.get(full_label, "#808080"))
+        hover_texts.append(f"<b>{map_class}</b><br>Size: {size}<br>Count: {int(count)}")
 
     # Level 3: Aspect ratios within each class
     for _, row in df.iterrows():
@@ -2468,29 +2527,36 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         count = int(row["count"])
 
         parent_label = f"{size} - {map_class}"
-        label = f"{size} - {map_class} - {aspect}"
+        full_label = f"{size} - {map_class} - {aspect}"
 
-        labels.append(label)
+        labels.append(full_label)
         parents.append(parent_label)
         values.append(count)
+        colors.append(color_map.get(full_label, "#808080"))
+        hover_texts.append(f"<b>{aspect}</b><br>Class: {map_class}<br>Size: {size}<br>Count: {count}")
+
+    # Create display labels (only the last part of each label)
+    display_labels = [label.split(" - ")[-1] for label in labels]
 
     fig = go.Figure(
         go.Sunburst(
-            labels=labels,
+            labels=labels,  # Keep full labels for internal hierarchy
             parents=parents,
             values=values,
             branchvalues="total",
             marker=dict(
-                colorscale="Viridis",
-                cmid=total_maps / 2,
+                colors=colors,
+                line=dict(color="white", width=2),
             ),
-            hovertemplate="<b>%{label}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
+            text=display_labels,  # Display only the last part
+            textinfo="text",  # Show only the custom text, not the label
+            hovertext=hover_texts,
+            hovertemplate="%{hovertext}<extra></extra>",
         )
     )
 
     fig.update_layout(
-        title="Map Breakdown (Sunburst)",
-        margin=dict(t=40, l=0, r=0, b=0),
+        margin=dict(t=0, l=0, r=0, b=0),
         height=400,
     )
 
