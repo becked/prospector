@@ -22,6 +22,10 @@ from tournament_visualizer.components.charts import (
     create_statistics_grouped_bar,
     create_statistics_radar_chart,
 )
+from tournament_visualizer.utils.event_categories import (
+    get_category_color_map,
+    get_event_category,
+)
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
     create_chart_card,
@@ -366,7 +370,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Events Timeline (All Event Types)",
+                                                title="Events Timeline by Category",
                                                 chart_id="match-progression-chart",
                                                 height="400px",
                                             )
@@ -699,7 +703,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
 
 @callback(Output("match-progression-chart", "figure"), Input("match-selector", "value"))
 def update_progression_chart(match_id: Optional[int]):
-    """Update the events timeline chart with all event types.
+    """Update the events timeline chart categorized by gameplay type.
 
     Args:
         match_id: Selected match ID
@@ -718,52 +722,50 @@ def update_progression_chart(match_id: Optional[int]):
         if df.empty:
             return create_empty_chart_placeholder("No event data available")
 
-        # Count events per turn by event category
+        # Add gameplay category to each event
+        df["gameplay_category"] = df["event_type"].apply(get_event_category)
+
+        # Count events per turn by gameplay category
         import plotly.graph_objects as go
 
         from tournament_visualizer.components.charts import create_base_figure
-        from tournament_visualizer.config import Config
 
-        # Group by turn and event category
+        # Group by turn and gameplay category
         events_by_category = (
-            df.groupby(["turn_number", "event_category"])
+            df.groupby(["turn_number", "gameplay_category"])
             .size()
             .reset_index(name="event_count")
         )
 
         # Create stacked bar chart
         fig = create_base_figure(
-            title="Events Timeline (Memory + Game Log Events)",
+            title="Events Timeline by Category",
             x_title="Turn Number",
             y_title="Number of Events",
         )
 
-        # Get unique categories
-        categories = events_by_category["event_category"].unique()
+        # Get category colors
+        category_colors = get_category_color_map()
+
+        # Get unique categories and sort for consistent legend order
+        categories = sorted(events_by_category["gameplay_category"].unique())
 
         # Add a bar trace for each category
-        category_colors = {
-            "Game Log": Config.PRIMARY_COLORS[0],  # Blue for LogData
-            "Memory": Config.PRIMARY_COLORS[2],  # Purple for MemoryData
-        }
-
         for category in categories:
             category_data = events_by_category[
-                events_by_category["event_category"] == category
+                events_by_category["gameplay_category"] == category
             ]
             fig.add_trace(
                 go.Bar(
                     name=category,
                     x=category_data["turn_number"],
                     y=category_data["event_count"],
-                    marker_color=category_colors.get(
-                        category, Config.PRIMARY_COLORS[3]
-                    ),
+                    marker_color=category_colors.get(category, "#6c757d"),
                 )
             )
 
         # Set barmode to stack
-        fig.update_layout(barmode="stack")
+        fig.update_layout(barmode="stack", legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02))
 
         return fig
 
@@ -791,6 +793,12 @@ def update_turns_table(match_id: Optional[int]) -> List[Dict[str, Any]]:
 
         if df.empty:
             return []
+
+        # Add gameplay category to each event
+        df["gameplay_category"] = df["event_type"].apply(get_event_category)
+
+        # Replace the old event_category with the new gameplay_category
+        df["event_category"] = df["gameplay_category"]
 
         # Limit to 500 most recent events for display (increased from 100 to show more LogData events)
         return df.head(500).to_dict("records")
