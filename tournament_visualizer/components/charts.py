@@ -933,9 +933,17 @@ def create_statistics_radar_chart(
             )
         )
 
-    title = f"Top {top_n} Statistics Comparison (Normalized %)"
-    if category_filter:
-        title += f" - {category_filter}"
+    # Create a better title based on the category
+    if category_filter == "yield_stockpile":
+        title = "Yield Stockpiles Comparison (Normalized %)"
+    elif category_filter == "bonus_count":
+        title = f"Top {top_n} Bonus Events Comparison (Normalized %)"
+    elif category_filter == "law_changes":
+        title = "Law Changes Comparison (Normalized %)"
+    else:
+        title = f"Top {top_n} Statistics Comparison (Normalized %)"
+        if category_filter:
+            title += f" - {category_filter}"
 
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
@@ -2692,6 +2700,218 @@ def create_aggregated_event_category_timeline_chart(df: pd.DataFrame) -> go.Figu
             x=1.02,
         ),
         margin=dict(t=40, l=50, r=150, b=50),
+    )
+
+    return fig
+
+
+def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a timeline chart showing ambition/goal events for a single player.
+
+    Each ambition gets its own row to prevent overlapping labels.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, status, description
+            (from get_ambition_timeline(), filtered to single player)
+
+    Returns:
+        Plotly figure with scatter plot timeline
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ambition data available")
+
+    # Should only have one player at this point
+    player_name = df["player_name"].iloc[0] if not df.empty else "Player"
+
+    # Define marker properties for each status
+    status_markers = {
+        "Started": {"symbol": "circle-open", "color": Config.PRIMARY_COLORS[2], "size": 10},
+        "Completed": {"symbol": "circle", "color": Config.PRIMARY_COLORS[1], "size": 12},
+        "Failed": {"symbol": "x", "color": Config.PRIMARY_COLORS[0], "size": 12},
+    }
+
+    # Helper function to extract ambition name from description
+    def extract_ambition_name(description: str) -> str:
+        """Extract ambition name from event description."""
+        for link_type in ["link(CONCEPT_AMBITION):", "link(CONCEPT_LEGACY):"]:
+            if link_type in description:
+                text_after = description.split(link_type)[-1]
+                if "Failed a" in text_after:
+                    text_after = text_after.split("Failed a")[0]
+                return text_after.strip()
+        return description
+
+    # Extract ambition names and assign each unique ambition to a row
+    df_copy = df.copy()
+    df_copy["ambition_name"] = df_copy["description"].apply(extract_ambition_name)
+
+    # Get unique ambitions (ordered by first appearance)
+    started_ambitions = df_copy[df_copy["status"] == "Started"].sort_values("turn_number")
+    unique_ambitions = started_ambitions["ambition_name"].unique()
+
+    # Assign y-position (row) to each ambition
+    ambition_y_positions = {ambition: idx for idx, ambition in enumerate(unique_ambitions)}
+
+    # Calculate figure height based on number of ambitions (more space per row)
+    num_ambitions = len(unique_ambitions)
+    fig_height = max(300, num_ambitions * 60 + 100)
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="",
+        height=fig_height,
+    )
+
+    # Add traces for each ambition
+    for ambition in unique_ambitions:
+        y_pos = ambition_y_positions[ambition]
+        ambition_data = df_copy[df_copy["ambition_name"] == ambition]
+
+        # Add marker traces for each status
+        for status in ["Started", "Completed", "Failed"]:
+            status_data = ambition_data[ambition_data["status"] == status]
+            if not status_data.empty:
+                marker_props = status_markers[status]
+
+                # Only show labels for "Started" status
+                if status == "Started":
+                    label_texts = [f"Started {ambition}"]
+                    mode = "markers+text"
+                else:
+                    label_texts = None
+                    mode = "markers"
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=status_data["turn_number"],
+                        y=[y_pos] * len(status_data),
+                        mode=mode,
+                        name=f"{status}",
+                        marker=dict(
+                            symbol=marker_props["symbol"],
+                            color=marker_props["color"],
+                            size=marker_props["size"],
+                            line=dict(width=1, color="white"),
+                        ),
+                        text=label_texts if label_texts else None,
+                        textposition="middle left" if label_texts else None,
+                        textfont=dict(size=10) if label_texts else None,
+                        showlegend=False,
+                        hovertemplate=f"<b>{ambition}</b><br>{status}<br>Turn %{{x}}<extra></extra>",
+                    )
+                )
+
+        # Add connecting line from start to end
+        started = ambition_data[ambition_data["status"] == "Started"]
+        if not started.empty:
+            start_turn = started.iloc[0]["turn_number"]
+
+            ended = ambition_data[
+                ambition_data["status"].isin(["Completed", "Failed"]) &
+                (ambition_data["turn_number"] > start_turn)
+            ]
+
+            if not ended.empty:
+                end_turn = ended.iloc[0]["turn_number"]
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[start_turn, end_turn],
+                        y=[y_pos, y_pos],
+                        mode="lines",
+                        line=dict(
+                            color="rgba(128, 128, 128, 0.3)",
+                            width=2,
+                            dash="dot",
+                        ),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+
+    # Update layout
+    fig.update_layout(
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=fig_height,
+    )
+
+    # Update x-axis
+    fig.update_xaxes(
+        showgrid=True,
+        gridwidth=1,
+        gridcolor="rgba(128,128,128,0.2)",
+    )
+
+    # Hide y-axis (ambition names are in labels)
+    fig.update_yaxes(visible=False)
+
+    return fig
+
+
+def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
+    """Create a summary table showing ambition statistics by player.
+
+    Displays a table with columns for player name, civilization, ambitions started,
+    completed, failed, and completion rate percentage.
+
+    Args:
+        df: DataFrame with columns: player_name, civilization, started, completed,
+            failed, completion_rate (from get_ambition_summary())
+
+    Returns:
+        Plotly figure with table visualization
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ambition data available for this match")
+
+    # Format completion rate with % symbol
+    df_display = df.copy()
+    df_display["completion_rate"] = df_display["completion_rate"].apply(lambda x: f"{x}%")
+
+    fig = go.Figure(
+        data=[
+            go.Table(
+                header=dict(
+                    values=[
+                        "<b>Player</b>",
+                        "<b>Civilization</b>",
+                        "<b>Started</b>",
+                        "<b>Completed</b>",
+                        "<b>Failed</b>",
+                        "<b>Completion Rate</b>",
+                    ],
+                    fill_color=Config.PRIMARY_COLORS[2],
+                    align="left",
+                    font=dict(color="white", size=12),
+                ),
+                cells=dict(
+                    values=[
+                        df_display["player_name"],
+                        df_display["civilization"],
+                        df_display["started"],
+                        df_display["completed"],
+                        df_display["failed"],
+                        df_display["completion_rate"],
+                    ],
+                    fill_color=[
+                        ["white", "#f9f9f9"] * len(df_display)
+                    ],  # Alternating row colors
+                    align="left",
+                    font=dict(color="#333333", size=11),
+                    height=30,
+                ),
+            )
+        ]
+    )
+
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=max(150, len(df) * 35 + 50),  # Dynamic height based on number of players
     )
 
     return fig
