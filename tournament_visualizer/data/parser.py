@@ -915,6 +915,55 @@ class OldWorldSaveParser:
                 event_level.replace("EVENTLEVEL_", "").replace("_", " ").title()
             )
 
+        # Extract gameplay modifiers from root attributes
+        opponent_level = self.root.get("OpponentLevel")
+        if opponent_level:
+            metadata["opponent_level"] = (
+                opponent_level.replace("OPPONENTLEVEL_", "").replace("_", " ").title()
+            )
+
+        tribe_level = self.root.get("TribeLevel")
+        if tribe_level:
+            metadata["tribe_level"] = (
+                tribe_level.replace("TRIBELEVEL_", "").replace("_", " ").title()
+            )
+
+        development = self.root.get("Development")
+        if development:
+            metadata["development"] = (
+                development.replace("DEVELOPMENT_", "").replace("_", " ").title()
+            )
+
+        advantage = self.root.get("Advantage")
+        if advantage:
+            metadata["advantage"] = (
+                advantage.replace("ADVANTAGE_", "").replace("_", " ").title()
+            )
+
+        succession_gender = self.root.get("SuccessionGender")
+        if succession_gender:
+            metadata["succession_gender"] = (
+                succession_gender.replace("SUCCESSIONGENDER_", "").replace("_", " ").title()
+            )
+
+        succession_order = self.root.get("SuccessionOrder")
+        if succession_order:
+            metadata["succession_order"] = (
+                succession_order.replace("SUCCESSIONORDER_", "").replace("_", " ").title()
+            )
+
+        mortality = self.root.get("Mortality")
+        if mortality:
+            metadata["mortality"] = (
+                mortality.replace("MORTALITY_", "").replace("_", " ").title()
+            )
+
+        victory_point_modifier = self.root.get("VictoryPointModifier")
+        if victory_point_modifier:
+            metadata["victory_point_modifier"] = (
+                victory_point_modifier.replace("VICTORYPOINT_", "").replace("_", " ").title()
+            )
+
         # Extract victory information
         team_victories = self.root.find(".//TeamVictoriesCompleted")
         if team_victories is not None:

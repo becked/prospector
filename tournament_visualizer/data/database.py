@@ -360,6 +360,14 @@ class TournamentDatabase:
             event_level VARCHAR(50),
             victory_type VARCHAR(100),
             victory_turn INTEGER,
+            opponent_level VARCHAR(50),
+            tribe_level VARCHAR(50),
+            development VARCHAR(50),
+            advantage VARCHAR(50),
+            succession_gender VARCHAR(100),
+            succession_order VARCHAR(100),
+            mortality VARCHAR(50),
+            victory_point_modifier VARCHAR(50),
             game_options TEXT,
             dlc_content TEXT,
             map_settings TEXT,
@@ -1099,8 +1107,10 @@ class TournamentDatabase:
             query = """
             INSERT INTO match_metadata (
                 match_id, difficulty, event_level, victory_type, victory_turn,
+                opponent_level, tribe_level, development, advantage,
+                succession_gender, succession_order, mortality, victory_point_modifier,
                 game_options, dlc_content, map_settings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             conn.execute(
@@ -1111,6 +1121,14 @@ class TournamentDatabase:
                     metadata.get("event_level"),
                     metadata.get("victory_type"),
                     metadata.get("victory_turn"),
+                    metadata.get("opponent_level"),
+                    metadata.get("tribe_level"),
+                    metadata.get("development"),
+                    metadata.get("advantage"),
+                    metadata.get("succession_gender"),
+                    metadata.get("succession_order"),
+                    metadata.get("mortality"),
+                    metadata.get("victory_point_modifier"),
                     metadata.get("game_options"),
                     metadata.get("dlc_content"),
                     metadata.get("map_settings"),

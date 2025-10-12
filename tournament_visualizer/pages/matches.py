@@ -778,7 +778,7 @@ def update_yields_radar(match_id: Optional[int]) -> go.Figure:
     Output("match-settings-content", "children"), Input("match-selector", "value")
 )
 def update_settings_content(match_id: Optional[int]):
-    """Update game settings display.
+    """Update game settings display with comprehensive formatting.
 
     Args:
         match_id: Selected match ID
@@ -795,48 +795,182 @@ def update_settings_content(match_id: Optional[int]):
         queries = get_queries()
         metadata = queries.get_match_metadata(match_id)
 
+        # Get map info and game mode from match summary
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+
+        if not match_info.empty:
+            map_size = match_info.iloc[0].get("map_size", "Unknown")
+            map_class = match_info.iloc[0].get("map_class", "Unknown")
+            map_aspect_ratio = match_info.iloc[0].get("map_aspect_ratio", "Unknown")
+            game_mode = match_info.iloc[0].get("game_mode", "Unknown")
+            turn_style = match_info.iloc[0].get("turn_style", "Unknown")
+            turn_timer = match_info.iloc[0].get("turn_timer", "Unknown")
+        else:
+            map_size = map_class = map_aspect_ratio = "Unknown"
+            game_mode = turn_style = turn_timer = "Unknown"
+
         if not metadata:
             return create_empty_state(
                 "No settings data available for this match",
                 icon="bi-exclamation-triangle",
             )
 
-        # Create a card layout for settings
         import json
 
         settings_cards = []
 
-        # Basic settings
-        if (
-            metadata.get("difficulty")
-            or metadata.get("event_level")
-            or metadata.get("victory_type")
-        ):
-            basic_settings = dbc.Card(
-                [
-                    dbc.CardHeader("Basic Settings"),
-                    dbc.CardBody(
-                        [
-                            html.Dl(
-                                [
-                                    html.Dt("Difficulty"),
-                                    html.Dd(metadata.get("difficulty", "N/A")),
-                                    html.Dt("Event Level"),
-                                    html.Dd(metadata.get("event_level", "N/A")),
-                                    html.Dt("Victory Type"),
-                                    html.Dd(metadata.get("victory_type", "N/A")),
-                                    html.Dt("Victory Turn"),
-                                    html.Dd(str(metadata.get("victory_turn", "N/A"))),
-                                ]
-                            )
-                        ]
-                    ),
-                ],
-                className="mb-3",
-            )
-            settings_cards.append(basic_settings)
+        # Row 1: Basic Settings and Map Settings (side by side)
+        settings_row1 = dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("Basic Settings"),
+                                dbc.CardBody(
+                                    [
+                                        html.Dl(
+                                            [
+                                                html.Dt("Difficulty"),
+                                                html.Dd(metadata.get("difficulty", "N/A")),
+                                                html.Dt("Event Level"),
+                                                html.Dd(metadata.get("event_level", "N/A")),
+                                                html.Dt("Victory Type"),
+                                                html.Dd(metadata.get("victory_type", "N/A")),
+                                                html.Dt("Victory Turn"),
+                                                html.Dd(str(metadata.get("victory_turn", "None"))),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                            ],
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("Map Settings"),
+                                dbc.CardBody(
+                                    [
+                                        html.Dl(
+                                            [
+                                                html.Dt("Class"),
+                                                html.Dd(map_class),
+                                                html.Dt("Size"),
+                                                html.Dd(map_size),
+                                                html.Dt("Aspect Ratio"),
+                                                html.Dd(map_aspect_ratio),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                            ],
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            className="mb-3",
+        )
+        settings_cards.append(settings_row1)
 
-        # Game options
+        # Row 2: Turn Settings and Gameplay Modifiers (side by side)
+        settings_row2 = dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("Turn Settings"),
+                                dbc.CardBody(
+                                    [
+                                        html.Dl(
+                                            [
+                                                html.Dt("Game Mode"),
+                                                html.Dd(game_mode),
+                                                html.Dt("Turn Style"),
+                                                html.Dd(turn_style),
+                                                html.Dt("Turn Timer"),
+                                                html.Dd(turn_timer),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                            ],
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("Gameplay Modifiers"),
+                                dbc.CardBody(
+                                    [
+                                        html.Dl(
+                                            [
+                                                html.Dt("Opponent Level"),
+                                                html.Dd(metadata.get("opponent_level", "N/A")),
+                                                html.Dt("Tribe Level"),
+                                                html.Dd(metadata.get("tribe_level", "N/A")),
+                                                html.Dt("Development"),
+                                                html.Dd(metadata.get("development", "N/A")),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                            ],
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            className="mb-3",
+        )
+        settings_cards.append(settings_row2)
+
+        # Row 3: Advanced Modifiers
+        settings_row3 = dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("Advanced Settings"),
+                                dbc.CardBody(
+                                    [
+                                        html.Dl(
+                                            [
+                                                html.Dt("Advantage"),
+                                                html.Dd(metadata.get("advantage", "N/A")),
+                                                html.Dt("Succession Gender"),
+                                                html.Dd(metadata.get("succession_gender", "N/A")),
+                                                html.Dt("Succession Order"),
+                                                html.Dd(metadata.get("succession_order", "N/A")),
+                                                html.Dt("Mortality"),
+                                                html.Dd(metadata.get("mortality", "N/A")),
+                                                html.Dt("Victory Point Modifier"),
+                                                html.Dd(metadata.get("victory_point_modifier", "N/A")),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                            ],
+                        )
+                    ],
+                    width=12,
+                ),
+            ],
+            className="mb-3",
+        )
+        settings_cards.append(settings_row3)
+
+        # Game Options - formatted as readable list
         if metadata.get("game_options"):
             try:
                 options = (
@@ -845,13 +979,29 @@ def update_settings_content(match_id: Optional[int]):
                     else metadata["game_options"]
                 )
                 if options:
+                    # Format option names to be readable
+                    option_items = []
+                    for opt_key, opt_value in options.items():
+                        # Clean up the option name
+                        clean_name = (
+                            opt_key.replace("GAMEOPTION_", "")
+                            .replace("_", " ")
+                            .title()
+                        )
+                        # If value exists, show it; otherwise just show the option name
+                        if opt_value and opt_value != "":
+                            option_items.append(f"{clean_name}: {opt_value}")
+                        else:
+                            option_items.append(clean_name)
+
                     game_options_card = dbc.Card(
                         [
                             dbc.CardHeader("Game Options"),
                             dbc.CardBody(
                                 [
-                                    html.Pre(
-                                        json.dumps(options, indent=2), className="mb-0"
+                                    html.Ul(
+                                        [html.Li(opt) for opt in option_items],
+                                        style={"fontSize": "0.95rem"},
                                     )
                                 ]
                             ),
@@ -859,10 +1009,10 @@ def update_settings_content(match_id: Optional[int]):
                         className="mb-3",
                     )
                     settings_cards.append(game_options_card)
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Error formatting game options: {e}")
 
-        # DLC content
+        # DLC Content - formatted as readable list
         if metadata.get("dlc_content"):
             try:
                 dlc = (
@@ -871,54 +1021,39 @@ def update_settings_content(match_id: Optional[int]):
                     else metadata["dlc_content"]
                 )
                 if dlc:
+                    # Format DLC names to be readable
+                    dlc_items = []
+                    for dlc_key in dlc.keys():
+                        # Clean up the DLC name
+                        clean_name = (
+                            dlc_key.replace("DLC_", "")
+                            .replace("_", " ")
+                            .title()
+                        )
+                        dlc_items.append(clean_name)
+
                     dlc_card = dbc.Card(
                         [
                             dbc.CardHeader("DLC Content"),
                             dbc.CardBody(
-                                [html.Pre(json.dumps(dlc, indent=2), className="mb-0")]
-                            ),
-                        ],
-                        className="mb-3",
-                    )
-                    settings_cards.append(dlc_card)
-            except:
-                pass
-
-        # Map settings
-        if metadata.get("map_settings"):
-            try:
-                map_settings = (
-                    json.loads(metadata["map_settings"])
-                    if isinstance(metadata["map_settings"], str)
-                    else metadata["map_settings"]
-                )
-                if map_settings:
-                    map_card = dbc.Card(
-                        [
-                            dbc.CardHeader("Map Settings"),
-                            dbc.CardBody(
                                 [
-                                    html.Pre(
-                                        json.dumps(map_settings, indent=2),
-                                        className="mb-0",
+                                    html.Ul(
+                                        [html.Li(dlc) for dlc in sorted(dlc_items)],
+                                        style={"fontSize": "0.95rem"},
                                     )
                                 ]
                             ),
                         ],
                         className="mb-3",
                     )
-                    settings_cards.append(map_card)
-            except:
-                pass
-
-        if not settings_cards:
-            return create_empty_state(
-                "No detailed settings available", icon="bi-info-circle"
-            )
+                    settings_cards.append(dlc_card)
+            except Exception as e:
+                logger.warning(f"Error formatting DLC content: {e}")
 
         return html.Div(settings_cards)
 
     except Exception as e:
+        logger.error(f"Error loading settings: {e}")
         return create_empty_state(
             f"Error loading settings: {str(e)}", icon="bi-exclamation-triangle"
         )
