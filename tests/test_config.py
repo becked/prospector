@@ -145,6 +145,7 @@ def test_modebar_removes_correct_buttons() -> None:
         "hoverCompareCartesian",
         "toggleSpikelines",
         "toggleHover",
+        "toImage",
     ]
 
     for button in expected_removed:

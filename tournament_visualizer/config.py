@@ -290,6 +290,7 @@ MODEBAR_CONFIG = {
         "hoverCompareCartesian",
         "toggleSpikelines",
         "toggleHover",
+        "toImage",
     ],
 }
 
