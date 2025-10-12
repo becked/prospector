@@ -1636,6 +1636,81 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [max_turn]).df()
 
+    def get_ambition_timeline(self, match_id: int) -> pd.DataFrame:
+        """Get ambition/goal timeline for a specific match.
+
+        Returns all GOAL_* events (started, finished, failed) for visualization.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: player_id, player_name, turn_number,
+                                    event_type, status, description
+        """
+        query = """
+        SELECT
+            e.player_id,
+            p.player_name,
+            p.civilization,
+            e.turn_number,
+            e.event_type,
+            CASE
+                WHEN e.event_type = 'GOAL_STARTED' THEN 'Started'
+                WHEN e.event_type = 'GOAL_FINISHED' THEN 'Completed'
+                WHEN e.event_type = 'GOAL_FAILED' THEN 'Failed'
+            END as status,
+            e.description
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.match_id = ?
+            AND e.event_type IN ('GOAL_STARTED', 'GOAL_FINISHED', 'GOAL_FAILED')
+        ORDER BY e.turn_number, e.player_id, e.event_type
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_ambition_summary(self, match_id: int) -> pd.DataFrame:
+        """Get ambition summary statistics by player.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: player_name, started, completed, failed, completion_rate
+        """
+        query = """
+        WITH ambition_counts AS (
+            SELECT
+                p.player_name,
+                p.civilization,
+                COUNT(CASE WHEN e.event_type = 'GOAL_STARTED' THEN 1 END) as started,
+                COUNT(CASE WHEN e.event_type = 'GOAL_FINISHED' THEN 1 END) as completed,
+                COUNT(CASE WHEN e.event_type = 'GOAL_FAILED' THEN 1 END) as failed
+            FROM events e
+            JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+            WHERE e.match_id = ?
+                AND e.event_type IN ('GOAL_STARTED', 'GOAL_FINISHED', 'GOAL_FAILED')
+            GROUP BY p.player_name, p.civilization
+        )
+        SELECT
+            player_name,
+            civilization,
+            started,
+            completed,
+            failed,
+            CASE
+                WHEN started > 0 THEN ROUND(completed * 100.0 / started, 1)
+                ELSE 0
+            END as completion_rate
+        FROM ambition_counts
+        ORDER BY completed DESC, started DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
