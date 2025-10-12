@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Union
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
-from ..config import LAYOUT_CONSTANTS
+from ..config import LAYOUT_CONSTANTS, MODEBAR_CONFIG
 
 
 def create_metric_card(
@@ -87,17 +87,7 @@ def create_chart_card(
     chart_component = dcc.Graph(
         id=chart_id,
         style={"height": height},
-        config={
-            "displayModeBar": True,
-            "displaylogo": False,
-            "modeBarButtonsToRemove": [
-                "pan2d",
-                "lasso2d",
-                "select2d",
-                "autoScale2d",
-                "resetScale2d",
-            ],
-        },
+        config=MODEBAR_CONFIG,
     )
 
     if loading:
