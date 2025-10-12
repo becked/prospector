@@ -273,6 +273,26 @@ DEFAULT_CHART_LAYOUT = {
     "paper_bgcolor": "rgba(0,0,0,0)",
 }
 
+# Plotly modebar configuration
+# Show modebar only on hover with just zoom in/out buttons
+MODEBAR_CONFIG = {
+    "displayModeBar": "hover",  # Show only on hover
+    "displaylogo": False,  # Hide Plotly logo
+    "modeBarButtonsToRemove": [
+        # Remove ALL buttons except zoomIn2d and zoomOut2d
+        "pan2d",
+        "zoom2d",
+        "select2d",
+        "lasso2d",
+        "autoScale2d",
+        "resetScale2d",
+        "hoverClosestCartesian",
+        "hoverCompareCartesian",
+        "toggleSpikelines",
+        "toggleHover",
+    ],
+}
+
 # Export civilization colors at module level for easier import
 CIVILIZATION_COLORS = Config.CIVILIZATION_COLORS
 
