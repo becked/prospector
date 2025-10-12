@@ -36,7 +36,7 @@ from tournament_visualizer.components.layouts import (
     create_page_header,
     create_tab_layout,
 )
-from tournament_visualizer.config import PAGE_CONFIG
+from tournament_visualizer.config import PAGE_CONFIG, MODEBAR_CONFIG
 from tournament_visualizer.data.queries import get_queries
 
 logger = logging.getLogger(__name__)
@@ -1373,7 +1373,7 @@ def update_ambition_timelines(match_id: Optional[int]):
                             dbc.Card(
                                 [
                                     dbc.CardHeader(html.H5(f"{player} - Ambitions", className="mb-0")),
-                                    dbc.CardBody([dcc.Graph(figure=fig)]),
+                                    dbc.CardBody([dcc.Graph(figure=fig, config=MODEBAR_CONFIG)]),
                                 ],
                                 className="mb-3"
                             )
