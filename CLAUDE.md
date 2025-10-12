@@ -106,7 +106,7 @@ uv run python scripts/verify_analytics.py
 - Changes to the database file won't be visible until the connection is closed/reopened
 - Always restart the server after importing new data
 
-**Production (Fly.io) - Automated:**
+**Production (Fly.io) - Automated (Recommended):**
 
 Use the sync script from your local machine to update production:
 ```bash
@@ -114,46 +114,45 @@ Use the sync script from your local machine to update production:
 # Default app-name is "prospector"
 ```
 
-This script will:
-1. Download all attachments from Challonge (on the remote server)
-2. Import save files into DuckDB (only new files by default)
-3. Restart the app to load the new data
+This script processes data **locally** (much faster!) and then uploads to Fly.io:
+1. Download all attachments from Challonge (to local `saves/` directory)
+2. Import save files into DuckDB locally (~10x faster than on Fly.io)
+3. Stop the Fly.io app (closes database connections)
+4. Remove old database files (including WAL files)
+5. Upload the new database file to Fly.io persistent volume
+6. Start the app to load the new data
+
+**Why local processing?** Fly.io's shared CPUs and network-attached storage make XML parsing and database writes very slow. Processing locally on your machine is significantly faster.
 
 Requires:
 - `flyctl` installed locally
-- Fly.io secrets set: `CHALLONGE_KEY`, `CHALLONGE_USER`, `challonge_tournament_id`
+- `uv` installed locally (for running Python scripts)
+- Environment variables set locally: `CHALLONGE_KEY`, `CHALLONGE_USER`, `challonge_tournament_id`
 
-**Production (Fly.io) - Manual:**
+**Production (Fly.io) - Remote Processing (Legacy):**
 
-If you prefer to run commands manually:
+For the old workflow that processes on Fly.io (slower but doesn't require local setup):
 ```bash
-# SSH into the running container
-fly ssh console -a prospector
-
-# Run the sync commands
-python scripts/download_attachments.py
-python scripts/import_attachments.py --directory /data/saves --verbose
-
-# Exit SSH
-exit
-
-# Restart the app from your local machine
-fly apps restart prospector
+./scripts/sync_tournament_data_remote.sh [app-name]
 ```
+
+This processes data on the Fly.io server itself. Requires only `flyctl` locally, but is much slower due to resource constraints.
 
 **Local Development:**
 
-For local testing, sync manually:
+For local development/testing, run the same workflow manually:
 ```bash
 # Download attachments
 uv run python scripts/download_attachments.py
 
-# Import to database
+# Import to database (processes locally)
 uv run python scripts/import_attachments.py --directory saves --verbose
 
-# Restart server to pick up changes
+# Restart local server to pick up changes
 uv run python manage.py restart
 ```
+
+This is the same fast local processing that the production sync script uses!
 
 ## Testing & Code Quality
 
