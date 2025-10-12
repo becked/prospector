@@ -210,12 +210,13 @@ class TournamentQueries:
         """Get performance analysis by map characteristics.
 
         Returns:
-            DataFrame with map performance data
+            DataFrame with map performance data including aspect ratio
         """
         query = """
         SELECT
             COALESCE(m.map_size, 'Unknown') as map_size,
             COALESCE(m.map_class, 'Unknown') as map_class,
+            COALESCE(m.map_aspect_ratio, 'Unknown') as map_aspect_ratio,
             COUNT(DISTINCT m.match_id) as total_matches,
             AVG(m.total_turns) as avg_turns,
             MIN(m.total_turns) as min_turns,
@@ -223,7 +224,7 @@ class TournamentQueries:
             COUNT(DISTINCT p.player_name) as unique_players
         FROM matches m
         LEFT JOIN players p ON m.match_id = p.match_id
-        GROUP BY COALESCE(m.map_size, 'Unknown'), COALESCE(m.map_class, 'Unknown')
+        GROUP BY COALESCE(m.map_size, 'Unknown'), COALESCE(m.map_class, 'Unknown'), COALESCE(m.map_aspect_ratio, 'Unknown')
         ORDER BY total_matches DESC
         """
 

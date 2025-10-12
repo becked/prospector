@@ -18,15 +18,10 @@ from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_territory_control_chart,
 )
-from tournament_visualizer.components.filters import (
-    create_date_range_filter,
-    create_map_filter,
-)
 from tournament_visualizer.components.layouts import (
     create_chart_card,
     create_data_table_card,
     create_empty_state,
-    create_filter_card,
     create_metric_grid,
     create_page_header,
     create_tab_layout,
@@ -48,52 +43,6 @@ layout = html.Div(
             description=PAGE_CONFIG["maps"]["description"],
             icon="bi-map-fill",
         ),
-        # Filters section
-        create_filter_card(
-            title="Filters",
-            filters=[
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                create_date_range_filter(
-                                    "maps-date", default_range="all"
-                                )
-                            ],
-                            width=4,
-                        ),
-                        dbc.Col([create_map_filter("maps-settings")], width=4),
-                        dbc.Col(
-                            [
-                                html.Label(
-                                    "Analysis Type:", className="form-label fw-bold"
-                                ),
-                                dcc.Dropdown(
-                                    id="maps-analysis-type",
-                                    options=[
-                                        {
-                                            "label": "Territory Control",
-                                            "value": "territory",
-                                        },
-                                        {
-                                            "label": "Starting Positions",
-                                            "value": "starting",
-                                        },
-                                        {
-                                            "label": "Resource Distribution",
-                                            "value": "resources",
-                                        },
-                                    ],
-                                    value="territory",
-                                    clearable=False,
-                                ),
-                            ],
-                            width=4,
-                        ),
-                    ]
-                )
-            ],
-        ),
         # Tabbed analysis sections
         create_tab_layout(
             [
@@ -109,22 +58,12 @@ layout = html.Div(
                                 dbc.Col(
                                     [
                                         create_chart_card(
-                                            title="Game Length by Map Size",
+                                            title="Average Game Length by Map Settings",
                                             chart_id="map-length-chart",
                                             height="400px",
                                         )
                                     ],
-                                    width=6,
-                                ),
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Map Popularity",
-                                            chart_id="map-popularity-chart",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=6,
+                                    width=12,
                                 ),
                             ],
                             className="mb-4",
@@ -142,6 +81,10 @@ layout = html.Div(
                                                 {
                                                     "name": "Map Class",
                                                     "id": "map_class",
+                                                },
+                                                {
+                                                    "name": "Aspect Ratio",
+                                                    "id": "map_aspect_ratio",
                                                 },
                                                 {
                                                     "name": "Matches",
@@ -335,25 +278,12 @@ layout = html.Div(
 
 @callback(
     Output("map-summary-metrics", "children"),
-    [
-        Input("maps-date-dropdown", "value"),
-        Input("maps-settings-size-dropdown", "value"),
-        Input("maps-settings-class-dropdown", "value"),
-        Input("refresh-interval", "n_intervals"),
-    ],
+    Input("refresh-interval", "n_intervals"),
 )
-def update_map_summary_metrics(
-    date_range: Optional[int],
-    map_sizes: Optional[List[str]],
-    map_classes: Optional[List[str]],
-    n_intervals: int,
-) -> html.Div:
+def update_map_summary_metrics(n_intervals: int) -> html.Div:
     """Update map summary metrics.
 
     Args:
-        date_range: Selected date range in days
-        map_sizes: Selected map sizes filter
-        map_classes: Selected map classes filter
         n_intervals: Number of interval triggers
 
     Returns:
@@ -365,12 +295,6 @@ def update_map_summary_metrics(
 
         if df.empty:
             return create_empty_state("No map data available")
-
-        # Apply filters
-        if map_sizes:
-            df = df[df["map_size"].isin(map_sizes)]
-        if map_classes:
-            df = df[df["map_class"].isin(map_classes)]
 
         # Calculate summary metrics
         total_map_types = len(df)
@@ -428,25 +352,12 @@ def update_map_summary_metrics(
 
 @callback(
     Output("map-length-chart", "figure"),
-    [
-        Input("maps-date-dropdown", "value"),
-        Input("maps-settings-size-dropdown", "value"),
-        Input("maps-settings-class-dropdown", "value"),
-        Input("refresh-interval", "n_intervals"),
-    ],
+    Input("refresh-interval", "n_intervals"),
 )
-def update_map_length_chart(
-    date_range: Optional[int],
-    map_sizes: Optional[List[str]],
-    map_classes: Optional[List[str]],
-    n_intervals: int,
-):
-    """Update map length chart.
+def update_map_length_chart(n_intervals: int):
+    """Update map length chart with grouped bars by size and class.
 
     Args:
-        date_range: Selected date range in days
-        map_sizes: Selected map sizes filter
-        map_classes: Selected map classes filter
         n_intervals: Number of interval triggers
 
     Returns:
@@ -459,29 +370,50 @@ def update_map_length_chart(
         if df.empty:
             return create_empty_chart_placeholder("No map data available")
 
-        # Apply filters
-        if map_sizes:
-            df = df[df["map_size"].isin(map_sizes)]
-        if map_classes:
-            df = df[df["map_class"].isin(map_classes)]
-
-        if df.empty:
-            return create_empty_chart_placeholder("No maps match the selected criteria")
+        # Aggregate across aspect ratios - weighted average by number of matches
+        size_class_df = (
+            df.groupby(["map_size", "map_class"])
+            .apply(
+                lambda x: pd.Series(
+                    {
+                        "avg_turns": (x["avg_turns"] * x["total_matches"]).sum()
+                        / x["total_matches"].sum(),
+                        "total_matches": x["total_matches"].sum(),
+                    }
+                )
+            )
+            .reset_index()
+        )
 
         fig = create_base_figure(
-            title="Average Game Length by Map Size",
             x_title="Map Size",
             y_title="Average Turns",
         )
 
-        fig.add_trace(
-            go.Bar(
-                x=df["map_size"],
-                y=df["avg_turns"],
-                marker_color=Config.PRIMARY_COLORS[0],
-                text=[f"{turns:.0f}" for turns in df["avg_turns"]],
-                textposition="auto",
+        # Add grouped bars for each map class
+        map_classes = size_class_df["map_class"].unique()
+        for i, map_class in enumerate(map_classes):
+            class_data = size_class_df[size_class_df["map_class"] == map_class]
+            fig.add_trace(
+                go.Bar(
+                    name=map_class,
+                    x=class_data["map_size"],
+                    y=class_data["avg_turns"],
+                    marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    text=[f"{turns:.0f}" for turns in class_data["avg_turns"]],
+                    textposition="auto",
+                )
             )
+
+        fig.update_layout(
+            barmode="group",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+            ),
         )
 
         return fig
@@ -489,70 +421,6 @@ def update_map_length_chart(
     except Exception as e:
         return create_empty_chart_placeholder(
             f"Error loading map length data: {str(e)}"
-        )
-
-
-@callback(
-    Output("map-popularity-chart", "figure"),
-    [
-        Input("maps-date-dropdown", "value"),
-        Input("maps-settings-size-dropdown", "value"),
-        Input("maps-settings-class-dropdown", "value"),
-        Input("refresh-interval", "n_intervals"),
-    ],
-)
-def update_map_popularity_chart(
-    date_range: Optional[int],
-    map_sizes: Optional[List[str]],
-    map_classes: Optional[List[str]],
-    n_intervals: int,
-):
-    """Update map popularity chart.
-
-    Args:
-        date_range: Selected date range in days
-        map_sizes: Selected map sizes filter
-        map_classes: Selected map classes filter
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for map popularity
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_map_performance_analysis()
-
-        if df.empty:
-            return create_empty_chart_placeholder("No map data available")
-
-        # Apply filters
-        if map_sizes:
-            df = df[df["map_size"].isin(map_sizes)]
-        if map_classes:
-            df = df[df["map_class"].isin(map_classes)]
-
-        if df.empty:
-            return create_empty_chart_placeholder("No maps match the selected criteria")
-
-        fig = create_base_figure(title="Map Size Popularity", show_legend=False)
-
-        # Group by map size and sum matches
-        size_popularity = df.groupby("map_size")["total_matches"].sum().reset_index()
-
-        fig.add_trace(
-            go.Pie(
-                labels=size_popularity["map_size"],
-                values=size_popularity["total_matches"],
-                hole=0.3,
-                marker_colors=Config.PRIMARY_COLORS[: len(size_popularity)],
-            )
-        )
-
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(
-            f"Error loading popularity data: {str(e)}"
         )
 
 
@@ -783,25 +651,12 @@ def update_territory_heatmap(match_id: Optional[int]):
 
 @callback(
     Output("map-stats-table", "data"),
-    [
-        Input("maps-date-dropdown", "value"),
-        Input("maps-settings-size-dropdown", "value"),
-        Input("maps-settings-class-dropdown", "value"),
-        Input("refresh-interval", "n_intervals"),
-    ],
+    Input("refresh-interval", "n_intervals"),
 )
-def update_map_stats_table(
-    date_range: Optional[int],
-    map_sizes: Optional[List[str]],
-    map_classes: Optional[List[str]],
-    n_intervals: int,
-) -> List[Dict[str, Any]]:
+def update_map_stats_table(n_intervals: int) -> List[Dict[str, Any]]:
     """Update map statistics table.
 
     Args:
-        date_range: Selected date range in days
-        map_sizes: Selected map sizes filter
-        map_classes: Selected map classes filter
         n_intervals: Number of interval triggers
 
     Returns:
@@ -813,12 +668,6 @@ def update_map_stats_table(
 
         if df.empty:
             return []
-
-        # Apply filters
-        if map_sizes:
-            df = df[df["map_size"].isin(map_sizes)]
-        if map_classes:
-            df = df[df["map_class"].isin(map_classes)]
 
         return df.sort_values("total_matches", ascending=False).to_dict("records")
 
