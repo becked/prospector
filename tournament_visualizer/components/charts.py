@@ -2459,3 +2459,137 @@ def create_yield_chart(
     )
 
     return fig
+
+
+def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
+    """Create an actual sunburst chart showing map breakdown by Size → Class → Aspect.
+
+    Hierarchical structure:
+    - Center: Total maps
+    - Inner ring: Map sizes (Duel, Tiny)
+    - Middle ring: Map classes (Continent, Inland Sea, etc.)
+    - Outer ring: Aspect ratios (Square, Wide, etc.)
+
+    Args:
+        df: DataFrame with map_class, map_aspect_ratio, map_size, count columns
+
+    Returns:
+        Plotly figure with sunburst chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No map data available")
+
+    # Build hierarchical data for sunburst
+    labels = []
+    parents = []
+    values = []
+
+    # Root node
+    total_maps = int(df["count"].sum())
+    labels.append("All Maps")
+    parents.append("")
+    values.append(total_maps)
+
+    # Level 1: Map sizes
+    size_totals = df.groupby("map_size")["count"].sum()
+    for size in size_totals.index:
+        labels.append(size)
+        parents.append("All Maps")
+        values.append(int(size_totals[size]))
+
+    # Level 2: Map classes within each size
+    class_by_size = df.groupby(["map_size", "map_class"])["count"].sum()
+    for (size, map_class), count in class_by_size.items():
+        label = f"{size} - {map_class}"
+        labels.append(label)
+        parents.append(size)
+        values.append(int(count))
+
+    # Level 3: Aspect ratios within each class
+    for _, row in df.iterrows():
+        size = row["map_size"]
+        map_class = row["map_class"]
+        aspect = row["map_aspect_ratio"]
+        count = int(row["count"])
+
+        parent_label = f"{size} - {map_class}"
+        label = f"{size} - {map_class} - {aspect}"
+
+        labels.append(label)
+        parents.append(parent_label)
+        values.append(count)
+
+    fig = go.Figure(
+        go.Sunburst(
+            labels=labels,
+            parents=parents,
+            values=values,
+            branchvalues="total",
+            marker=dict(
+                colorscale="Viridis",
+                cmid=total_maps / 2,
+            ),
+            hovertemplate="<b>%{label}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title="Map Breakdown (Sunburst)",
+        margin=dict(t=40, l=0, r=0, b=0),
+        height=400,
+    )
+
+    return fig
+
+
+def create_map_breakdown_parallel_categories_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a parallel categories (Sankey-style) chart showing map dimension relationships.
+
+    Shows flow from Size → Class → Aspect with ribbon widths proportional to count.
+
+    Args:
+        df: DataFrame with map_class, map_aspect_ratio, map_size, count columns
+
+    Returns:
+        Plotly figure with parallel categories chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No map data available")
+
+    # Use Plotly's Parcats (parallel categories) trace
+    fig = go.Figure(
+        go.Parcats(
+            dimensions=[
+                {
+                    "label": "Size",
+                    "values": df["map_size"],
+                },
+                {
+                    "label": "Class",
+                    "values": df["map_class"],
+                },
+                {
+                    "label": "Aspect",
+                    "values": df["map_aspect_ratio"],
+                },
+            ],
+            counts=df["count"],
+            line=dict(
+                color=df["count"],
+                colorscale="Viridis",
+                showscale=True,
+                cmin=df["count"].min(),
+                cmax=df["count"].max(),
+            ),
+            hoveron="dimension",
+            hovertemplate="<b>%{label}</b><br>Count: %{count}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title="Map Breakdown (Parallel Categories)",
+        margin=dict(t=60, l=80, r=80, b=20),
+        height=400,
+    )
+
+    return fig

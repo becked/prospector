@@ -16,7 +16,7 @@ from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_law_efficiency_scatter,
     create_law_milestone_distribution_chart,
-    create_map_breakdown_sunburst_chart,
+    create_map_breakdown_actual_sunburst_chart,
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
     create_nation_win_percentage_chart,
@@ -321,7 +321,7 @@ def update_map_chart(n_intervals: int):
         if df.empty:
             return create_empty_chart_placeholder("No map data available")
 
-        return create_map_breakdown_sunburst_chart(df)
+        return create_map_breakdown_actual_sunburst_chart(df)
 
     except Exception as e:
         return create_empty_chart_placeholder(f"Error loading map data: {str(e)}")
