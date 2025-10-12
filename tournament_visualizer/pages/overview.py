@@ -129,7 +129,7 @@ layout = html.Div(
                 dbc.Col(
                     [
                         create_chart_card(
-                            title="Law Progression Efficiency (All Matches)",
+                            title="Law Progression Efficiency",
                             chart_id="overview-law-efficiency",
                             height="450px",
                         )

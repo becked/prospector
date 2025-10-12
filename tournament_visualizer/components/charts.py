@@ -1968,10 +1968,11 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
         )
 
     fig = create_base_figure(
-        title="Law Progression Efficiency Analysis",
+        title="",
         x_title="Turn to Reach 4 Laws (lower = faster)",
         y_title="Turn to Reach 7 Laws (lower = faster)",
         height=500,
+        show_legend=False,
     )
 
     # Calculate time between milestones
@@ -2035,27 +2036,6 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
                 hoverinfo="skip",
             )
         )
-
-    # Add quadrant annotations
-    fig.add_annotation(
-        text="Fast & Efficient",
-        x=0.2,
-        y=0.2,
-        xref="paper",
-        yref="paper",
-        showarrow=False,
-        font=dict(size=10, color="green"),
-    )
-
-    fig.add_annotation(
-        text="Slow",
-        x=0.8,
-        y=0.8,
-        xref="paper",
-        yref="paper",
-        showarrow=False,
-        font=dict(size=10, color="red"),
-    )
 
     return fig
 
