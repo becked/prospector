@@ -71,7 +71,5 @@ primary_region = "sjc"
   destination = "/data"
   initial_size = "1gb"
 
-# Release command - runs before deployment completes
-# This downloads attachments and imports them into the database
-[deploy]
-  release_command = "python scripts/download_attachments.py && python scripts/import_attachments.py --directory /data/saves --verbose"
+# Release command removed - data sync is now done manually via SSH
+# See scripts/sync_tournament_data.sh for manual sync procedure

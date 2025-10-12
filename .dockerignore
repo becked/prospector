@@ -15,18 +15,21 @@ env/
 ENV/
 .venv/
 
-# IDE
+# IDE and development tools
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
 
-# Testing
+# Testing and linting
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
+.ruff_cache/
+.mypy_cache/
 
 # OS
 .DS_Store
@@ -41,12 +44,13 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.playwright-mcp/
 
 # Data and logs (will use volume mount instead)
 # Exclude entire data and saves directories - they're mounted as volumes
 data/
 saves/
-logs/*.log
+logs/
 
 # Documentation and development files
 docs/

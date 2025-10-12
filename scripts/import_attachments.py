@@ -17,6 +17,7 @@ from pathlib import Path
 # Add the tournament_visualizer package to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from tournament_visualizer.config import Config
 from tournament_visualizer.data.etl import (
     initialize_database,
     process_tournament_directory,
@@ -167,7 +168,7 @@ def main() -> None:
 
         # Handle force option
         if args.force:
-            db_path = Path("data/tournament_data.duckdb")
+            db_path = Path(Config.DATABASE_PATH)
             if db_path.exists():
                 print(f"Removing existing database: {db_path}")
                 db_path.unlink()

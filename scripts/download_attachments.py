@@ -70,10 +70,33 @@ def get_tournament_matches(
         return []
 
 
-def download_attachment(url: str, filename: str, save_dir: Path) -> bool:
-    """Download an attachment from URL to the specified directory."""
+def download_attachment(
+    url: str, filename: str, save_dir: Path, expected_size: int | None = None
+) -> bool:
+    """Download an attachment from URL to the specified directory.
+
+    Skips download if file already exists with matching size.
+    Re-downloads if size mismatch indicates corruption or incomplete download.
+    """
+    save_path = save_dir / filename
+
+    # Skip if file already exists and size matches (if provided)
+    if save_path.exists():
+        if expected_size is None:
+            print(f"Skipped (already exists): {filename}")
+            return True
+
+        actual_size = save_path.stat().st_size
+        if actual_size == expected_size:
+            print(f"Skipped (already exists, size verified): {filename}")
+            return True
+        else:
+            print(
+                f"Re-downloading (size mismatch: {actual_size} vs {expected_size}): "
+                f"{filename}"
+            )
+
     try:
-        save_path = save_dir / filename
         urllib.request.urlretrieve(url, save_path)
         print(f"Downloaded: {filename}")
         return True
@@ -125,6 +148,7 @@ def extract_attachments_from_matches(
                                 "url": asset_url,
                                 "filename": filename,
                                 "match_id": str(match_id),
+                                "size": att_data.get("asset_file_size"),
                             }
                         )
             except Exception as e:
@@ -176,7 +200,9 @@ def main() -> None:
                 c for c in safe_filename if c.isalnum() or c in "._- "
             )
 
-            if download_attachment(attachment["url"], safe_filename, downloads_dir):
+            if download_attachment(
+                attachment["url"], safe_filename, downloads_dir, attachment.get("size")
+            ):
                 successful_downloads += 1
 
         print(
@@ -193,6 +219,7 @@ def main() -> None:
         # Unexpected errors
         print(f"Unexpected Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

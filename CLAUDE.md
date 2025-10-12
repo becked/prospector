@@ -99,6 +99,62 @@ uv run python scripts/validate_memorydata_ownership.py
 uv run python scripts/verify_analytics.py
 ```
 
+### Syncing Tournament Data
+
+**IMPORTANT:** The server MUST be restarted after database updates!
+- The app uses a persistent DuckDB connection that caches data
+- Changes to the database file won't be visible until the connection is closed/reopened
+- Always restart the server after importing new data
+
+**Production (Fly.io) - Automated:**
+
+Use the sync script from your local machine to update production:
+```bash
+./scripts/sync_tournament_data.sh [app-name]
+# Default app-name is "prospector"
+```
+
+This script will:
+1. Download all attachments from Challonge (on the remote server)
+2. Import save files into DuckDB (only new files by default)
+3. Restart the app to load the new data
+
+Requires:
+- `flyctl` installed locally
+- Fly.io secrets set: `CHALLONGE_KEY`, `CHALLONGE_USER`, `challonge_tournament_id`
+
+**Production (Fly.io) - Manual:**
+
+If you prefer to run commands manually:
+```bash
+# SSH into the running container
+fly ssh console -a prospector
+
+# Run the sync commands
+python scripts/download_attachments.py
+python scripts/import_attachments.py --directory /data/saves --verbose
+
+# Exit SSH
+exit
+
+# Restart the app from your local machine
+fly apps restart prospector
+```
+
+**Local Development:**
+
+For local testing, sync manually:
+```bash
+# Download attachments
+uv run python scripts/download_attachments.py
+
+# Import to database
+uv run python scripts/import_attachments.py --directory saves --verbose
+
+# Restart server to pick up changes
+uv run python manage.py restart
+```
+
 ## Testing & Code Quality
 
 ### Running Tests
@@ -207,6 +263,36 @@ database_player_id = int(xml_id) + 1
 - Root element contains match metadata as attributes
 - Player elements contain turn-by-turn data
 
+## Deployment (Fly.io)
+
+### Quick Reference
+
+**First time deployment:**
+```bash
+fly launch                    # Create app (say NO to database and deploy)
+fly volumes create tournament_data --size 1 --region sjc -a prospector
+fly secrets set CHALLONGE_KEY="key" CHALLONGE_USER="user" challonge_tournament_id="id" -a prospector
+fly deploy                    # Deploy the app
+./scripts/sync_tournament_data.sh  # Sync tournament data
+```
+
+**Update code:**
+```bash
+fly deploy
+```
+
+**Update tournament data:**
+```bash
+./scripts/sync_tournament_data.sh
+```
+
+**View logs:**
+```bash
+fly logs -a prospector
+```
+
+**Full deployment guide:** See `docs/deployment-guide.md` for complete instructions, troubleshooting, and advanced topics.
+
 ## Documentation Standards
 
 ### Documentation Structure
@@ -214,6 +300,7 @@ database_player_id = int(xml_id) + 1
 ```
 docs/
 ├── developer-guide.md      # Architecture and how-to guides
+├── deployment-guide.md     # Fly.io deployment instructions
 ├── migrations/             # Database schema changes
 │   └── 001_*.md           # Numbered migration docs
 └── plans/                  # Implementation plans and investigations
