@@ -119,7 +119,7 @@ layout = html.Div(
                 dbc.Col(
                     [
                         create_chart_card(
-                            title="Milestone Timing Distribution (All Matches)",
+                            title="Law Timing Distribution",
                             chart_id="overview-law-distribution",
                             height="450px",
                         )

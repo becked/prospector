@@ -1775,7 +1775,7 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
         )
 
     fig = create_base_figure(
-        title="Law Milestone Timing Distribution (All Matches)",
+        title="",
         x_title="Milestone",
         y_title="Turn Number",
         height=450,
@@ -1809,31 +1809,6 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
             )
         )
 
-    # Add statistics annotation
-    if not df_4_laws.empty:
-        median_4 = df_4_laws["turn_to_4_laws"].median()
-        mean_4 = df_4_laws["turn_to_4_laws"].mean()
-        count_4 = len(df_4_laws)
-
-        stats_text = f"4 Laws: n={count_4}, median={median_4:.0f}, mean={mean_4:.1f}"
-
-        if not df_7_laws.empty:
-            median_7 = df_7_laws["turn_to_7_laws"].median()
-            mean_7 = df_7_laws["turn_to_7_laws"].mean()
-            count_7 = len(df_7_laws)
-            stats_text += (
-                f" | 7 Laws: n={count_7}, median={median_7:.0f}, mean={mean_7:.1f}"
-            )
-
-        fig.add_annotation(
-            text=stats_text,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=1.1,
-            showarrow=False,
-            font=dict(size=11),
-        )
 
     return fig
 
