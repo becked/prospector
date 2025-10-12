@@ -628,6 +628,53 @@ def test_new_yield_type(multi_yield_data: pd.DataFrame) -> None:
 - Check y-axis labels (not title) for display name validation
 - Run tests with `-v` flag for detailed output
 
+## Plotly Modebar Configuration
+
+All Plotly charts in the application use a standardized modebar configuration defined in `tournament_visualizer/config.py`:
+
+```python
+MODEBAR_CONFIG = {
+    "displayModeBar": "hover",  # Show only on hover
+    "displaylogo": False,       # Hide Plotly logo
+    "modeBarButtonsToRemove": [...],  # Remove all except zoom in/out
+}
+```
+
+**Usage:**
+
+1. **For charts using `create_chart_card()`** (preferred):
+   ```python
+   from tournament_visualizer.components.layouts import create_chart_card
+
+   create_chart_card(
+       title="My Chart",
+       chart_id="my-chart",
+       height="400px",
+   )
+   # Config is automatically applied
+   ```
+
+2. **For direct `dcc.Graph` usage** (when `create_chart_card` isn't suitable):
+   ```python
+   from dash import dcc
+   from tournament_visualizer.config import MODEBAR_CONFIG
+
+   dcc.Graph(
+       figure=fig,
+       config=MODEBAR_CONFIG,
+   )
+   ```
+
+**Available Buttons:**
+- `zoomIn2d` - Zoom in (✅ shown)
+- `zoomOut2d` - Zoom out (✅ shown)
+- All others removed
+
+**Why hover-only?**
+- Cleaner UI - toolbar doesn't clutter the chart
+- Still accessible when needed
+- Consistent with modern web app design patterns
+
 ## Data Parsing
 
 ### Parsing MemoryData Events
