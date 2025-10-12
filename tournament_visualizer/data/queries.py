@@ -1578,6 +1578,64 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id, milestone]).df()
 
+    def get_aggregated_event_timeline(self, max_turn: int = 150) -> pd.DataFrame:
+        """Get aggregated event timeline across all matches.
+
+        Returns average event counts by turn and event type, normalized
+        across all matches. Useful for showing typical event patterns.
+
+        Args:
+            max_turn: Maximum turn number to include (default 150)
+
+        Returns:
+            DataFrame with columns: turn_number, event_type, avg_event_count
+        """
+        query = """
+        WITH all_events AS (
+            SELECT
+                e.match_id,
+                e.turn_number,
+                e.event_type
+            FROM events e
+            WHERE e.turn_number <= ?
+                AND e.event_type NOT LIKE 'MEMORYPLAYER_%'
+        ),
+        match_turn_combinations AS (
+            SELECT DISTINCT
+                m.match_id,
+                t.turn_number
+            FROM matches m
+            CROSS JOIN (
+                SELECT DISTINCT turn_number
+                FROM all_events
+            ) t
+            WHERE t.turn_number <= m.total_turns
+        ),
+        event_counts_per_match_turn AS (
+            SELECT
+                mtc.match_id,
+                mtc.turn_number,
+                ae.event_type,
+                COUNT(ae.event_type) as event_count
+            FROM match_turn_combinations mtc
+            LEFT JOIN all_events ae ON mtc.match_id = ae.match_id
+                AND mtc.turn_number = ae.turn_number
+            GROUP BY mtc.match_id, mtc.turn_number, ae.event_type
+        )
+        SELECT
+            turn_number,
+            event_type,
+            AVG(event_count) as avg_event_count
+        FROM event_counts_per_match_turn
+        WHERE event_type IS NOT NULL
+        GROUP BY turn_number, event_type
+        HAVING AVG(event_count) > 0
+        ORDER BY turn_number, event_type
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [max_turn]).df()
+
 
 # Global queries instance
 queries = TournamentQueries()

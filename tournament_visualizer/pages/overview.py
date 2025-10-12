@@ -13,6 +13,7 @@ import pandas as pd
 from dash import Input, Output, callback, html
 
 from tournament_visualizer.components.charts import (
+    create_aggregated_event_category_timeline_chart,
     create_empty_chart_placeholder,
     create_law_efficiency_scatter,
     create_law_milestone_distribution_chart,
@@ -109,6 +110,22 @@ layout = html.Div(
                         )
                     ],
                     width=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+        # Event Category Timeline - full width
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Event Category Timeline",
+                            chart_id="overview-event-timeline",
+                            height="450px",
+                        )
+                    ],
+                    width=12,
                 ),
             ],
             className="mb-4",
@@ -498,4 +515,33 @@ def update_law_efficiency(n_intervals: int):
 
     except Exception as e:
         logger.error(f"Error loading law efficiency: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-event-timeline", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_event_timeline(n_intervals: int):
+    """Update aggregated event category timeline chart.
+
+    Shows typical event patterns across ALL matches.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with stacked area chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_aggregated_event_timeline(max_turn=150)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No event timeline data available")
+
+        return create_aggregated_event_category_timeline_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading event timeline: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")

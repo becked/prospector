@@ -2548,3 +2548,84 @@ def create_map_breakdown_parallel_categories_chart(df: pd.DataFrame) -> go.Figur
     )
 
     return fig
+
+
+def create_aggregated_event_category_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a stacked area chart showing event categories over time across all matches.
+
+    Shows the typical pattern of game events throughout a match by aggregating
+    event data across all matches and categorizing into gameplay categories.
+
+    Args:
+        df: DataFrame with columns: turn_number, event_type, avg_event_count
+            (from get_aggregated_event_timeline())
+
+    Returns:
+        Plotly figure with stacked area chart
+    """
+    from ..utils.event_categories import get_event_category, get_category_color_map
+
+    if df.empty:
+        return create_empty_chart_placeholder("No event timeline data available")
+
+    # Apply event categorization
+    df = df.copy()
+    df["gameplay_category"] = df["event_type"].apply(get_event_category)
+
+    # Aggregate by turn and category
+    category_timeline = (
+        df.groupby(["turn_number", "gameplay_category"])["avg_event_count"]
+        .sum()
+        .reset_index()
+    )
+
+    # Get category colors
+    category_colors = get_category_color_map()
+
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Average Events per Turn",
+        height=450,
+    )
+
+    # Get all categories sorted for consistent ordering
+    categories = sorted(category_timeline["gameplay_category"].unique())
+
+    # Add stacked area traces for each category
+    for category in categories:
+        category_data = category_timeline[
+            category_timeline["gameplay_category"] == category
+        ].sort_values("turn_number")
+
+        fig.add_trace(
+            go.Scatter(
+                x=category_data["turn_number"],
+                y=category_data["avg_event_count"],
+                name=category,
+                mode="lines",
+                stackgroup="one",  # This creates the stacked area effect
+                fillcolor=category_colors.get(category, "#6c757d"),
+                line=dict(width=0.5, color=category_colors.get(category, "#6c757d")),
+                hovertemplate=(
+                    f"<b>{category}</b><br>"
+                    "Turn: %{x}<br>"
+                    "Avg Events: %{y:.2f}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        hovermode="x unified",
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+        ),
+        margin=dict(t=40, l=50, r=150, b=50),
+    )
+
+    return fig
