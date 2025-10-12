@@ -107,3 +107,50 @@ def test_test_config_uses_memory_database() -> None:
     assert config.DATABASE_PATH == ":memory:"
     assert config.DEBUG_MODE is False
     assert config.CACHE_TIMEOUT == 0  # No caching for tests
+
+
+def test_modebar_config_structure() -> None:
+    """MODEBAR_CONFIG should have correct structure and values."""
+    from tournament_visualizer.config import MODEBAR_CONFIG
+
+    # Verify it's a dictionary
+    assert isinstance(MODEBAR_CONFIG, dict)
+
+    # Verify required keys exist
+    assert "displayModeBar" in MODEBAR_CONFIG
+    assert "displaylogo" in MODEBAR_CONFIG
+    assert "modeBarButtonsToRemove" in MODEBAR_CONFIG
+
+    # Verify correct values
+    assert MODEBAR_CONFIG["displayModeBar"] == "hover"
+    assert MODEBAR_CONFIG["displaylogo"] is False
+    assert isinstance(MODEBAR_CONFIG["modeBarButtonsToRemove"], list)
+
+
+def test_modebar_removes_correct_buttons() -> None:
+    """MODEBAR_CONFIG should remove all buttons except zoom in/out."""
+    from tournament_visualizer.config import MODEBAR_CONFIG
+
+    removed_buttons = MODEBAR_CONFIG["modeBarButtonsToRemove"]
+
+    # These buttons MUST be removed (we don't want them)
+    expected_removed = [
+        "pan2d",
+        "zoom2d",
+        "select2d",
+        "lasso2d",
+        "autoScale2d",
+        "resetScale2d",
+        "hoverClosestCartesian",
+        "hoverCompareCartesian",
+        "toggleSpikelines",
+        "toggleHover",
+    ]
+
+    for button in expected_removed:
+        assert button in removed_buttons, f"{button} should be removed"
+
+    # These buttons MUST NOT be removed (we want to keep them)
+    # Note: If a button isn't in modeBarButtonsToRemove, it will be shown
+    assert "zoomIn2d" not in removed_buttons
+    assert "zoomOut2d" not in removed_buttons
