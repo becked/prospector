@@ -27,10 +27,11 @@ primary_region = "sjc"
   protocol = "tcp"
 
   # Concurrency settings
+  # With 2 CPUs and 4 workers: 4 workers * 100 = 400 concurrent connections
   [services.concurrency]
     type = "connections"
-    hard_limit = 250
-    soft_limit = 200
+    hard_limit = 500
+    soft_limit = 400
 
   # HTTP checks
   [[services.ports]]
@@ -63,7 +64,7 @@ primary_region = "sjc"
 [vm]
   memory = "1gb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2
 
 # Persistent volume for database and save files
 [mounts]
