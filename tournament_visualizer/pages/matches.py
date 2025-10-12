@@ -14,12 +14,13 @@ from dash import Input, Output, callback, dcc, html
 from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
+    create_ambition_summary_table,
+    create_ambition_timeline_chart,
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
     create_food_yields_chart,  # Keep for backward compat (currently unused)
     create_yield_chart,  # NEW: Generic yield chart function
-    create_statistics_grouped_bar,
     create_statistics_radar_chart,
 )
 from tournament_visualizer.utils.event_categories import (
@@ -496,179 +497,34 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Player Statistics",
                         "tab_id": "statistics",
                         "content": [
-                            # Grouped Bar Chart
+                            # Yields Radar Chart and Ambition Summary side-by-side
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
-                                            dbc.Card(
-                                                [
-                                                    dbc.CardHeader(
-                                                        [
-                                                            dbc.Row(
-                                                                [
-                                                                    dbc.Col(
-                                                                        [
-                                                                            html.H5(
-                                                                                "Top 10 Statistics - Grouped Comparison",
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=8,
-                                                                    ),
-                                                                    dbc.Col(
-                                                                        [
-                                                                            dcc.Dropdown(
-                                                                                id="stats-grouped-bar-category-filter",
-                                                                                placeholder="All Categories",
-                                                                                options=[],
-                                                                                value=None,
-                                                                                clearable=True,
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=4,
-                                                                    ),
-                                                                ],
-                                                                align="center",
-                                                            )
-                                                        ]
-                                                    ),
-                                                    dbc.CardBody(
-                                                        [
-                                                            dcc.Loading(
-                                                                dcc.Graph(
-                                                                    id="match-stats-grouped-bar",
-                                                                    config={
-                                                                        "displayModeBar": False
-                                                                    },
-                                                                ),
-                                                                type="default",
-                                                            )
-                                                        ],
-                                                        style={"height": "500px"},
-                                                    ),
-                                                ]
+                                            create_chart_card(
+                                                title="Yields Comparison",
+                                                chart_id="match-stats-yields-radar",
+                                                height="500px",
                                             )
                                         ],
-                                        width=12,
-                                    )
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Ambition Summary",
+                                                chart_id="match-ambition-summary",
+                                                height="auto",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
                                 ],
                                 className="mb-3",
                             ),
-                            # Radar Chart
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            dbc.Card(
-                                                [
-                                                    dbc.CardHeader(
-                                                        [
-                                                            dbc.Row(
-                                                                [
-                                                                    dbc.Col(
-                                                                        [
-                                                                            html.H5(
-                                                                                "Statistics Radar Chart",
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=8,
-                                                                    ),
-                                                                    dbc.Col(
-                                                                        [
-                                                                            dcc.Dropdown(
-                                                                                id="stats-radar-category-filter",
-                                                                                placeholder="All Categories",
-                                                                                options=[],
-                                                                                value=None,
-                                                                                clearable=True,
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=4,
-                                                                    ),
-                                                                ],
-                                                                align="center",
-                                                            )
-                                                        ]
-                                                    ),
-                                                    dbc.CardBody(
-                                                        [
-                                                            dcc.Loading(
-                                                                dcc.Graph(
-                                                                    id="match-stats-radar",
-                                                                    config={
-                                                                        "displayModeBar": False
-                                                                    },
-                                                                ),
-                                                                type="default",
-                                                            )
-                                                        ],
-                                                        style={"height": "500px"},
-                                                    ),
-                                                ]
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Card(
-                                                [
-                                                    dbc.CardHeader(
-                                                        [
-                                                            dbc.Row(
-                                                                [
-                                                                    dbc.Col(
-                                                                        [
-                                                                            html.H5(
-                                                                                "Category Totals",
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=8,
-                                                                    ),
-                                                                    dbc.Col(
-                                                                        [
-                                                                            dcc.Dropdown(
-                                                                                id="stats-comparison-category-filter",
-                                                                                placeholder="All Categories",
-                                                                                options=[],
-                                                                                value=None,
-                                                                                clearable=True,
-                                                                                className="mb-0",
-                                                                            )
-                                                                        ],
-                                                                        width=4,
-                                                                    ),
-                                                                ],
-                                                                align="center",
-                                                            )
-                                                        ]
-                                                    ),
-                                                    dbc.CardBody(
-                                                        [
-                                                            dcc.Loading(
-                                                                dcc.Graph(
-                                                                    id="match-stats-comparison",
-                                                                    config={
-                                                                        "displayModeBar": False
-                                                                    },
-                                                                ),
-                                                                type="default",
-                                                            )
-                                                        ],
-                                                        style={"height": "500px"},
-                                                    ),
-                                                ]
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                ]
-                            ),
+                            # Ambition Timeline Charts (dynamically generated per player)
+                            html.Div(id="match-ambition-timelines-container"),
                         ],
                     },
                     {
@@ -886,192 +742,36 @@ def update_technology_chart(match_id: Optional[int]) -> go.Figure:
 
 
 @callback(
-    [
-        Output("stats-grouped-bar-category-filter", "options"),
-        Output("stats-radar-category-filter", "options"),
-        Output("stats-comparison-category-filter", "options"),
-    ],
+    Output("match-stats-yields-radar", "figure"),
     Input("match-selector", "value"),
 )
-def update_category_filter_options(
-    match_id: Optional[int],
-) -> tuple[List[Dict[str, str]], List[Dict[str, str]], List[Dict[str, str]]]:
-    """Update category filter options for all three dropdowns.
+def update_yields_radar(match_id: Optional[int]) -> go.Figure:
+    """Update yields radar chart.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Tuple of three identical lists of category options for each dropdown
+        Plotly figure for yields radar chart
     """
     if not match_id:
-        return [], [], []
+        return create_empty_chart_placeholder("Select a match to view yield statistics")
 
     try:
         queries = get_queries()
-        df = queries.get_player_statistics_by_category(match_id)
-
-        if df.empty or "stat_category" not in df.columns:
-            return [], [], []
-
-        categories = sorted(df["stat_category"].unique())
-        options = [{"label": cat, "value": cat} for cat in categories]
-        return options, options, options
-
-    except Exception as e:
-        logger.error(f"Error loading category options: {e}")
-        return [], [], []
-
-
-@callback(
-    Output("match-stats-grouped-bar", "figure"),
-    Input("match-selector", "value"),
-    Input("stats-grouped-bar-category-filter", "value"),
-)
-def update_stats_grouped_bar(match_id: Optional[int], category_filter: Optional[str]):
-    """Update grouped bar chart.
-
-    Args:
-        match_id: Selected match ID
-        category_filter: Optional category to filter by
-
-    Returns:
-        Plotly figure for grouped bar chart
-    """
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match to view statistics")
-
-    try:
-        queries = get_queries()
-        df = queries.get_player_statistics_by_category(match_id)
+        df = queries.get_player_statistics_by_category(match_id, category="yield_stockpile")
 
         if df.empty:
             return create_empty_chart_placeholder(
-                "No statistics data available for this match"
+                "No yield data available for this match"
             )
 
-        return create_statistics_grouped_bar(
-            df, category_filter=category_filter, top_n=10
-        )
+        # Show all yields (no top_n filter)
+        return create_statistics_radar_chart(df, category_filter="yield_stockpile", top_n=100)
 
     except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading statistics: {str(e)}")
-
-
-@callback(
-    Output("match-stats-radar", "figure"),
-    Input("match-selector", "value"),
-    Input("stats-radar-category-filter", "value"),
-)
-def update_stats_radar(match_id: Optional[int], category_filter: Optional[str]):
-    """Update radar chart.
-
-    Args:
-        match_id: Selected match ID
-        category_filter: Optional category to filter by
-
-    Returns:
-        Plotly figure for radar chart
-    """
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match to view statistics")
-
-    try:
-        queries = get_queries()
-        df = queries.get_player_statistics_by_category(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No statistics data available for this match"
-            )
-
-        return create_statistics_radar_chart(
-            df, category_filter=category_filter, top_n=8
-        )
-
-    except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading statistics: {str(e)}")
-
-
-@callback(
-    Output("match-stats-comparison", "figure"),
-    Input("match-selector", "value"),
-    Input("stats-comparison-category-filter", "value"),
-)
-def update_stats_comparison(match_id: Optional[int], category_filter: Optional[str]):
-    """Update category totals bar chart.
-
-    Args:
-        match_id: Selected match ID
-        category_filter: Optional category to filter by
-
-    Returns:
-        Plotly figure for category totals
-    """
-    if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view statistics comparison"
-        )
-
-    try:
-        queries = get_queries()
-        df = queries.get_player_statistics_by_category(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No statistics data available for this match"
-            )
-
-        # If category filter is set, show individual stats from that category
-        if category_filter:
-            category_df = df[df["stat_category"] == category_filter]
-            return create_statistics_grouped_bar(
-                category_df, category_filter=None, top_n=15
-            )
-
-        # Otherwise, show totals by category
-        if "stat_category" not in df.columns:
-            return create_empty_chart_placeholder("No category data available")
-
-        # Aggregate by category
-        category_totals = (
-            df.groupby(["stat_category", "player_name"])["value"].sum().reset_index()
-        )
-
-        import plotly.graph_objects as go
-
-        from tournament_visualizer.components.charts import create_base_figure
-        from tournament_visualizer.config import Config
-
-        fig = create_base_figure(
-            title="Total Statistics by Category",
-            x_title="Category",
-            y_title="Total Value",
-        )
-
-        # Add a bar for each player
-        for i, player in enumerate(category_totals["player_name"].unique()):
-            player_data = category_totals[category_totals["player_name"] == player]
-
-            fig.add_trace(
-                go.Bar(
-                    name=player,
-                    x=player_data["stat_category"],
-                    y=player_data["value"],
-                    marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
-                    text=player_data["value"],
-                    textposition="auto",
-                )
-            )
-
-        fig.update_layout(barmode="group", xaxis_tickangle=-45)
-
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(
-            f"Error loading statistics comparison: {str(e)}"
-        )
+        logger.error(f"Error loading yields radar: {e}")
+        return create_empty_chart_placeholder(f"Error loading yields: {str(e)}")
 
 
 @callback(
@@ -1497,3 +1197,93 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
             create_empty_chart_placeholder(f"Error loading {display_name} yields: {str(e)}")
             for _, display_name in YIELD_TYPES
         ]
+
+
+@callback(
+    Output("match-ambition-timelines-container", "children"),
+    Input("match-selector", "value"),
+)
+def update_ambition_timelines(match_id: Optional[int]):
+    """Update ambition timeline charts - one per player.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML Div containing separate chart cards for each player
+    """
+    if not match_id:
+        return html.Div("Select a match to view ambition timelines", className="text-muted")
+
+    try:
+        queries = get_queries()
+        df = queries.get_ambition_timeline(match_id)
+
+        if df.empty:
+            return html.Div("No ambition data available for this match", className="text-muted")
+
+        # Get unique players
+        players = df["player_name"].unique()
+
+        # Create a separate chart for each player
+        chart_rows = []
+        for player in players:
+            player_df = df[df["player_name"] == player]
+            fig = create_ambition_timeline_chart(player_df)
+
+            chart_row = dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader(html.H5(f"{player} - Ambitions", className="mb-0")),
+                                    dbc.CardBody([dcc.Graph(figure=fig)]),
+                                ],
+                                className="mb-3"
+                            )
+                        ],
+                        width=12,
+                    )
+                ],
+                className="mb-3",
+            )
+            chart_rows.append(chart_row)
+
+        return html.Div(chart_rows)
+
+    except Exception as e:
+        logger.error(f"Error loading ambition timelines: {e}")
+        return html.Div(f"Error loading ambition timelines: {str(e)}", className="text-danger")
+
+
+@callback(
+    Output("match-ambition-summary", "figure"),
+    Input("match-selector", "value"),
+)
+def update_ambition_summary(match_id: Optional[int]) -> go.Figure:
+    """Update ambition summary table.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure for ambition summary table
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view ambition summary")
+
+    try:
+        queries = get_queries()
+        df = queries.get_ambition_summary(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No ambition data available for this match"
+            )
+
+        return create_ambition_summary_table(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ambition summary: {e}")
+        return create_empty_chart_placeholder(f"Error loading ambition summary: {str(e)}")
