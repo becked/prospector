@@ -111,7 +111,20 @@ echo -e "${BLUE}Uploading ${DB_SIZE} database file to temporary location...${NC}
 
 # Upload to temporary file (app can keep running)
 if echo "put ${DB_PATH} ${REMOTE_TEMP}" | fly ssh sftp shell -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ Database uploaded to temporary location${NC}"
+    echo -e "${GREEN}✓ Database upload command completed${NC}"
+
+    # Verify the file was actually uploaded
+    echo -e "${BLUE}Verifying upload...${NC}"
+    REMOTE_SIZE=$(fly ssh console -a "${APP_NAME}" -C "stat -f %z ${REMOTE_TEMP} 2>/dev/null || echo 0")
+    LOCAL_SIZE=$(stat -f %z "${DB_PATH}")
+
+    if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ]; then
+        echo -e "${GREEN}✓ Upload verified (${LOCAL_SIZE} bytes)${NC}"
+    else
+        echo -e "${RED}Error: Upload verification failed${NC}"
+        echo -e "${RED}Local: ${LOCAL_SIZE} bytes, Remote: ${REMOTE_SIZE} bytes${NC}"
+        exit 1
+    fi
 else
     echo -e "${RED}Error: Failed to upload database${NC}"
     exit 1
