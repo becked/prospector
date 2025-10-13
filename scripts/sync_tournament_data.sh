@@ -97,11 +97,12 @@ echo ""
 # Step 3: Stop the app (closes database connections)
 echo -e "${YELLOW}[3/6] Stopping app to close database connections...${NC}"
 
-# Get machine ID
-MACHINE_ID=$(fly status -a "${APP_NAME}" --json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+# Get machine ID from machine list (match lines starting with machine ID pattern)
+MACHINE_ID=$(fly machine list -a "${APP_NAME}" 2>&1 | grep -E '^[a-z0-9]{14}' | awk '{print $1}')
 
 if [ -z "$MACHINE_ID" ]; then
     echo -e "${RED}Error: Could not determine machine ID${NC}"
+    echo "Run 'fly machine list -a ${APP_NAME}' to see machines"
     exit 1
 fi
 
@@ -160,8 +161,11 @@ echo ""
 # Step 6: Start the app to load new data
 echo -e "${YELLOW}[6/6] Starting app to load new data...${NC}"
 
-# Get machine ID
-MACHINE_ID=$(fly status -a "${APP_NAME}" --json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+# Machine ID should still be set from step 3
+if [ -z "$MACHINE_ID" ]; then
+    # Try to get it again if somehow lost
+    MACHINE_ID=$(fly machine list -a "${APP_NAME}" 2>&1 | grep -E '^[a-z0-9]{14}' | awk '{print $1}')
+fi
 
 if [ -z "$MACHINE_ID" ]; then
     echo -e "${YELLOW}Could not determine machine ID, using restart...${NC}"
