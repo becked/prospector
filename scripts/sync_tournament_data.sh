@@ -132,10 +132,29 @@ fi
 
 echo -e "${BLUE}Stopping machine ${MACHINE_ID}...${NC}"
 if fly machine stop "${MACHINE_ID}" -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ App stopped${NC}"
+    echo -e "${GREEN}✓ Stop initiated${NC}"
 else
     echo -e "${RED}Error: Failed to stop app${NC}"
     exit 1
+fi
+
+# Wait for machine to fully stop
+echo -e "${BLUE}Waiting for machine to fully stop...${NC}"
+MAX_WAIT=30
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    STATE=$(fly machine status "${MACHINE_ID}" -a "${APP_NAME}" 2>&1 | grep -i "state" | awk '{print $NF}')
+    if [ "$STATE" = "stopped" ]; then
+        echo -e "${GREEN}✓ Machine fully stopped${NC}"
+        break
+    fi
+    echo -e "${BLUE}  Machine state: ${STATE}, waiting...${NC}"
+    sleep 2
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
+if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+    echo -e "${YELLOW}Warning: Machine may not have fully stopped, attempting start anyway...${NC}"
 fi
 echo ""
 
