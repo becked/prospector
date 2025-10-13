@@ -143,7 +143,8 @@ echo -e "${BLUE}Waiting for machine to fully stop...${NC}"
 MAX_WAIT=30
 WAIT_COUNT=0
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    STATE=$(fly machine status "${MACHINE_ID}" -a "${APP_NAME}" 2>&1 | grep -i "state" | awk '{print $NF}')
+    # Get just the state value from the first "State:" line
+    STATE=$(fly machine status "${MACHINE_ID}" -a "${APP_NAME}" 2>&1 | grep "^State:" | head -1 | awk '{print $2}')
     if [ "$STATE" = "stopped" ]; then
         echo -e "${GREEN}✓ Machine fully stopped${NC}"
         break
