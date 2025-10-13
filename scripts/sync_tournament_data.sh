@@ -94,8 +94,32 @@ else
 fi
 echo ""
 
-# Step 3: Stop the app (closes database connections)
-echo -e "${YELLOW}[3/6] Stopping app to close database connections...${NC}"
+# Step 3: Upload new database to temporary location (while app is running)
+echo -e "${YELLOW}[3/6] Uploading new database to temporary location...${NC}"
+DB_PATH="data/tournament_data.duckdb"
+REMOTE_PATH="/data/tournament_data.duckdb"
+REMOTE_TEMP="/data/tournament_data.duckdb.new"
+
+if [ ! -f "${DB_PATH}" ]; then
+    echo -e "${RED}Error: Database file not found at ${DB_PATH}${NC}"
+    exit 1
+fi
+
+# Show file size for progress indication
+DB_SIZE=$(du -h "${DB_PATH}" | cut -f1)
+echo -e "${BLUE}Uploading ${DB_SIZE} database file to temporary location...${NC}"
+
+# Upload to temporary file (app can keep running)
+if echo "put ${DB_PATH} ${REMOTE_TEMP}" | fly ssh sftp shell -a "${APP_NAME}"; then
+    echo -e "${GREEN}✓ Database uploaded to temporary location${NC}"
+else
+    echo -e "${RED}Error: Failed to upload database${NC}"
+    exit 1
+fi
+echo ""
+
+# Step 4: Stop the app (closes database connections)
+echo -e "${YELLOW}[4/6] Stopping app to close database connections...${NC}"
 
 # Get machine ID from machine list (match lines starting with machine ID pattern)
 MACHINE_ID=$(fly machine list -a "${APP_NAME}" 2>&1 | grep -E '^[a-z0-9]{14}' | awk '{print $1}')
@@ -115,80 +139,52 @@ else
 fi
 echo ""
 
-# Step 4: Remove old database files (including WAL)
-echo -e "${YELLOW}[4/6] Removing old database files...${NC}"
-REMOTE_PATH="/data/tournament_data.duckdb"
-if fly ssh console -a "${APP_NAME}" -C "rm -f ${REMOTE_PATH} ${REMOTE_PATH}.wal ${REMOTE_PATH}.shm"; then
-    echo -e "${GREEN}✓ Old database files removed${NC}"
+# Step 5: Start the app (will have clean DB state)
+echo -e "${YELLOW}[5/6] Starting app...${NC}"
+echo -e "${BLUE}Starting machine ${MACHINE_ID}...${NC}"
+if fly machine start "${MACHINE_ID}" -a "${APP_NAME}"; then
+    echo -e "${GREEN}✓ App started${NC}"
+
+    # Wait for machine to fully start and SSH to be available
+    echo -e "${BLUE}Waiting for SSH to be ready...${NC}"
+    sleep 10
 else
-    echo -e "${YELLOW}Warning: Could not remove old files (may not exist)${NC}"
-fi
-echo ""
-
-# Step 5: Upload new database to Fly.io
-echo -e "${YELLOW}[5/6] Uploading new database to Fly.io...${NC}"
-DB_PATH="data/tournament_data.duckdb"
-
-if [ ! -f "${DB_PATH}" ]; then
-    echo -e "${RED}Error: Database file not found at ${DB_PATH}${NC}"
-    exit 1
-fi
-
-# Show file size for progress indication
-DB_SIZE=$(du -h "${DB_PATH}" | cut -f1)
-echo -e "${BLUE}Uploading ${DB_SIZE} database file...${NC}"
-
-# Use fly ssh sftp to upload the file
-if echo "put ${DB_PATH} ${REMOTE_PATH}" | fly ssh sftp shell -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ Database uploaded${NC}"
-else
-    echo -e "${RED}Error: Failed to upload database${NC}"
-    echo "Attempting to restart app anyway..."
-    fly apps restart "${APP_NAME}"
-    exit 1
-fi
-
-# Fix file permissions (app runs as appuser uid:1000 gid:1000)
-echo -e "${BLUE}Fixing file ownership and permissions...${NC}"
-if fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser ${REMOTE_PATH} && chmod 664 ${REMOTE_PATH}"; then
-    echo -e "${GREEN}✓ Permissions fixed${NC}"
-else
-    echo -e "${RED}Error: Failed to fix permissions${NC}"
+    echo -e "${RED}Error: Failed to start machine${NC}"
     exit 1
 fi
 echo ""
 
-# Step 6: Start the app to load new data
-echo -e "${YELLOW}[6/6] Starting app to load new data...${NC}"
+# Step 6: Replace old database with new one
+echo -e "${YELLOW}[6/6] Replacing database and fixing permissions...${NC}"
 
-# Machine ID should still be set from step 3
-if [ -z "$MACHINE_ID" ]; then
-    # Try to get it again if somehow lost
-    MACHINE_ID=$(fly machine list -a "${APP_NAME}" 2>&1 | grep -E '^[a-z0-9]{14}' | awk '{print $1}')
+# Remove old database files and move new one into place
+REPLACE_CMD="rm -f ${REMOTE_PATH} ${REMOTE_PATH}.wal ${REMOTE_PATH}.shm && mv ${REMOTE_TEMP} ${REMOTE_PATH} && chown appuser:appuser ${REMOTE_PATH} && chmod 664 ${REMOTE_PATH}"
+
+if fly ssh console -a "${APP_NAME}" -C "${REPLACE_CMD}"; then
+    echo -e "${GREEN}✓ Database replaced and permissions fixed${NC}"
+else
+    echo -e "${RED}Error: Failed to replace database${NC}"
+    exit 1
 fi
 
-if [ -z "$MACHINE_ID" ]; then
-    echo -e "${YELLOW}Could not determine machine ID, using restart...${NC}"
-    fly apps restart "${APP_NAME}"
+# Restart app to pick up new database
+echo -e "${BLUE}Restarting app to load new database...${NC}"
+if fly machine restart "${MACHINE_ID}" -a "${APP_NAME}" --skip-health-checks; then
+    echo -e "${GREEN}✓ App restarted${NC}"
 else
-    echo -e "${BLUE}Starting machine ${MACHINE_ID}...${NC}"
-    if fly machine start "${MACHINE_ID}" -a "${APP_NAME}"; then
-        echo -e "${GREEN}✓ App started${NC}"
+    echo -e "${YELLOW}Warning: Restart may have failed, trying alternative method...${NC}"
+    fly apps restart "${APP_NAME}"
+fi
 
-        # Wait for health checks
-        echo -e "${BLUE}Waiting for health checks...${NC}"
-        sleep 15
+# Wait for health checks
+echo -e "${BLUE}Waiting for health checks...${NC}"
+sleep 15
 
-        # Check final status
-        if fly status -a "${APP_NAME}" | grep -q "passing"; then
-            echo -e "${GREEN}✓ Health checks passing${NC}"
-        else
-            echo -e "${YELLOW}Warning: Check health status manually${NC}"
-        fi
-    else
-        echo -e "${RED}Error: Failed to start machine${NC}"
-        exit 1
-    fi
+# Check final status
+if fly status -a "${APP_NAME}" | grep -q "passing"; then
+    echo -e "${GREEN}✓ Health checks passing${NC}"
+else
+    echo -e "${YELLOW}Warning: Check health status manually with: fly status -a ${APP_NAME}${NC}"
 fi
 
 echo ""

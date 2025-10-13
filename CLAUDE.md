@@ -117,10 +117,11 @@ Use the sync script from your local machine to update production:
 This script processes data **locally** (much faster!) and then uploads to Fly.io:
 1. Download all attachments from Challonge (to local `saves/` directory)
 2. Import save files into DuckDB locally (~10x faster than on Fly.io)
-3. Stop the Fly.io app (closes database connections)
-4. Remove old database files (including WAL files)
-5. Upload the new database file to Fly.io persistent volume
-6. Start the app to load the new data
+3. Upload new database to temporary location on Fly.io (while app is running)
+4. Stop the Fly.io machine (closes database connections)
+5. Start the Fly.io machine
+6. Replace old database with new one and fix permissions (664, owned by appuser)
+7. Restart app to load the new data
 
 **Why local processing?** Fly.io's shared CPUs and network-attached storage make XML parsing and database writes very slow. Processing locally on your machine is significantly faster.
 
