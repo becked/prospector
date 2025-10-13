@@ -115,14 +115,23 @@ if echo "put ${DB_PATH} ${REMOTE_TEMP}" | fly ssh sftp shell -a "${APP_NAME}"; t
 
     # Verify the file was actually uploaded
     echo -e "${BLUE}Verifying upload...${NC}"
-    REMOTE_SIZE=$(fly ssh console -a "${APP_NAME}" -C "stat -f %z ${REMOTE_TEMP} 2>/dev/null || echo 0")
-    LOCAL_SIZE=$(stat -f %z "${DB_PATH}")
 
-    if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ]; then
+    # Use wc -c which is portable across Linux and macOS
+    REMOTE_SIZE=$(fly ssh console -a "${APP_NAME}" -C "wc -c < ${REMOTE_TEMP} 2>/dev/null || echo 0" | tr -d ' ')
+    LOCAL_SIZE=$(wc -c < "${DB_PATH}" | tr -d ' ')
+
+    if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ] 2>/dev/null; then
         echo -e "${GREEN}✓ Upload verified (${LOCAL_SIZE} bytes)${NC}"
     else
         echo -e "${RED}Error: Upload verification failed${NC}"
         echo -e "${RED}Local: ${LOCAL_SIZE} bytes, Remote: ${REMOTE_SIZE} bytes${NC}"
+
+        # Try to check if file exists at all
+        if fly ssh console -a "${APP_NAME}" -C "test -f ${REMOTE_TEMP}"; then
+            echo -e "${YELLOW}File exists but size mismatch - upload may be incomplete${NC}"
+        else
+            echo -e "${RED}File does not exist on remote${NC}"
+        fi
         exit 1
     fi
 else
