@@ -94,11 +94,10 @@ else
 fi
 echo ""
 
-# Step 3: Upload new database to temporary location (while app is running)
-echo -e "${YELLOW}[3/6] Uploading new database to temporary location...${NC}"
+# Step 3: Upload new database directly (overwrites existing)
+echo -e "${YELLOW}[3/4] Uploading new database...${NC}"
 DB_PATH="data/tournament_data.duckdb"
 REMOTE_PATH="/data/tournament_data.duckdb"
-REMOTE_TEMP="/data/tournament_data.duckdb.new"
 
 if [ ! -f "${DB_PATH}" ]; then
     echo -e "${RED}Error: Database file not found at ${DB_PATH}${NC}"
@@ -107,129 +106,63 @@ fi
 
 # Show file size for progress indication
 DB_SIZE=$(du -h "${DB_PATH}" | cut -f1)
-echo -e "${BLUE}Uploading ${DB_SIZE} database file to temporary location...${NC}"
+echo -e "${BLUE}Uploading ${DB_SIZE} database file (this may take a minute)...${NC}"
 
-# Upload to temporary file (app can keep running)
-if echo "put ${DB_PATH} ${REMOTE_TEMP}" | fly ssh sftp shell -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ Database upload command completed${NC}"
-
-    # Verify the file was actually uploaded
-    echo -e "${BLUE}Verifying upload...${NC}"
-
-    # Use stat with Linux syntax for remote (Fly.io uses Linux)
-    # Use stat with macOS syntax for local
-    REMOTE_SIZE=$(fly ssh console -a "${APP_NAME}" -C "stat -c %s ${REMOTE_TEMP} 2>&1" | grep -o '[0-9]*' | head -1)
-
-    # macOS stat syntax
-    LOCAL_SIZE=$(stat -f %z "${DB_PATH}")
-
-    # Check if we got valid numbers
-    if ! [[ "$REMOTE_SIZE" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Error: Could not determine remote file size${NC}"
-        echo -e "${YELLOW}Remote response: ${REMOTE_SIZE}${NC}"
-        exit 1
-    fi
-
-    if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ]; then
-        echo -e "${GREEN}✓ Upload verified (${LOCAL_SIZE} bytes)${NC}"
-    else
-        echo -e "${RED}Error: Upload verification failed${NC}"
-        echo -e "${RED}Local: ${LOCAL_SIZE} bytes, Remote: ${REMOTE_SIZE} bytes${NC}"
-        exit 1
-    fi
+# Upload directly to final location (will overwrite)
+if echo "put ${DB_PATH} ${REMOTE_PATH}" | fly ssh sftp shell -a "${APP_NAME}"; then
+    echo -e "${GREEN}✓ Database uploaded${NC}"
 else
     echo -e "${RED}Error: Failed to upload database${NC}"
     exit 1
 fi
 echo ""
 
-# Step 4: Stop the app (closes database connections)
-echo -e "${YELLOW}[4/6] Stopping app to close database connections...${NC}"
+# Step 4: Fix permissions and sync filesystem
+echo -e "${YELLOW}[4/4] Fixing permissions and restarting app...${NC}"
 
-# Get machine ID from machine list (match lines starting with machine ID pattern)
+# Fix ownership
+if fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser ${REMOTE_PATH}"; then
+    echo -e "${GREEN}✓ Ownership fixed${NC}"
+else
+    echo -e "${YELLOW}Warning: Could not fix ownership${NC}"
+fi
+
+# Fix permissions
+if fly ssh console -a "${APP_NAME}" -C "chmod 664 ${REMOTE_PATH}"; then
+    echo -e "${GREEN}✓ Permissions fixed${NC}"
+else
+    echo -e "${YELLOW}Warning: Could not fix permissions${NC}"
+fi
+
+# Sync filesystem to ensure writes are committed
+fly ssh console -a "${APP_NAME}" -C "sync" 2>/dev/null
+
+# Get machine ID for restart
 MACHINE_ID=$(fly machine list -a "${APP_NAME}" 2>&1 | grep -E '^[a-z0-9]{14}' | awk '{print $1}')
 
 if [ -z "$MACHINE_ID" ]; then
-    echo -e "${RED}Error: Could not determine machine ID${NC}"
-    echo "Run 'fly machine list -a ${APP_NAME}' to see machines"
-    exit 1
-fi
-
-echo -e "${BLUE}Stopping machine ${MACHINE_ID}...${NC}"
-if fly machine stop "${MACHINE_ID}" -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ Stop initiated${NC}"
-else
-    echo -e "${RED}Error: Failed to stop app${NC}"
-    exit 1
-fi
-
-# Wait for machine to fully stop
-echo -e "${BLUE}Waiting for machine to fully stop...${NC}"
-MAX_WAIT=30
-WAIT_COUNT=0
-while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    # Get just the state value from the first "State:" line
-    STATE=$(fly machine status "${MACHINE_ID}" -a "${APP_NAME}" 2>&1 | grep "^State:" | head -1 | awk '{print $2}')
-    if [ "$STATE" = "stopped" ]; then
-        echo -e "${GREEN}✓ Machine fully stopped${NC}"
-        break
-    fi
-    echo -e "${BLUE}  Machine state: ${STATE}, waiting...${NC}"
-    sleep 2
-    WAIT_COUNT=$((WAIT_COUNT + 1))
-done
-
-if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-    echo -e "${YELLOW}Warning: Machine may not have fully stopped, attempting start anyway...${NC}"
-fi
-echo ""
-
-# Step 5: Start the app (will have clean DB state)
-echo -e "${YELLOW}[5/6] Starting app...${NC}"
-echo -e "${BLUE}Starting machine ${MACHINE_ID}...${NC}"
-if fly machine start "${MACHINE_ID}" -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ App started${NC}"
-
-    # Wait for machine to fully start and SSH to be available
-    echo -e "${BLUE}Waiting for SSH to be ready...${NC}"
-    sleep 10
-else
-    echo -e "${RED}Error: Failed to start machine${NC}"
-    exit 1
-fi
-echo ""
-
-# Step 6: Replace old database with new one
-echo -e "${YELLOW}[6/6] Replacing database and fixing permissions...${NC}"
-
-# Remove old database files and move new one into place
-REPLACE_CMD="rm -f ${REMOTE_PATH} ${REMOTE_PATH}.wal ${REMOTE_PATH}.shm && mv ${REMOTE_TEMP} ${REMOTE_PATH} && chown appuser:appuser ${REMOTE_PATH} && chmod 664 ${REMOTE_PATH}"
-
-if fly ssh console -a "${APP_NAME}" -C "${REPLACE_CMD}"; then
-    echo -e "${GREEN}✓ Database replaced and permissions fixed${NC}"
-else
-    echo -e "${RED}Error: Failed to replace database${NC}"
-    exit 1
-fi
-
-# Restart app to pick up new database
-echo -e "${BLUE}Restarting app to load new database...${NC}"
-if fly machine restart "${MACHINE_ID}" -a "${APP_NAME}" --skip-health-checks; then
-    echo -e "${GREEN}✓ App restarted${NC}"
-else
-    echo -e "${YELLOW}Warning: Restart may have failed, trying alternative method...${NC}"
+    echo -e "${YELLOW}Could not determine machine ID, using generic restart...${NC}"
     fly apps restart "${APP_NAME}"
-fi
-
-# Wait for health checks
-echo -e "${BLUE}Waiting for health checks...${NC}"
-sleep 15
-
-# Check final status
-if fly status -a "${APP_NAME}" | grep -q "passing"; then
-    echo -e "${GREEN}✓ Health checks passing${NC}"
 else
-    echo -e "${YELLOW}Warning: Check health status manually with: fly status -a ${APP_NAME}${NC}"
+    # Restart app to pick up new database
+    echo -e "${BLUE}Restarting app to load new database...${NC}"
+    if fly machine restart "${MACHINE_ID}" -a "${APP_NAME}"; then
+        echo -e "${GREEN}✓ App restarted${NC}"
+
+        # Wait for health checks
+        echo -e "${BLUE}Waiting for health checks...${NC}"
+        sleep 15
+
+        # Check final status
+        if fly status -a "${APP_NAME}" | grep -q "passing"; then
+            echo -e "${GREEN}✓ Health checks passing${NC}"
+        else
+            echo -e "${YELLOW}Warning: Check health status manually with: fly status -a ${APP_NAME}${NC}"
+        fi
+    else
+        echo -e "${RED}Error: Failed to restart machine${NC}"
+        exit 1
+    fi
 fi
 
 echo ""
