@@ -73,7 +73,7 @@ echo -e "${GREEN}✓ App accessible${NC}"
 echo ""
 
 # Step 1: Download attachments from Challonge (locally)
-echo -e "${YELLOW}[1/6] Downloading attachments from Challonge (local)...${NC}"
+echo -e "${YELLOW}[1/5] Downloading attachments from Challonge (local)...${NC}"
 if uv run python scripts/download_attachments.py; then
     echo -e "${GREEN}✓ Download complete${NC}"
 else
@@ -84,7 +84,7 @@ fi
 echo ""
 
 # Step 2: Import attachments into DuckDB (locally - FAST!)
-echo -e "${YELLOW}[2/6] Importing save files into DuckDB (local - fast!)...${NC}"
+echo -e "${YELLOW}[2/5] Importing save files into DuckDB (local - fast!)...${NC}"
 IMPORT_CMD="uv run python scripts/import_attachments.py --directory saves --verbose ${FORCE_FLAG}"
 if ${IMPORT_CMD}; then
     echo -e "${GREEN}✓ Import complete${NC}"
@@ -94,10 +94,11 @@ else
 fi
 echo ""
 
-# Step 3: Upload new database directly (overwrites existing)
-echo -e "${YELLOW}[3/4] Uploading new database...${NC}"
+# Step 3: Upload new database via atomic replacement
+echo -e "${YELLOW}[3/5] Uploading new database...${NC}"
 DB_PATH="data/tournament_data.duckdb"
 REMOTE_PATH="/data/tournament_data.duckdb"
+REMOTE_TEMP_PATH="/data/tournament_data.duckdb.new"
 
 if [ ! -f "${DB_PATH}" ]; then
     echo -e "${RED}Error: Database file not found at ${DB_PATH}${NC}"
@@ -106,19 +107,58 @@ fi
 
 # Show file size for progress indication
 DB_SIZE=$(du -h "${DB_PATH}" | cut -f1)
-echo -e "${BLUE}Uploading ${DB_SIZE} database file (this may take a minute)...${NC}"
+echo -e "${BLUE}Uploading ${DB_SIZE} database file to temporary location...${NC}"
 
-# Upload directly to final location (will overwrite)
-if echo "put ${DB_PATH} ${REMOTE_PATH}" | fly ssh sftp shell -a "${APP_NAME}"; then
-    echo -e "${GREEN}✓ Database uploaded${NC}"
+# Upload to new filename (avoids file locking issues)
+if echo "put ${DB_PATH} ${REMOTE_TEMP_PATH}" | fly ssh sftp shell -a "${APP_NAME}"; then
+    echo -e "${GREEN}✓ Database uploaded to temporary location${NC}"
 else
     echo -e "${RED}Error: Failed to upload database${NC}"
     exit 1
 fi
 echo ""
 
-# Step 4: Fix permissions and sync filesystem
-echo -e "${YELLOW}[4/4] Fixing permissions and restarting app...${NC}"
+# Step 4: Verify upload succeeded
+echo -e "${YELLOW}[4/5] Verifying upload...${NC}"
+
+# Get local file size (macOS syntax)
+LOCAL_SIZE=$(stat -f %z "${DB_PATH}" 2>/dev/null || stat -c %s "${DB_PATH}" 2>/dev/null)
+
+# Get remote file size (Linux syntax on Fly.io)
+# Extract just the number from output (may include connection messages)
+REMOTE_SIZE=$(fly ssh console -a "${APP_NAME}" -C "stat -c %s ${REMOTE_TEMP_PATH}" 2>&1 | grep -oE '[0-9]+' | tail -n 1)
+
+# Check if we got a valid number
+if [ -z "$REMOTE_SIZE" ] || ! [[ "$REMOTE_SIZE" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Error: Could not verify remote file size${NC}"
+    echo -e "${RED}Remote stat output: ${REMOTE_SIZE}${NC}"
+    exit 1
+fi
+
+# Compare sizes
+if [ "$LOCAL_SIZE" -eq "$REMOTE_SIZE" ]; then
+    echo -e "${GREEN}✓ Upload verified (${LOCAL_SIZE} bytes)${NC}"
+else
+    echo -e "${RED}Error: File size mismatch${NC}"
+    echo -e "${RED}Local: ${LOCAL_SIZE} bytes, Remote: ${REMOTE_SIZE} bytes${NC}"
+    exit 1
+fi
+echo ""
+
+# Step 5: Atomically replace database and restart
+echo -e "${YELLOW}[5/5] Replacing database and restarting app...${NC}"
+
+# Atomic move (replaces locked file while app is running)
+if fly ssh console -a "${APP_NAME}" -C "mv ${REMOTE_TEMP_PATH} ${REMOTE_PATH}"; then
+    echo -e "${GREEN}✓ Database replaced atomically${NC}"
+else
+    echo -e "${RED}Error: Failed to replace database${NC}"
+    exit 1
+fi
+
+# Sync filesystem to ensure writes are committed
+fly ssh console -a "${APP_NAME}" -C "sync" 2>/dev/null
+echo -e "${GREEN}✓ Filesystem synced${NC}"
 
 # Fix ownership
 if fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser ${REMOTE_PATH}"; then
