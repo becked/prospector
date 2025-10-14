@@ -93,10 +93,20 @@ def print_summary(results: dict) -> None:
     )
     print(f"Success rate: {processing['success_rate']:.1%}")
 
+    # Deduplication results
+    if processing.get("skipped_duplicates", 0) > 0:
+        print(f"\nDuplicate files skipped: {processing['skipped_duplicates']}")
+        if processing.get("skipped_files"):
+            print("  Skipped files:")
+            for skipped in processing["skipped_files"]:
+                filename = Path(skipped["file_path"]).name
+                print(f"    - {filename}")
+                print(f"      Reason: {skipped['reason']}")
+
     # Cleanup results
     cleanup = results["cleanup"]
     if cleanup["duplicates_removed"] > 0:
-        print(f"Duplicate records removed: {cleanup['duplicates_removed']}")
+        print(f"\nDuplicate records removed: {cleanup['duplicates_removed']}")
 
     # Validation results
     validation = results["validation"]
@@ -156,6 +166,12 @@ def main() -> None:
         help="Show what would be imported without actually importing",
     )
 
+    parser.add_argument(
+        "--keep-duplicates",
+        action="store_true",
+        help="Keep duplicate files instead of automatically skipping them",
+    )
+
     args = parser.parse_args()
 
     # Set up logging
@@ -198,8 +214,16 @@ def main() -> None:
         print(f"\nStarting import from directory: {directory}")
         print("-" * 60)
 
+        # Show deduplication status
+        if not args.keep_duplicates:
+            print("Deduplication: ENABLED (use --keep-duplicates to disable)")
+        else:
+            print("Deduplication: DISABLED (all files will be processed)")
+
         # Process all files
-        results = process_tournament_directory(str(directory))
+        results = process_tournament_directory(
+            str(directory), deduplicate=not args.keep_duplicates
+        )
 
         # Print summary
         print_summary(results)

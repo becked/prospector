@@ -6,12 +6,13 @@ transformation into the appropriate format, and loading into the DuckDB database
 
 import hashlib
 import logging
+import os
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .database import TournamentDatabase, get_database
-from .parser import parse_tournament_file
+from .parser import OldWorldSaveParser, parse_tournament_file
 
 logger = logging.getLogger(__name__)
 
@@ -345,17 +346,182 @@ class TournamentETL:
                 f"Inserted {len(religion_opinion_history)} religion opinion history records"
             )
 
+    def extract_lightweight_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
+        """Extract minimal metadata from a file for deduplication.
+
+        Args:
+            file_path: Path to the tournament save zip file
+
+        Returns:
+            Dictionary with game_name, total_turns, save_date, file_size, has_victory_data, and is_autosave
+            Returns None if parsing fails
+        """
+        try:
+            parser = OldWorldSaveParser(file_path)
+            parser.extract_and_parse()
+
+            # Get basic metadata
+            metadata = parser.extract_basic_metadata()
+
+            # Check if file has victory completion data
+            has_victory_data = False
+            if parser.root is not None:
+                team_victories = parser.root.find(".//TeamVictoriesCompleted")
+                has_victory_data = team_victories is not None
+
+            # Check if this is an autosave
+            filename = Path(file_path).name
+            is_autosave = "Auto" in filename or "auto" in filename
+
+            # Get file size
+            file_size = os.path.getsize(file_path)
+
+            return {
+                "file_path": file_path,
+                "game_name": metadata.get("game_name"),
+                "total_turns": metadata.get("total_turns"),
+                "save_date": metadata.get("save_date"),
+                "file_size": file_size,
+                "has_victory_data": has_victory_data,
+                "is_autosave": is_autosave,
+            }
+
+        except Exception as e:
+            logger.warning(f"Could not extract metadata from {file_path}: {e}")
+            return None
+
+    def select_best_duplicate(
+        self, duplicate_files: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Select the best file from a list of duplicates.
+
+        Priority (highest to lowest):
+        1. Has TeamVictoriesCompleted data (most reliable winner determination)
+        2. Not an autosave (manual saves are usually final state)
+        3. Larger file size (likely more complete data)
+
+        Args:
+            duplicate_files: List of file metadata dictionaries
+
+        Returns:
+            The best file metadata dictionary
+        """
+        if len(duplicate_files) == 1:
+            return duplicate_files[0]
+
+        # Sort by priority
+        def priority_key(f: Dict[str, Any]) -> Tuple[bool, bool, int]:
+            return (
+                f["has_victory_data"],  # True sorts after False, so we negate
+                not f["is_autosave"],  # Prefer non-autosaves
+                f["file_size"],  # Larger files preferred
+            )
+
+        sorted_files = sorted(duplicate_files, key=priority_key, reverse=True)
+        return sorted_files[0]
+
+    def find_duplicates(
+        self, files: List[Path], deduplicate: bool = True
+    ) -> Tuple[List[str], List[Dict[str, Any]]]:
+        """Find and filter duplicate files.
+
+        Args:
+            files: List of file paths to check
+            deduplicate: If True, filter out duplicates keeping only the best
+
+        Returns:
+            Tuple of (files_to_process, skipped_files_info)
+            - files_to_process: List of file paths to process
+            - skipped_files_info: List of dicts with info about skipped files
+        """
+        if not deduplicate:
+            return [str(f) for f in files], []
+
+        logger.info("Scanning files for duplicates...")
+
+        # Extract metadata for all files
+        file_metadata = []
+        for file_path in files:
+            metadata = self.extract_lightweight_metadata(str(file_path))
+            if metadata:
+                file_metadata.append(metadata)
+
+        # Group files by (game_name, total_turns, save_date)
+        from collections import defaultdict
+
+        groups = defaultdict(list)
+        for metadata in file_metadata:
+            # Create key from game identifiers
+            key = (
+                metadata["game_name"],
+                metadata["total_turns"],
+                metadata["save_date"],
+            )
+            groups[key].append(metadata)
+
+        # Select best file from each group
+        files_to_process = []
+        skipped_files = []
+
+        for group_key, group_files in groups.items():
+            if len(group_files) > 1:
+                # Found duplicates
+                best_file = self.select_best_duplicate(group_files)
+                files_to_process.append(best_file["file_path"])
+
+                # Log skipped files
+                for file_metadata in group_files:
+                    if file_metadata["file_path"] != best_file["file_path"]:
+                        reason_parts = []
+                        if not file_metadata["has_victory_data"]:
+                            reason_parts.append("missing victory data")
+                        if file_metadata["is_autosave"]:
+                            reason_parts.append("autosave")
+                        if (
+                            file_metadata["file_size"] < best_file["file_size"]
+                        ):
+                            reason_parts.append(
+                                f"smaller ({file_metadata['file_size']} < {best_file['file_size']} bytes)"
+                            )
+
+                        reason = ", ".join(reason_parts) if reason_parts else "lower priority"
+
+                        skipped_files.append(
+                            {
+                                "file_path": file_metadata["file_path"],
+                                "game_name": group_key[0],
+                                "reason": reason,
+                                "duplicate_of": best_file["file_path"],
+                            }
+                        )
+
+                        logger.info(
+                            f"Skipping duplicate: {Path(file_metadata['file_path']).name} "
+                            f"(reason: {reason})"
+                        )
+            else:
+                # No duplicates, process the only file
+                files_to_process.append(group_files[0]["file_path"])
+
+        logger.info(
+            f"Deduplication complete: {len(files_to_process)} files to process, "
+            f"{len(skipped_files)} duplicates skipped"
+        )
+
+        return files_to_process, skipped_files
+
     def process_directory(
-        self, directory_path: str, file_pattern: str = "*.zip"
-    ) -> Tuple[int, int]:
+        self, directory_path: str, file_pattern: str = "*.zip", deduplicate: bool = True
+    ) -> Tuple[int, int, List[Dict[str, Any]]]:
         """Process all tournament files in a directory.
 
         Args:
             directory_path: Path to directory containing tournament files
             file_pattern: File pattern to match (default: "*.zip")
+            deduplicate: If True, automatically skip duplicate files (default: True)
 
         Returns:
-            Tuple of (successful_count, total_count)
+            Tuple of (successful_count, total_count, skipped_duplicates)
         """
         directory = Path(directory_path)
 
@@ -363,32 +529,38 @@ class TournamentETL:
             raise ValueError(f"Directory does not exist: {directory_path}")
 
         # Find all matching files
-        files = list(directory.glob(file_pattern))
+        all_files = list(directory.glob(file_pattern))
 
-        if not files:
+        if not all_files:
             logger.warning(
                 f"No files matching pattern '{file_pattern}' found in {directory_path}"
             )
-            return 0, 0
+            return 0, 0, []
 
-        logger.info(f"Found {len(files)} files to process in {directory_path}")
+        logger.info(f"Found {len(all_files)} files in {directory_path}")
+
+        # Deduplicate files if requested
+        files_to_process, skipped_duplicates = self.find_duplicates(
+            all_files, deduplicate=deduplicate
+        )
 
         successful_count = 0
+        total_files = len(files_to_process)
 
-        for file_path in files:
+        for i, file_path in enumerate(files_to_process):
             logger.info(
-                f"Processing file {successful_count + 1}/{len(files)}: {file_path.name}"
+                f"Processing file {i + 1}/{total_files}: {Path(file_path).name}"
             )
 
-            if self.process_tournament_file(str(file_path)):
+            if self.process_tournament_file(file_path):
                 successful_count += 1
             else:
                 logger.error(f"Failed to process: {file_path}")
 
         logger.info(
-            f"Processing complete: {successful_count}/{len(files)} files successful"
+            f"Processing complete: {successful_count}/{total_files} files successful"
         )
-        return successful_count, len(files)
+        return successful_count, total_files, skipped_duplicates
 
     def get_processing_summary(self) -> Dict[str, Any]:
         """Get a summary of processed data.
@@ -541,13 +713,16 @@ def initialize_database() -> TournamentDatabase:
 
 
 def process_tournament_directory(
-    directory_path: str, challonge_match_mapping: Optional[Dict[str, int]] = None
+    directory_path: str,
+    challonge_match_mapping: Optional[Dict[str, int]] = None,
+    deduplicate: bool = True,
 ) -> Dict[str, Any]:
     """Process all tournament files in a directory.
 
     Args:
         directory_path: Path to directory containing tournament save files
         challonge_match_mapping: Optional mapping of filename to Challonge match ID
+        deduplicate: If True, automatically skip duplicate files (default: True)
 
     Returns:
         Dictionary with processing results
@@ -559,7 +734,9 @@ def process_tournament_directory(
     etl = TournamentETL(db)
 
     # Process all files
-    successful_count, total_count = etl.process_directory(directory_path)
+    successful_count, total_count, skipped_duplicates = etl.process_directory(
+        directory_path, deduplicate=deduplicate
+    )
 
     # Cleanup and validate
     duplicates_removed = etl.cleanup_duplicate_entries()
@@ -573,6 +750,8 @@ def process_tournament_directory(
             "successful_files": successful_count,
             "total_files": total_count,
             "success_rate": successful_count / total_count if total_count > 0 else 0,
+            "skipped_duplicates": len(skipped_duplicates),
+            "skipped_files": skipped_duplicates,
         },
         "cleanup": {"duplicates_removed": duplicates_removed},
         "validation": validation_results,
