@@ -1815,6 +1815,9 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     legitimacy_history = parser.extract_legitimacy_history()
     opinion_histories = parser.extract_opinion_histories()
 
+    # Extract ruler succession data
+    rulers = parser.extract_rulers()
+
     # Determine winner
     winner_player_id = parser.determine_winner(players)
     match_metadata["winner_player_id"] = winner_player_id
@@ -1837,4 +1840,5 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
         "legitimacy_history": legitimacy_history,
         "family_opinion_history": opinion_histories["family_opinions"],
         "religion_opinion_history": opinion_histories["religion_opinions"],
+        "rulers": rulers,
     }

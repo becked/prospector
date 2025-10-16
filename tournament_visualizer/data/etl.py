@@ -154,6 +154,14 @@ class TournamentETL:
 
         logger.info(f"Inserted {len(players_data)} players")
 
+        # Process rulers (after players, before events due to foreign key dependency)
+        rulers = parsed_data.get("rulers", [])
+        # Rulers already use 1-based player_ids from parser, so no mapping needed
+        # But we do need to add match_id
+        if rulers:
+            self.db.bulk_insert_rulers(match_id, rulers)
+            logger.info(f"Inserted {len(rulers)} rulers")
+
         # Validate override was applied if requested
         if override_winner_name and not winner_db_id:
             logger.error(
