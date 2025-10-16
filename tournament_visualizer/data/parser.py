@@ -1586,6 +1586,186 @@ class OldWorldSaveParser:
             "religion_opinions": religion_opinions,
         }
 
+    def extract_rulers(self) -> List[Dict[str, Any]]:
+        """Extract ruler succession data from Player/Leaders elements.
+
+        Parses the complete ruler succession for each player, including archetype
+        and starting trait information. The Leaders element contains character IDs
+        in chronological order of succession.
+
+        Each ruler's archetype and starting trait are determined by examining their
+        Character element's TraitTurn data:
+        - Traits with turn_acquired=1 are initial choices at game start
+        - One trait will have '_ARCHETYPE' suffix (Scholar, Tactician, Commander, Schemer)
+        - One trait will be a regular trait (Educated, Brave, Intelligent, etc.)
+
+        Note on Player IDs:
+            XML uses 0-based player IDs (ID="0", ID="1", etc.)
+            Database uses 1-based player IDs (player_id=1, player_id=2, etc.)
+            Conversion: database_player_id = xml_id + 1
+
+        Returns:
+            List of ruler dictionaries with keys:
+                - player_id: Database player ID (1-based)
+                - character_id: Character ID from XML
+                - ruler_name: Formatted ruler name (e.g., "Yazdegerd")
+                - archetype: Ruler archetype (e.g., "Schemer", "Scholar")
+                - starting_trait: Initial trait chosen (e.g., "Educated")
+                - succession_order: 0 for starting ruler, 1+ for successors
+                - succession_turn: Turn when ruler took power
+
+        Raises:
+            ValueError: If XML not parsed yet (call extract_and_parse() first)
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        rulers = []
+
+        # Find all player elements with OnlineID (human players only)
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            # Get player's XML ID (0-based)
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based database player ID
+            player_id = int(player_xml_id) + 1
+
+            # Find Leaders element containing succession order
+            leaders_elem = player_elem.find("Leaders")
+            if leaders_elem is None:
+                logger.warning(f"No Leaders element found for player {player_id}")
+                continue
+
+            # Extract all leader character IDs in succession order
+            leader_id_elements = leaders_elem.findall("ID")
+
+            for succession_order, leader_id_elem in enumerate(leader_id_elements):
+                character_id_str = leader_id_elem.text
+                if not character_id_str:
+                    continue
+
+                character_id = self._safe_int(character_id_str)
+                if character_id is None:
+                    continue
+
+                # Look up character data
+                char_elem = self.root.find(f".//Character[@ID='{character_id}']")
+                if char_elem is None:
+                    logger.warning(
+                        f"Character {character_id} not found for player {player_id}"
+                    )
+                    continue
+
+                # Extract ruler name
+                first_name = char_elem.get("FirstName")
+                ruler_name = self._format_context_value(first_name) if first_name else None
+
+                # Extract archetype and starting trait from TraitTurn
+                archetype = None
+                starting_trait = None
+
+                trait_turn_elem = char_elem.find(".//TraitTurn")
+                if trait_turn_elem is not None:
+                    for trait_elem in trait_turn_elem:
+                        trait_name = trait_elem.tag
+                        turn_acquired_str = trait_elem.text
+                        turn_acquired = self._safe_int(turn_acquired_str)
+
+                        # Only process turn 1 traits (initial choices)
+                        if turn_acquired != 1:
+                            continue
+
+                        # Check if this is an archetype trait
+                        if "_ARCHETYPE" in trait_name:
+                            # Remove TRAIT_ prefix and _ARCHETYPE suffix
+                            archetype = (
+                                trait_name.replace("TRAIT_", "")
+                                .replace("_ARCHETYPE", "")
+                                .replace("_", " ")
+                                .title()
+                            )
+                        else:
+                            # This is the starting trait
+                            starting_trait = (
+                                trait_name.replace("TRAIT_", "")
+                                .replace("_", " ")
+                                .title()
+                            )
+
+                # Determine succession turn
+                # For starting ruler (succession_order=0), always turn 1
+                # For successors, look for CHARACTER_SUCCESSION event
+                if succession_order == 0:
+                    succession_turn = 1
+                else:
+                    # Find the CHARACTER_SUCCESSION event for this character
+                    succession_turn = self._find_succession_turn(
+                        player_elem, character_id
+                    )
+                    if succession_turn is None:
+                        # Fallback: estimate based on order
+                        logger.warning(
+                            f"No succession event found for character {character_id}"
+                        )
+                        succession_turn = 1  # Default fallback
+
+                ruler_data = {
+                    "player_id": player_id,
+                    "character_id": character_id,
+                    "ruler_name": ruler_name,
+                    "archetype": archetype,
+                    "starting_trait": starting_trait,
+                    "succession_order": succession_order,
+                    "succession_turn": succession_turn,
+                }
+
+                rulers.append(ruler_data)
+
+        return rulers
+
+    def _find_succession_turn(
+        self, player_elem: ET.Element, character_id: int
+    ) -> Optional[int]:
+        """Find the turn when a character became ruler from succession events.
+
+        Searches through the player's PermanentLogList for CHARACTER_SUCCESSION
+        events that match the given character ID.
+
+        Args:
+            player_elem: Player XML element
+            character_id: Character ID to search for
+
+        Returns:
+            Turn number when succession occurred, or None if not found
+        """
+        perm_log_list = player_elem.find(".//PermanentLogList")
+        if perm_log_list is None:
+            return None
+
+        # Search for CHARACTER_SUCCESSION events
+        for log_elem in perm_log_list.findall(".//LogData"):
+            type_elem = log_elem.find("Type")
+            if type_elem is None or type_elem.text != "CHARACTER_SUCCESSION":
+                continue
+
+            # Check if Data1 contains our character ID
+            data1_elem = log_elem.find("Data1")
+            if data1_elem is None:
+                continue
+
+            event_char_id = self._safe_int(data1_elem.text)
+            if event_char_id == character_id:
+                # Found the succession event, extract turn
+                turn_elem = log_elem.find("Turn")
+                if turn_elem is not None:
+                    return self._safe_int(turn_elem.text)
+
+        return None
+
 
 def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     """Parse a tournament save file and extract all data.
