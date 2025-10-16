@@ -130,6 +130,7 @@ class TournamentDatabase:
         # Create tables in dependency order
         self._create_matches_table()
         self._create_players_table()
+        self._create_rulers_table()
         self._create_match_winners_table()
         self._create_match_metadata_table()
         self._create_territories_table()
@@ -160,6 +161,7 @@ class TournamentDatabase:
         sequences = [
             "CREATE SEQUENCE IF NOT EXISTS matches_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS players_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS rulers_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS territories_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS events_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS resources_id_seq START 1;",
@@ -234,6 +236,32 @@ class TournamentDatabase:
         CREATE INDEX IF NOT EXISTS idx_players_name_normalized ON players(player_name_normalized);
         CREATE INDEX IF NOT EXISTS idx_players_civilization ON players(civilization);
         CREATE INDEX IF NOT EXISTS idx_players_match_name ON players(match_id, player_name_normalized);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_rulers_table(self) -> None:
+        """Create the rulers table for tracking ruler succession."""
+        query = """
+        CREATE TABLE IF NOT EXISTS rulers (
+            ruler_id INTEGER PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            character_id INTEGER NOT NULL,
+            ruler_name VARCHAR,
+            archetype VARCHAR,
+            starting_trait VARCHAR,
+            succession_order INTEGER NOT NULL,
+            succession_turn INTEGER NOT NULL,
+
+            CONSTRAINT check_succession_order CHECK(succession_order >= 0),
+            CONSTRAINT check_succession_turn CHECK(succession_turn >= 1)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rulers_match_id ON rulers(match_id);
+        CREATE INDEX IF NOT EXISTS idx_rulers_player_id ON rulers(player_id);
+        CREATE INDEX IF NOT EXISTS idx_rulers_match_player ON rulers(match_id, player_id);
+        CREATE INDEX IF NOT EXISTS idx_rulers_succession_order ON rulers(match_id, player_id, succession_order);
         """
         with self.get_connection() as conn:
             conn.execute(query)
