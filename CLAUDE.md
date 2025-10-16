@@ -262,6 +262,39 @@ database_player_id = int(xml_id) + 1
 - Root element contains match metadata as attributes
 - Player elements contain turn-by-turn data
 
+### Match Winner Overrides
+
+**Problem**: Some save files have incorrect winner data due to:
+- Old World bug preventing access to completed saves
+- Manual corruption from TO opening files to reveal maps
+- Missing TeamVictoriesCompleted data
+
+**Solution**: Manual override system via JSON configuration
+
+**Location**: `data/match_winner_overrides.json` (not in git)
+
+**Format**:
+```json
+{
+  "challonge_match_id": {
+    "winner_player_name": "PlayerName",
+    "reason": "Why this override is needed",
+    "date_added": "YYYY-MM-DD",
+    "notes": "Optional additional context"
+  }
+}
+```
+
+**Usage**:
+1. Copy `data/match_winner_overrides.json.example` to `data/match_winner_overrides.json`
+2. Add override entry for problematic match
+3. Re-import data: `uv run python scripts/import_attachments.py --force`
+4. For production: `./scripts/sync_tournament_data.sh` (uploads override file automatically)
+
+**Priority**: Overrides take precedence over save file data
+**Logging**: Check logs for "Applying winner override" messages
+**Validation**: Errors logged if override player name not found in save file
+
 ## Deployment (Fly.io)
 
 ### Quick Reference
