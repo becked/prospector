@@ -1,6 +1,3 @@
-Solver:
-* Incorrect winner reported on games
-
 Nolegskitten:
 * Divergance between first pick nations and second pick nations
 * Prominent archtype/traits combos
