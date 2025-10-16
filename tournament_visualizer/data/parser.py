@@ -1688,8 +1688,9 @@ class OldWorldSaveParser:
                                 .replace("_", " ")
                                 .title()
                             )
-                        else:
-                            # This is the starting trait
+                        elif starting_trait is None:
+                            # This is the starting trait - only set once (take first non-archetype)
+                            # This ensures we get the player-chosen trait, not random inherited traits
                             starting_trait = (
                                 trait_name.replace("TRAIT_", "")
                                 .replace("_", " ")
