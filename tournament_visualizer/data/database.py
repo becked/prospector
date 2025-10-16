@@ -910,6 +910,82 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             conn.execute(query, [match_id, winner_player_id, method])
 
+    def bulk_insert_rulers(self, match_id: int, rulers: List[Dict[str, Any]]) -> None:
+        """Bulk insert ruler data for a match.
+
+        Args:
+            match_id: The match ID to associate rulers with
+            rulers: List of ruler dictionaries from parser.extract_rulers()
+
+        Raises:
+            ValueError: If match_id is invalid or rulers data is malformed
+        """
+        if not rulers:
+            logger.debug(f"No rulers to insert for match {match_id}")
+            return
+
+        logger.info(f"Inserting {len(rulers)} rulers for match {match_id}")
+
+        try:
+            # Prepare data for batch insert
+            insert_data = []
+
+            for ruler in rulers:
+                # Validate required fields
+                if "player_id" not in ruler or "character_id" not in ruler:
+                    logger.warning(f"Skipping ruler with missing required fields: {ruler}")
+                    continue
+
+                # Build insert tuple
+                insert_data.append({
+                    "match_id": match_id,
+                    "player_id": ruler["player_id"],
+                    "character_id": ruler["character_id"],
+                    "ruler_name": ruler.get("ruler_name"),
+                    "archetype": ruler.get("archetype"),
+                    "starting_trait": ruler.get("starting_trait"),
+                    "succession_order": ruler.get("succession_order", 0),
+                    "succession_turn": ruler.get("succession_turn", 1),
+                })
+
+            if not insert_data:
+                logger.warning(f"No valid rulers to insert for match {match_id}")
+                return
+
+            # Batch insert using DuckDB's efficient bulk insert
+            with self.get_connection() as conn:
+                query = """
+                INSERT INTO rulers (
+                    ruler_id, match_id, player_id, character_id, ruler_name,
+                    archetype, starting_trait, succession_order, succession_turn
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+
+                values = []
+                for d in insert_data:
+                    ruler_id = conn.execute("SELECT nextval('rulers_id_seq')").fetchone()[0]
+                    values.append(
+                        [
+                            ruler_id,
+                            d["match_id"],
+                            d["player_id"],
+                            d["character_id"],
+                            d["ruler_name"],
+                            d["archetype"],
+                            d["starting_trait"],
+                            d["succession_order"],
+                            d["succession_turn"],
+                        ]
+                    )
+
+                conn.executemany(query, values)
+
+            logger.info(f"Successfully inserted {len(insert_data)} rulers for match {match_id}")
+
+        except Exception as e:
+            logger.error(f"Error inserting rulers for match {match_id}: {e}")
+            raise
+
     def bulk_insert_events(self, events_data: List[Dict[str, Any]]) -> None:
         """Bulk insert event records for better performance.
 
