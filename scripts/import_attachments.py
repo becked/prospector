@@ -125,6 +125,7 @@ def print_summary(results: dict) -> None:
     print("\nDatabase contents:")
     print(f"  Matches: {summary['total_matches']}")
     print(f"  Players: {summary['total_players']} ({summary['unique_players']} unique)")
+    print(f"  Rulers: {summary['total_rulers']}")
     print(f"  Events: {summary['total_events']}")
     print(f"  Territories: {summary['total_territories']}")
     print(f"  Resources: {summary['total_resources']}")

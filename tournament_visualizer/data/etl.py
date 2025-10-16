@@ -660,6 +660,10 @@ class TournamentETL:
         result = self.db.fetch_one("SELECT COUNT(DISTINCT player_name) FROM players")
         summary["unique_players"] = result[0] if result else 0
 
+        # Count rulers
+        result = self.db.fetch_one("SELECT COUNT(*) FROM rulers")
+        summary["total_rulers"] = result[0] if result else 0
+
         # Count events
         result = self.db.fetch_one("SELECT COUNT(*) FROM events")
         summary["total_events"] = result[0] if result else 0
