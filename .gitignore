@@ -34,6 +34,9 @@ data/*.duckdb.*
 *.sqlite
 *.sqlite3
 
+# Match winner overrides (production data, not versioned)
+data/match_winner_overrides.json
+
 # Temporary files
 tmp/
 temp/

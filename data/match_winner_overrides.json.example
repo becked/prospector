@@ -1,0 +1,16 @@
+{
+  "_comment": "Match winner overrides for corrupted save files",
+  "_instructions": [
+    "Copy this file to match_winner_overrides.json and add your overrides",
+    "Match IDs must be strings (JSON limitation)",
+    "winner_player_name must match the exact player name from save file",
+    "Required fields: winner_player_name, reason",
+    "Optional fields: date_added, notes"
+  ],
+  "426504724": {
+    "winner_player_name": "PBM",
+    "reason": "TO manually surrendered wrong player to reveal map",
+    "date_added": "2025-10-16",
+    "notes": "Example: MongrelEyes shown in save but PBM actually won"
+  }
+}
