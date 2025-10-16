@@ -1728,6 +1728,158 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_ruler_archetype_win_rates(self) -> pd.DataFrame:
+        """Get win rates by starting ruler archetype.
+
+        Analyzes starting rulers only (succession_order = 0) to show which
+        archetypes correlate with victory.
+
+        Returns:
+            DataFrame with columns:
+            - archetype: Ruler archetype name
+            - games: Total games played with this archetype
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+        """
+        query = """
+        SELECT
+            r.archetype,
+            COUNT(*) as games,
+            SUM(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as wins,
+            ROUND(
+                SUM(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+                2
+            ) as win_rate
+        FROM rulers r
+        JOIN match_winners mw ON r.match_id = mw.match_id
+        WHERE r.succession_order = 0
+        AND r.archetype IS NOT NULL
+        GROUP BY r.archetype
+        ORDER BY win_rate DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_ruler_trait_win_rates(self, min_games: int = 2) -> pd.DataFrame:
+        """Get win rates by starting ruler trait.
+
+        Analyzes starting traits chosen at game initialization to show which
+        traits correlate with victory.
+
+        Args:
+            min_games: Minimum number of games required to include trait (default 2)
+
+        Returns:
+            DataFrame with columns:
+            - starting_trait: Trait name
+            - games: Total games played with this trait
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+        """
+        query = """
+        SELECT
+            r.starting_trait,
+            COUNT(*) as games,
+            SUM(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as wins,
+            ROUND(
+                SUM(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+                2
+            ) as win_rate
+        FROM rulers r
+        JOIN match_winners mw ON r.match_id = mw.match_id
+        WHERE r.succession_order = 0
+        AND r.starting_trait IS NOT NULL
+        GROUP BY r.starting_trait
+        HAVING COUNT(*) >= ?
+        ORDER BY win_rate DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [min_games]).df()
+
+    def get_ruler_succession_impact(self) -> pd.DataFrame:
+        """Get correlation between ruler succession count and victory.
+
+        Analyzes whether having more/fewer rulers correlates with winning.
+
+        Returns:
+            DataFrame with columns:
+            - succession_category: Grouped ruler count (e.g., '2 rulers')
+            - games: Total games in this category
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+        """
+        query = """
+        WITH player_successions AS (
+            SELECT
+                r.match_id,
+                r.player_id,
+                COUNT(*) as ruler_count,
+                MAX(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as won
+            FROM rulers r
+            JOIN match_winners mw ON r.match_id = mw.match_id
+            GROUP BY r.match_id, r.player_id
+        )
+        SELECT
+            CASE
+                WHEN ruler_count = 1 THEN '1 ruler'
+                WHEN ruler_count = 2 THEN '2 rulers'
+                WHEN ruler_count = 3 THEN '3 rulers'
+                ELSE '4+ rulers'
+            END as succession_category,
+            COUNT(*) as games,
+            SUM(won) as wins,
+            ROUND(SUM(won) * 100.0 / COUNT(*), 2) as win_rate
+        FROM player_successions
+        GROUP BY
+            CASE
+                WHEN ruler_count = 1 THEN '1 ruler'
+                WHEN ruler_count = 2 THEN '2 rulers'
+                WHEN ruler_count = 3 THEN '3 rulers'
+                ELSE '4+ rulers'
+            END
+        ORDER BY
+            CASE succession_category
+                WHEN '1 ruler' THEN 1
+                WHEN '2 rulers' THEN 2
+                WHEN '3 rulers' THEN 3
+                WHEN '4+ rulers' THEN 4
+            END
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_ruler_archetype_trait_combinations(self, limit: int = 10) -> pd.DataFrame:
+        """Get most popular archetype + trait combinations for starting rulers.
+
+        Args:
+            limit: Maximum number of combinations to return (default 10)
+
+        Returns:
+            DataFrame with columns:
+            - archetype: Ruler archetype name
+            - starting_trait: Starting trait name
+            - count: Number of times this combo was chosen
+        """
+        query = """
+        SELECT
+            r.archetype,
+            r.starting_trait,
+            COUNT(*) as count
+        FROM rulers r
+        WHERE r.succession_order = 0
+        AND r.archetype IS NOT NULL
+        AND r.starting_trait IS NOT NULL
+        GROUP BY r.archetype, r.starting_trait
+        ORDER BY count DESC
+        LIMIT ?
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [limit]).df()
+
 
 # Global queries instance
 queries = TournamentQueries()

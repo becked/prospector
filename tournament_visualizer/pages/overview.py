@@ -21,6 +21,10 @@ from tournament_visualizer.components.charts import (
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
     create_nation_win_percentage_chart,
+    create_ruler_archetype_trait_combinations_chart,
+    create_ruler_archetype_win_rates_chart,
+    create_ruler_succession_impact_chart,
+    create_ruler_trait_win_rates_chart,
     create_summary_metrics_cards,
     create_unit_popularity_sunburst_chart,
 )
@@ -126,6 +130,58 @@ layout = html.Div(
                         )
                     ],
                     width=12,
+                ),
+            ],
+            className="mb-4",
+        ),
+        # Ruler Analytics Section - 2x2 grid
+        html.H3("Ruler Analytics", className="mt-4 mb-3"),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Archetype Performance",
+                            chart_id="overview-ruler-archetype-chart",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Succession Impact",
+                            chart_id="overview-ruler-succession-chart",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Top Trait Win Rates",
+                            chart_id="overview-ruler-trait-chart",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Popular Combinations",
+                            chart_id="overview-ruler-combinations-chart",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
                 ),
             ],
             className="mb-4",
@@ -544,4 +600,120 @@ def update_event_timeline(n_intervals: int):
 
     except Exception as e:
         logger.error(f"Error loading event timeline: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-archetype-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_ruler_archetype_chart(n_intervals: int):
+    """Update ruler archetype win rates chart.
+
+    Shows win rates and games played for each starting archetype.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with dual-axis chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_ruler_archetype_win_rates()
+
+        if df.empty:
+            return create_empty_chart_placeholder("No ruler data available")
+
+        return create_ruler_archetype_win_rates_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler archetype data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-succession-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_ruler_succession_chart(n_intervals: int):
+    """Update ruler succession impact chart.
+
+    Shows correlation between ruler count and win rate.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with line chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_ruler_succession_impact()
+
+        if df.empty:
+            return create_empty_chart_placeholder("No ruler data available")
+
+        return create_ruler_succession_impact_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler succession data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-trait-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_ruler_trait_chart(n_intervals: int):
+    """Update ruler trait win rates chart.
+
+    Shows win rates for top starting traits.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_ruler_trait_win_rates(min_games=2)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No ruler data available")
+
+        return create_ruler_trait_win_rates_chart(df, top_n=10)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler trait data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-combinations-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_ruler_combinations_chart(n_intervals: int):
+    """Update ruler archetype + trait combinations chart.
+
+    Shows most popular starting ruler combinations.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_ruler_archetype_trait_combinations(limit=10)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No ruler data available")
+
+        return create_ruler_archetype_trait_combinations_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler combinations data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")

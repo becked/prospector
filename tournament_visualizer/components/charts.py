@@ -2915,3 +2915,252 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_ruler_archetype_win_rates_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a dual-axis chart showing archetype win rates and games played.
+
+    Displays both the number of games played (bars) and win rate percentage (line)
+    for each ruler archetype, allowing easy comparison of popularity vs effectiveness.
+
+    Args:
+        df: DataFrame with columns: archetype, games, wins, win_rate
+
+    Returns:
+        Plotly figure with dual-axis bar/line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler data available")
+
+    # Sort by win rate descending
+    df_sorted = df.sort_values("win_rate", ascending=True)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Add bars for games played
+    fig.add_trace(
+        go.Bar(
+            y=df_sorted["archetype"],
+            x=df_sorted["games"],
+            name="Games Played",
+            marker_color="lightblue",
+            orientation="h",
+            hovertemplate="<b>%{y}</b><br>Games: %{x}<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    # Add line for win rate
+    fig.add_trace(
+        go.Scatter(
+            y=df_sorted["archetype"],
+            x=df_sorted["win_rate"],
+            name="Win Rate",
+            mode="lines+markers",
+            marker=dict(size=10, color="red"),
+            line=dict(color="red", width=2),
+            hovertemplate="<b>%{y}</b><br>Win Rate: %{x:.1f}%<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    # Update axes labels
+    fig.update_layout(
+        title_text="Archetype Performance",
+        height=400,
+        showlegend=True,
+        legend=dict(x=0.5, y=-0.15, xanchor="center", orientation="h"),
+        hovermode="closest",
+        yaxis=dict(title="Archetype"),
+        xaxis=dict(title="Games Played"),
+        xaxis2=dict(title="Win Rate (%)", overlaying="x", side="top", range=[0, 100]),
+    )
+
+    return fig
+
+
+def create_ruler_succession_impact_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing succession impact on victory.
+
+    Displays the relationship between number of ruler successions and win rate,
+    revealing patterns about succession stability and effectiveness.
+
+    Args:
+        df: DataFrame with columns: succession_category, games, wins, win_rate
+
+    Returns:
+        Plotly figure with line chart showing succession impact
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler data available")
+
+    # Define order for categories
+    category_order = ["1 ruler", "2 rulers", "3 rulers", "4+ rulers"]
+    df_sorted = df.set_index("succession_category").reindex(category_order).reset_index()
+
+    fig = create_base_figure(
+        title="Succession Impact on Victory",
+        x_title="Number of Rulers",
+        y_title="Win Rate (%)",
+        show_legend=False,
+    )
+
+    # Create hover text
+    hover_text = []
+    for _, row in df_sorted.iterrows():
+        if pd.isna(row['games']):
+            hover_text.append(f"<b>{row['succession_category']}</b><br>No data")
+        else:
+            hover_text.append(
+                f"<b>{row['succession_category']}</b><br>"
+                f"Win Rate: {row['win_rate']:.1f}%<br>"
+                f"Games: {int(row['games'])}<br>"
+                f"Wins: {int(row['wins'])}"
+            )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df_sorted["succession_category"],
+            y=df_sorted["win_rate"],
+            mode="lines+markers",
+            line=dict(color=Config.PRIMARY_COLORS[0], width=3),
+            marker=dict(size=12, color=Config.PRIMARY_COLORS[0]),
+            fill="tozeroy",
+            fillcolor=f"rgba({int(Config.PRIMARY_COLORS[0][1:3], 16)}, {int(Config.PRIMARY_COLORS[0][3:5], 16)}, {int(Config.PRIMARY_COLORS[0][5:7], 16)}, 0.2)",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(
+        yaxis={"range": [0, 100]},
+        height=400,
+    )
+
+    return fig
+
+
+def create_ruler_trait_win_rates_chart(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
+    """Create a horizontal bar chart showing trait win rates.
+
+    Displays win rates for starting ruler traits, limited to most common traits.
+
+    Args:
+        df: DataFrame with columns: starting_trait, games, wins, win_rate
+        top_n: Number of top traits to display (default 10)
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler data available")
+
+    # Limit to top N and sort by win rate
+    df_top = df.head(top_n).sort_values("win_rate", ascending=True)
+
+    fig = create_base_figure(
+        title=f"Top {top_n} Starting Trait Win Rates",
+        x_title="Win Rate (%)",
+        y_title="Trait",
+        show_legend=False,
+    )
+
+    # Create hover text
+    hover_text = [
+        f"<b>{row['starting_trait']}</b><br>"
+        f"Win Rate: {row['win_rate']:.1f}%<br>"
+        f"Games: {int(row['games'])}<br>"
+        f"Wins: {int(row['wins'])}"
+        for _, row in df_top.iterrows()
+    ]
+
+    # Color bars based on win rate (green for high, red for low)
+    colors = [
+        f"rgb({int(255 * (1 - rate/100))}, {int(200 * rate/100)}, 50)"
+        for rate in df_top["win_rate"]
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_top["win_rate"],
+            y=df_top["starting_trait"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{rate:.1f}%" for rate in df_top["win_rate"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(
+        xaxis={"range": [0, 100]},
+        height=400,
+    )
+
+    return fig
+
+
+def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a horizontal bar chart showing popular archetype + trait combos.
+
+    Displays the most frequently chosen starting ruler combinations.
+
+    Args:
+        df: DataFrame with columns: archetype, starting_trait, count
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler data available")
+
+    # Create combined label
+    df = df.copy()
+    df["combo"] = df["archetype"] + " + " + df["starting_trait"]
+
+    # Sort by count ascending (for horizontal bar display)
+    df_sorted = df.sort_values("count", ascending=True)
+
+    fig = create_base_figure(
+        title="Popular Archetype + Trait Combinations",
+        x_title="Times Chosen",
+        y_title="Combination",
+        show_legend=False,
+    )
+
+    # Color by archetype
+    archetype_colors = {
+        "Scholar": "#1f77b4",
+        "Tactician": "#ff7f0e",
+        "Commander": "#2ca02c",
+        "Schemer": "#d62728",
+        "Builder": "#9467bd",
+        "Judge": "#8c564b",
+        "Zealot": "#e377c2",
+    }
+    colors = [archetype_colors.get(row["archetype"], "#7f7f7f") for _, row in df_sorted.iterrows()]
+
+    # Create hover text
+    hover_text = [
+        f"<b>{row['combo']}</b><br>"
+        f"Times Chosen: {int(row['count'])}"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["count"],
+            y=df_sorted["combo"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=df_sorted["count"].astype(int),
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(height=400)
+
+    return fig
