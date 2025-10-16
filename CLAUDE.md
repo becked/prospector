@@ -106,7 +106,7 @@ uv run python scripts/verify_analytics.py
 - Changes to the database file won't be visible until the connection is closed/reopened
 - Always restart the server after importing new data
 
-**Production (Fly.io) - Automated (Recommended):**
+**Production (Fly.io):**
 
 Use the sync script from your local machine to update production:
 ```bash
@@ -118,25 +118,17 @@ This script processes data **locally** (much faster!) and then uploads to Fly.io
 1. Download all attachments from Challonge (to local `saves/` directory)
 2. Import save files into DuckDB locally (~10x faster than on Fly.io)
 3. Upload database directly to Fly.io (overwrites existing file)
-4. Fix file permissions (664, owned by appuser) and restart app
+4. Upload match winner overrides file (if exists)
+5. Fix file permissions (664, owned by appuser) and restart app
 
 **Note**: The app stays running during upload. Restart ensures the app picks up the new database cleanly.
 
 **Why local processing?** Fly.io's shared CPUs and network-attached storage make XML parsing and database writes very slow. Processing locally on your machine is significantly faster.
 
-Requires:
+**Requirements:**
 - `flyctl` installed locally
 - `uv` installed locally (for running Python scripts)
 - Environment variables set locally: `CHALLONGE_KEY`, `CHALLONGE_USER`, `challonge_tournament_id`
-
-**Production (Fly.io) - Remote Processing (Legacy):**
-
-For the old workflow that processes on Fly.io (slower but doesn't require local setup):
-```bash
-./scripts/sync_tournament_data_remote.sh [app-name]
-```
-
-This processes data on the Fly.io server itself. Requires only `flyctl` locally, but is much slower due to resource constraints.
 
 **Local Development:**
 
