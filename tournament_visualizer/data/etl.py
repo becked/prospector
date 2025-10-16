@@ -106,20 +106,33 @@ class TournamentETL:
     def _load_tournament_data(self, parsed_data: Dict[str, Any]) -> None:
         """Load parsed tournament data into the database.
 
+        Winner determination priority:
+        1. Manual override (from match_winner_overrides.json)
+        2. Parser-determined (from save file TeamVictoriesCompleted)
+        3. No winner recorded (None)
+
         Args:
             parsed_data: Dictionary containing all parsed data
         """
         # Start with match data (without winner_player_id for now)
         match_metadata = parsed_data["match_metadata"].copy()
         original_winner_id = match_metadata.pop("winner_player_id", None)
+        challonge_match_id = match_metadata.get("challonge_match_id")
         match_id = self.db.insert_match(match_metadata)
 
         logger.info(f"Inserted match with ID: {match_id}")
 
+        # Check for manual override BEFORE processing players
+        from .winner_overrides import get_overrides
+        overrides = get_overrides()
+        override_winner_name = overrides.get_override_winner(challonge_match_id)
+
         # Process players
         players_data = parsed_data["players"]
         player_id_mapping = {}  # Map original index to database ID
+        player_name_to_db_id = {}  # Map player name to database ID
         winner_db_id = None
+        winner_method = "parser_determined"
 
         for i, player_data in enumerate(players_data):
             player_data["match_id"] = match_id
@@ -127,16 +140,43 @@ class TournamentETL:
             original_player_id = i + 1  # Assuming 1-based indexing
             player_id_mapping[original_player_id] = player_id
 
-            # Check if this is the winner
-            if original_winner_id and original_player_id == original_winner_id:
+            # Track player names for override lookup
+            player_name = player_data["player_name"]
+            player_name_to_db_id[player_name] = player_id
+
+            # Check if this is the winner (override takes precedence)
+            if override_winner_name:
+                if player_name == override_winner_name:
+                    winner_db_id = player_id
+                    winner_method = "manual_override"
+            elif original_winner_id and original_player_id == original_winner_id:
                 winner_db_id = player_id
 
         logger.info(f"Inserted {len(players_data)} players")
 
+        # Validate override was applied if requested
+        if override_winner_name and not winner_db_id:
+            logger.error(
+                f"Override winner '{override_winner_name}' not found in player list "
+                f"for match {challonge_match_id}. Available players: {list(player_name_to_db_id.keys())}"
+            )
+            # Fall back to parser-determined winner
+            for i, player_data in enumerate(players_data):
+                original_player_id = i + 1
+                if original_winner_id and original_player_id == original_winner_id:
+                    winner_db_id = player_id_mapping[original_player_id]
+                    winner_method = "parser_determined"
+                    logger.warning(
+                        f"Falling back to parser-determined winner for match {challonge_match_id}"
+                    )
+                    break
+
         # Insert winner information into separate table
         if winner_db_id:
-            self.db.insert_match_winner(match_id, winner_db_id, "parser_determined")
-            logger.info(f"Recorded winner: player_id {winner_db_id}")
+            self.db.insert_match_winner(match_id, winner_db_id, winner_method)
+            logger.info(
+                f"Recorded winner: player_id {winner_db_id} (method: {winner_method})"
+            )
 
         # Process events
         events = parsed_data["events"]
@@ -510,6 +550,31 @@ class TournamentETL:
 
         return files_to_process, skipped_files
 
+    def extract_challonge_match_id(self, file_path: str) -> Optional[int]:
+        """Extract Challonge match ID from filename.
+
+        Filenames follow the pattern: match_{challonge_match_id}_*.zip
+        Example: match_426504724_moose-mongreleyes.zip -> 426504724
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Challonge match ID if found, None otherwise
+        """
+        import re
+
+        filename = Path(file_path).name
+        # Match pattern: match_{digits}_
+        match = re.match(r"match_(\d+)_", filename)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                logger.warning(f"Could not parse match ID from filename: {filename}")
+                return None
+        return None
+
     def process_directory(
         self, directory_path: str, file_pattern: str = "*.zip", deduplicate: bool = True
     ) -> Tuple[int, int, List[Dict[str, Any]]]:
@@ -552,7 +617,12 @@ class TournamentETL:
                 f"Processing file {i + 1}/{total_files}: {Path(file_path).name}"
             )
 
-            if self.process_tournament_file(file_path):
+            # Extract challonge_match_id from filename
+            challonge_match_id = self.extract_challonge_match_id(file_path)
+            if challonge_match_id:
+                logger.info(f"Extracted Challonge match ID: {challonge_match_id}")
+
+            if self.process_tournament_file(file_path, challonge_match_id):
                 successful_count += 1
             else:
                 logger.error(f"Failed to process: {file_path}")
