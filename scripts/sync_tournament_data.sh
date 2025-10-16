@@ -73,7 +73,7 @@ echo -e "${GREEN}✓ App accessible${NC}"
 echo ""
 
 # Step 1: Download attachments from Challonge (locally)
-echo -e "${YELLOW}[1/5] Downloading attachments from Challonge (local)...${NC}"
+echo -e "${YELLOW}[1/6] Downloading attachments from Challonge (local)...${NC}"
 if uv run python scripts/download_attachments.py; then
     echo -e "${GREEN}✓ Download complete${NC}"
 else
@@ -84,7 +84,7 @@ fi
 echo ""
 
 # Step 2: Import attachments into DuckDB (locally - FAST!)
-echo -e "${YELLOW}[2/5] Importing save files into DuckDB (local - fast!)...${NC}"
+echo -e "${YELLOW}[2/6] Importing save files into DuckDB (local - fast!)...${NC}"
 IMPORT_CMD="uv run python scripts/import_attachments.py --directory saves --verbose ${FORCE_FLAG}"
 if ${IMPORT_CMD}; then
     echo -e "${GREEN}✓ Import complete${NC}"
@@ -95,7 +95,7 @@ fi
 echo ""
 
 # Step 3: Upload new database via atomic replacement
-echo -e "${YELLOW}[3/5] Uploading new database...${NC}"
+echo -e "${YELLOW}[3/6] Uploading new database...${NC}"
 DB_PATH="data/tournament_data.duckdb"
 REMOTE_PATH="/data/tournament_data.duckdb"
 REMOTE_TEMP_PATH="/data/tournament_data.duckdb.new"
@@ -119,7 +119,7 @@ fi
 echo ""
 
 # Step 4: Verify upload succeeded
-echo -e "${YELLOW}[4/5] Verifying upload...${NC}"
+echo -e "${YELLOW}[4/6] Verifying upload...${NC}"
 
 # Get local file size (macOS syntax)
 LOCAL_SIZE=$(stat -f %z "${DB_PATH}" 2>/dev/null || stat -c %s "${DB_PATH}" 2>/dev/null)
@@ -145,8 +145,28 @@ else
 fi
 echo ""
 
+# Step 4.5: Upload override file if it exists
+if [ -f "data/match_winner_overrides.json" ]; then
+    echo -e "${YELLOW}[4.5/6] Uploading match winner overrides...${NC}"
+
+    if echo "put data/match_winner_overrides.json /data/match_winner_overrides.json" | fly ssh sftp shell -a "${APP_NAME}"; then
+        echo -e "${GREEN}✓ Override file uploaded${NC}"
+
+        # Fix permissions
+        fly ssh console -a "${APP_NAME}" -C "chmod 664 /data/match_winner_overrides.json" 2>/dev/null
+        fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser /data/match_winner_overrides.json" 2>/dev/null
+    else
+        echo -e "${YELLOW}Warning: Could not upload override file${NC}"
+    fi
+
+    echo ""
+else
+    echo -e "${BLUE}No override file found - skipping upload${NC}"
+    echo ""
+fi
+
 # Step 5: Atomically replace database and restart
-echo -e "${YELLOW}[5/5] Replacing database and restarting app...${NC}"
+echo -e "${YELLOW}[5/6] Replacing database and restarting app...${NC}"
 
 # Atomic move (replaces locked file while app is running)
 if fly ssh console -a "${APP_NAME}" -C "mv ${REMOTE_TEMP_PATH} ${REMOTE_PATH}"; then
