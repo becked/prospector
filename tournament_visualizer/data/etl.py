@@ -156,8 +156,14 @@ class TournamentETL:
 
         # Process rulers (after players, before events due to foreign key dependency)
         rulers = parsed_data.get("rulers", [])
-        # Rulers already use 1-based player_ids from parser, so no mapping needed
-        # But we do need to add match_id
+        # Map player_ids from XML-based to database IDs
+        for ruler_data in rulers:
+            if (
+                ruler_data.get("player_id")
+                and ruler_data["player_id"] in player_id_mapping
+            ):
+                ruler_data["player_id"] = player_id_mapping[ruler_data["player_id"]]
+
         if rulers:
             self.db.bulk_insert_rulers(match_id, rulers)
             logger.info(f"Inserted {len(rulers)} rulers")
