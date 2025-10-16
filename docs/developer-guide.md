@@ -1082,3 +1082,65 @@ If you get stuck:
 **Last Updated:** 2025-10-10
 
 **Contributors:** Initial implementation following TDD and YAGNI principles. Turn-by-turn history feature added in October 2025. Comprehensive yields visualization added in October 2025.
+
+## Ruler Tracking
+
+The `rulers` table tracks ruler succession data for each player in a match, including archetype and starting trait information.
+
+### Database Schema
+
+```sql
+CREATE TABLE rulers (
+    ruler_id INTEGER PRIMARY KEY,
+    match_id BIGINT NOT NULL REFERENCES matches(match_id),
+    player_id BIGINT NOT NULL REFERENCES players(player_id),
+    character_id INTEGER NOT NULL,
+    ruler_name VARCHAR,
+    archetype VARCHAR,             -- Scholar, Tactician, Commander, Schemer, Builder, Judge, Zealot
+    starting_trait VARCHAR,        -- Initial trait chosen at game start
+    succession_order INTEGER NOT NULL,  -- 0 for starting ruler, 1+ for successors
+    succession_turn INTEGER NOT NULL,   -- Turn when ruler took power (1 for starting)
+);
+```
+
+### Common Queries
+
+```sql
+-- Get all rulers for a match
+SELECT p.player_name, r.ruler_name, r.archetype, r.starting_trait, r.succession_order
+FROM rulers r
+JOIN players p ON r.player_id = p.player_id AND r.match_id = p.match_id
+WHERE r.match_id = ?
+ORDER BY p.player_name, r.succession_order;
+
+-- Count ruler successions per player
+SELECT p.player_name, COUNT(*) as ruler_count
+FROM rulers r
+JOIN players p ON r.player_id = p.player_id
+WHERE r.match_id = ?
+GROUP BY p.player_name;
+
+-- Archetype win rates
+SELECT r.archetype, COUNT(*) as games,
+       SUM(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as wins
+FROM rulers r
+JOIN match_winners mw ON r.match_id = mw.match_id
+WHERE r.succession_order = 0
+GROUP BY r.archetype;
+```
+
+### Validation
+
+Run validation to check ruler data integrity:
+
+```bash
+uv run python scripts/validate_rulers.py
+```
+
+Validates:
+- Foreign key relationships
+- Sequential succession order
+- Correct succession turns
+- Valid archetype values
+- No duplicate rulers
+
