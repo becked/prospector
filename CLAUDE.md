@@ -350,6 +350,35 @@ For complex features, create an implementation plan in `docs/plans/`:
 
 See `docs/plans/logdata-ingestion-implementation-plan.md` as an example.
 
+## Dashboard & Chart Conventions
+
+### Chart Titles
+
+**Do NOT add internal chart titles** - the card header provides the title.
+
+**Pattern:**
+```python
+# ❌ WRONG - Redundant title
+fig.update_layout(
+    title_text="Archetype Performance",  # Don't do this
+    height=400,
+)
+
+# ✅ CORRECT - No title, card header shows it
+fig.update_layout(
+    height=400,
+    showlegend=True,
+)
+```
+
+**Why:** We follow the standard dashboard pattern where one card = one chart:
+- Card header provides context in the UI
+- Internal chart title would be redundant
+- Cleaner, more modern appearance
+- Follows industry standards (Grafana, Tableau, etc.)
+
+**Exception:** Only add chart titles if multiple charts appear in a single card (rare).
+
 ## Chyllonge Library Notes
 
 When working with the chyllonge library (Challonge API client):

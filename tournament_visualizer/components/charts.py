@@ -2966,7 +2966,6 @@ def create_ruler_archetype_win_rates_chart(df: pd.DataFrame) -> go.Figure:
 
     # Update axes labels
     fig.update_layout(
-        title_text="Archetype Performance",
         height=400,
         showlegend=True,
         legend=dict(x=0.5, y=-0.15, xanchor="center", orientation="h"),
@@ -2975,6 +2974,156 @@ def create_ruler_archetype_win_rates_chart(df: pd.DataFrame) -> go.Figure:
         xaxis=dict(title="Games Played"),
         xaxis2=dict(title="Win Rate (%)", overlaying="x", side="top", range=[0, 100]),
     )
+
+    return fig
+
+
+def create_ruler_trait_performance_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a dual-axis chart showing trait win rates and games played.
+
+    Displays both the number of games played (bars) and win rate percentage (line)
+    for each starting ruler trait, allowing easy comparison of popularity vs effectiveness.
+
+    Args:
+        df: DataFrame with columns: starting_trait, games, wins, win_rate
+
+    Returns:
+        Plotly figure with dual-axis bar/line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler data available")
+
+    # Sort by win rate descending
+    df_sorted = df.sort_values("win_rate", ascending=True)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Add bars for games played
+    fig.add_trace(
+        go.Bar(
+            y=df_sorted["starting_trait"],
+            x=df_sorted["games"],
+            name="Games Played",
+            marker_color="lightblue",
+            orientation="h",
+            hovertemplate="<b>%{y}</b><br>Games: %{x}<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    # Add line for win rate
+    fig.add_trace(
+        go.Scatter(
+            y=df_sorted["starting_trait"],
+            x=df_sorted["win_rate"],
+            name="Win Rate",
+            mode="lines+markers",
+            marker=dict(size=10, color="red"),
+            line=dict(color="red", width=2),
+            hovertemplate="<b>%{y}</b><br>Win Rate: %{x:.1f}%<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    # Update axes labels
+    fig.update_layout(
+        height=400,
+        showlegend=True,
+        legend=dict(x=0.5, y=-0.15, xanchor="center", orientation="h"),
+        hovermode="closest",
+        yaxis=dict(title="Trait"),
+        xaxis=dict(title="Games Played"),
+        xaxis2=dict(title="Win Rate (%)", overlaying="x", side="top", range=[0, 100]),
+    )
+
+    return fig
+
+
+def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
+    """Create a heatmap showing archetype vs archetype win rates.
+
+    Displays win rates for each archetype matchup, showing which archetypes
+    perform well against which opponents.
+
+    Args:
+        df: DataFrame with columns: archetype, opponent_archetype, games, wins, win_rate
+
+    Returns:
+        Plotly figure with heatmap showing matchup win rates
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No archetype matchup data available")
+
+    # Pivot the data for heatmap
+    pivot_data = df.pivot_table(
+        index="archetype",
+        columns="opponent_archetype",
+        values="win_rate",
+        aggfunc="first"
+    )
+
+    # Get games count for hover text
+    games_pivot = df.pivot_table(
+        index="archetype",
+        columns="opponent_archetype",
+        values="games",
+        aggfunc="first"
+    )
+
+    # Create hover text with win rates and game counts
+    hover_text = []
+    for i, row_archetype in enumerate(pivot_data.index):
+        hover_row = []
+        for j, col_archetype in enumerate(pivot_data.columns):
+            win_rate = pivot_data.iloc[i, j]
+            games = games_pivot.iloc[i, j]
+            if pd.notna(win_rate) and pd.notna(games):
+                hover_row.append(
+                    f"<b>{row_archetype} vs {col_archetype}</b><br>"
+                    f"Win Rate: {win_rate:.1f}%<br>"
+                    f"Games: {int(games)}"
+                )
+            else:
+                hover_row.append(f"<b>{row_archetype} vs {col_archetype}</b><br>No data")
+        hover_text.append(hover_row)
+
+    fig = create_base_figure(
+        show_legend=False,
+        height=500,
+    )
+
+    # Create color scale: red (0%) -> yellow (50%) -> green (100%)
+    colorscale = [
+        [0.0, "#EF5350"],    # Red (0% win rate)
+        [0.5, "#FFF59D"],    # Yellow (50% win rate)
+        [1.0, "#66BB6A"],    # Green (100% win rate)
+    ]
+
+    fig.add_trace(
+        go.Heatmap(
+            z=pivot_data.values,
+            x=pivot_data.columns,
+            y=pivot_data.index,
+            colorscale=colorscale,
+            zmin=0,
+            zmax=100,
+            hovertext=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(
+                title="Win Rate (%)",
+                ticksuffix="%",
+            ),
+            text=[[f"{val:.0f}%" if pd.notna(val) else "N/A"
+                   for val in row]
+                  for row in pivot_data.values],
+            texttemplate="%{text}",
+            textfont={"size": 10},
+        )
+    )
+
+    fig.update_xaxes(title="Opponent Archetype", side="bottom")
+    fig.update_yaxes(title="Your Archetype")
 
     return fig
 
@@ -3123,7 +3272,6 @@ def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figu
     df_sorted = df.sort_values("count", ascending=True)
 
     fig = create_base_figure(
-        title="Popular Archetype + Trait Combinations",
         x_title="Times Chosen",
         y_title="Combination",
         show_legend=False,

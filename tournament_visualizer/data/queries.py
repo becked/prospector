@@ -1851,6 +1851,47 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_ruler_archetype_matchups(self) -> pd.DataFrame:
+        """Get win rates for archetype vs archetype matchups.
+
+        Analyzes head-to-head performance between starting ruler archetypes
+        to identify favorable and unfavorable matchups.
+
+        Returns:
+            DataFrame with columns:
+            - archetype: The archetype (row in matrix)
+            - opponent_archetype: The opposing archetype (column in matrix)
+            - games: Number of games with this matchup
+            - wins: Number of wins for archetype
+            - win_rate: Win percentage for archetype (0-100)
+        """
+        query = """
+        WITH matchups AS (
+            -- Get all matchups in both directions
+            SELECT
+                r1.archetype as archetype,
+                r2.archetype as opponent_archetype,
+                CASE WHEN mw.winner_player_id = r1.player_id THEN 1 ELSE 0 END as won
+            FROM rulers r1
+            JOIN rulers r2 ON r1.match_id = r2.match_id AND r1.player_id != r2.player_id
+            JOIN match_winners mw ON r1.match_id = mw.match_id
+            WHERE r1.succession_order = 0 AND r2.succession_order = 0
+            AND r1.archetype IS NOT NULL AND r2.archetype IS NOT NULL
+        )
+        SELECT
+            archetype,
+            opponent_archetype,
+            COUNT(*) as games,
+            SUM(won) as wins,
+            ROUND(SUM(won) * 100.0 / COUNT(*), 2) as win_rate
+        FROM matchups
+        GROUP BY archetype, opponent_archetype
+        ORDER BY archetype, opponent_archetype
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
     def get_ruler_archetype_trait_combinations(self, limit: int = 10) -> pd.DataFrame:
         """Get most popular archetype + trait combinations for starting rulers.
 

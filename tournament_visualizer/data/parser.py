@@ -1675,27 +1675,32 @@ class OldWorldSaveParser:
                         turn_acquired_str = trait_elem.text
                         turn_acquired = self._safe_int(turn_acquired_str)
 
-                        # Only process turn 1 traits (initial choices)
-                        if turn_acquired != 1:
+                        if turn_acquired is None:
                             continue
 
-                        # Check if this is an archetype trait
-                        if "_ARCHETYPE" in trait_name:
-                            # Remove TRAIT_ prefix and _ARCHETYPE suffix
+                        # Archetype: Can be acquired at ANY turn (even for starting rulers)
+                        # - Archetypes can change during the game
+                        # - Take the FIRST archetype encountered (earliest turn)
+                        # - Some rulers may never acquire an archetype
+                        if "_ARCHETYPE" in trait_name and archetype is None:
                             archetype = (
                                 trait_name.replace("TRAIT_", "")
                                 .replace("_ARCHETYPE", "")
                                 .replace("_", " ")
                                 .title()
                             )
-                        elif starting_trait is None:
-                            # This is the starting trait - only set once (take first non-archetype)
-                            # This ensures we get the player-chosen trait, not random inherited traits
-                            starting_trait = (
-                                trait_name.replace("TRAIT_", "")
-                                .replace("_", " ")
-                                .title()
-                            )
+
+                        # Starting trait: ONLY for starting rulers (succession_order=0)
+                        # - Must be from turn 1 (player's choice at game creation)
+                        # - Take the FIRST non-archetype trait from turn 1
+                        # - This avoids random inherited traits (e.g., Gay, Bisexual)
+                        if succession_order == 0 and turn_acquired == 1:
+                            if starting_trait is None and "_ARCHETYPE" not in trait_name:
+                                starting_trait = (
+                                    trait_name.replace("TRAIT_", "")
+                                    .replace("_", " ")
+                                    .title()
+                                )
 
                 # Determine succession turn
                 # For starting ruler (succession_order=0), always turn 1
