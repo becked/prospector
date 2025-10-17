@@ -1372,19 +1372,29 @@ class TournamentQueries:
     def get_cumulative_law_count_by_turn(self, match_id: int) -> pd.DataFrame:
         """Get cumulative law count by turn for each player.
 
-        Similar to get_tech_count_by_turn, but for laws.
+        Similar to get_tech_count_by_turn, but for laws. Shows participant names
+        when available for consistency with other UI elements.
 
         Args:
             match_id: Match ID to analyze
 
         Returns:
-            DataFrame with columns: player_id, player_name, turn_number, cumulative_laws, law_list, new_laws
+            DataFrame with columns:
+                - player_id: Database player ID
+                - player_name: Display name (participant if linked, else player name)
+                - participant_id: Participant ID (NULL if unlinked)
+                - turn_number: Turn when law was adopted
+                - cumulative_laws: Total laws up to this turn
+                - law_list: Comma-separated list of all laws adopted
+                - new_laws: Comma-separated list of laws adopted this turn
         """
         query = """
         WITH law_events AS (
             SELECT
                 e.player_id,
-                p.player_name,
+                -- Prefer participant name from join
+                COALESCE(tp.display_name, p.player_name) as player_name,
+                p.participant_id,
                 e.turn_number,
                 e.event_id,
                 json_extract(e.event_data, '$.law') as law_name,
@@ -1394,6 +1404,7 @@ class TournamentQueries:
                 ) as cumulative_laws
             FROM events e
             JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+            LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
             WHERE e.event_type = 'LAW_ADOPTED'
                 AND e.match_id = ?
         ),
@@ -1401,6 +1412,7 @@ class TournamentQueries:
             SELECT
                 le1.player_id,
                 le1.player_name,
+                le1.participant_id,
                 le1.turn_number,
                 le1.cumulative_laws,
                 le1.event_id,
@@ -1408,7 +1420,7 @@ class TournamentQueries:
             FROM law_events le1
             LEFT JOIN law_events le2 ON le1.player_id = le2.player_id
                 AND le2.event_id <= le1.event_id
-            GROUP BY le1.player_id, le1.player_name, le1.turn_number, le1.cumulative_laws, le1.event_id
+            GROUP BY le1.player_id, le1.player_name, le1.participant_id, le1.turn_number, le1.cumulative_laws, le1.event_id
         ),
         new_laws_this_turn AS (
             SELECT
@@ -1425,6 +1437,7 @@ class TournamentQueries:
         SELECT DISTINCT
             lut.player_id,
             lut.player_name,
+            lut.participant_id,
             lut.turn_number,
             lut.cumulative_laws,
             lut.law_list,
