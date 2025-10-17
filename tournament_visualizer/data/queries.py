@@ -1075,26 +1075,55 @@ class TournamentQueries:
     def get_player_law_progression_stats(self) -> pd.DataFrame:
         """Get aggregate law progression statistics per player.
 
+        Groups by tournament participant when available, ensuring consistent
+        aggregation across matches even if in-game names vary.
+
         Returns:
-            DataFrame with average law counts and milestone estimates per player
+            DataFrame with average law counts and milestone estimates per person:
+                - player_name: Display name (participant name if linked, else player name)
+                - participant_id: Participant ID (NULL if unlinked)
+                - is_unlinked: Boolean, TRUE if not linked to participant
+                - matches_played: Number of matches played
+                - avg_laws_per_game: Average laws adopted per match
+                - max_laws: Most laws in any single match
+                - min_laws: Fewest laws in any single match
+                - avg_turns_per_law: Average turns between law adoptions
+                - avg_turn_to_4_laws: Average turn when 4th law reached
+                - avg_turn_to_7_laws: Average turn when 7th law reached
         """
         query = """
-        WITH match_laws AS (
+        WITH player_grouping AS (
+            -- Create smart grouping key: participant_id if linked, else normalized name
             SELECT
-                p.player_name_normalized,
-                MAX(p.player_name) as player_name,
                 ps.match_id,
+                p.player_id,
+                p.player_name,
+                tp.participant_id,
+                tp.display_name as participant_display_name,
                 m.total_turns,
-                SUM(ps.value) as total_laws
+                SUM(ps.value) as total_laws,
+                -- Grouping key: use participant_id if available, else normalized name
+                COALESCE(
+                    CAST(tp.participant_id AS VARCHAR),
+                    'unlinked_' || p.player_name_normalized
+                ) as grouping_key,
+                -- Display name: prefer participant, fallback to player
+                COALESCE(tp.display_name, p.player_name) as display_name,
+                -- Flag for unlinked players
+                CASE WHEN tp.participant_id IS NULL THEN TRUE ELSE FALSE END as is_unlinked
             FROM player_statistics ps
             JOIN players p ON ps.player_id = p.player_id
+            LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
             JOIN matches m ON ps.match_id = m.match_id
             WHERE ps.stat_category = 'law_changes'
-            GROUP BY p.player_name_normalized, ps.match_id, m.total_turns
+            GROUP BY ps.match_id, p.player_id, p.player_name, p.player_name_normalized,
+                     tp.participant_id, tp.display_name, m.total_turns
             HAVING SUM(ps.value) > 0
         )
         SELECT
-            player_name,
+            MAX(display_name) as player_name,
+            MAX(participant_id) as participant_id,
+            MAX(is_unlinked) as is_unlinked,
             COUNT(DISTINCT match_id) as matches_played,
             AVG(total_laws) as avg_laws_per_game,
             MAX(total_laws) as max_laws,
@@ -1110,8 +1139,8 @@ class TournamentQueries:
                     THEN CAST((7.0 * total_turns / total_laws) AS INTEGER)
                 ELSE NULL
             END) as avg_turn_to_7_laws
-        FROM match_laws
-        GROUP BY player_name_normalized, player_name
+        FROM player_grouping
+        GROUP BY grouping_key
         HAVING COUNT(DISTINCT match_id) > 0
         ORDER BY avg_laws_per_game DESC
         """
