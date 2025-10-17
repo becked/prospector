@@ -16,6 +16,10 @@ from typing import Any
 from chyllonge.api import ChallongeApi
 from dotenv import load_dotenv
 
+# Load environment variables before importing Config
+# (Config class variables are evaluated at import time)
+load_dotenv()
+
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
