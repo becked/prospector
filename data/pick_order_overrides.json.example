@@ -1,12 +1,30 @@
 {
-  "game_1": {
-    "challonge_match_id": 123456,
-    "reason": "Example: Sheet has different player name than database",
-    "date_added": "2025-01-15"
+  "_comment": "Manual overrides for pick order games that can't auto-match",
+  "_instructions": [
+    "1. Copy this file to pick_order_overrides.json (not in git)",
+    "2. Add entries for games that failed to match",
+    "3. Re-run: uv run python scripts/match_pick_order_games.py",
+    "4. For production: ./scripts/sync_tournament_data.sh"
+  ],
+  "_format": {
+    "game_NUMBER": {
+      "challonge_match_id": "The database match_id to link to",
+      "reason": "Why this override is needed",
+      "date_added": "YYYY-MM-DD",
+      "notes": "Optional additional context"
+    }
   },
-  "game_42": {
-    "challonge_match_id": 789012,
-    "reason": "Example: Nation name typo in sheet (Hatti vs Hittite)",
-    "date_added": "2025-01-20"
+  "_examples": {
+    "game_1": {
+      "challonge_match_id": 426504734,
+      "reason": "Player name mismatch: sheet has 'Ninja', save has 'Ninjaa'",
+      "date_added": "2025-10-17",
+      "notes": "Verified with TO that this is correct match"
+    },
+    "game_15": {
+      "challonge_match_id": 426504999,
+      "reason": "Nation mismatch: player changed civ after draft",
+      "date_added": "2025-10-17"
+    }
   }
 }
