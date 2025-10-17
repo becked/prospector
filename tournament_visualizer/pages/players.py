@@ -49,6 +49,24 @@ layout = html.Div(
             description=PAGE_CONFIG["players"]["description"],
             icon="bi-people-fill",
         ),
+        # Participant linking info alert
+        dbc.Alert(
+            [
+                html.Div(
+                    [
+                        html.I(className="bi bi-info-circle me-2"),
+                        html.Span(
+                            "Players marked with ⚠️ are not yet linked to tournament participants. "
+                            "This may happen when player names in save files don't match Challonge usernames."
+                        ),
+                    ]
+                )
+            ],
+            color="info",
+            className="mb-4",
+            dismissable=True,
+            id="participant-linking-info",
+        ),
         # Tabbed analytics sections
         create_tab_layout(
             [
@@ -72,7 +90,11 @@ layout = html.Div(
                                                     "id": "rank",
                                                     "type": "numeric",
                                                 },
-                                                {"name": "Player", "id": "player_name"},
+                                                {
+                                                    "name": "Player",
+                                                    "id": "player_display",
+                                                    "presentation": "markdown",
+                                                },
                                                 {
                                                     "name": "Matches",
                                                     "id": "total_matches",
@@ -96,8 +118,9 @@ layout = html.Div(
                                                     "format": {"specifier": ".1f"},
                                                 },
                                                 {
-                                                    "name": "Favorite Civ",
-                                                    "id": "favorite_civilization",
+                                                    "name": "Civilizations",
+                                                    "id": "civilizations_display",
+                                                    "presentation": "markdown",
                                                 },
                                             ],
                                         )
@@ -178,6 +201,35 @@ layout = html.Div(
 )
 
 
+def _format_civilizations_display(civs_played: str, favorite: str) -> str:
+    """Format civilizations for display with favorite highlighted.
+
+    Args:
+        civs_played: Comma-separated list of civilizations
+        favorite: The most-played civilization
+
+    Returns:
+        Markdown-formatted string with favorite bolded
+
+    Examples:
+        >>> _format_civilizations_display("Rome, Assyria", "Rome")
+        '**Rome**, Assyria'
+
+        >>> _format_civilizations_display("Babylon", "Babylon")
+        '**Babylon**'
+    """
+    if not civs_played or pd.isna(civs_played):
+        return "—"
+
+    if not favorite or pd.isna(favorite):
+        return civs_played
+
+    # Split, bold the favorite, rejoin
+    civs = [civ.strip() for civ in str(civs_played).split(",")]
+    formatted = [f"**{civ}**" if civ == favorite else civ for civ in civs]
+    return ", ".join(formatted)
+
+
 @callback(
     Output("player-summary-metrics", "children"),
     Input("refresh-interval", "n_intervals"),
@@ -189,7 +241,7 @@ def update_player_summary_metrics(n_intervals: int) -> html.Div:
         n_intervals: Number of interval triggers
 
     Returns:
-        Metrics grid component
+        Metrics grid component with participant linking stats
     """
     try:
         queries = get_queries()
@@ -198,15 +250,40 @@ def update_player_summary_metrics(n_intervals: int) -> html.Div:
         if df.empty:
             return create_empty_state("No player data available")
 
-        # Count unique players
-        total_players = df["player_name"].nunique()
+        # Count total players (all)
+        total_players = len(df)
+
+        # Count linked vs unlinked
+        linked_count = len(df[df["is_unlinked"] == False])
+        unlinked_count = len(df[df["is_unlinked"] == True])
+
+        # Calculate linking percentage
+        linking_pct = (linked_count / total_players * 100) if total_players > 0 else 0
 
         metrics = [
             {
-                "title": "Active Players",
+                "title": "Total Players",
                 "value": total_players,
                 "icon": "bi-people",
                 "color": "primary",
+            },
+            {
+                "title": "Linked Participants",
+                "value": linked_count,
+                "icon": "bi-link-45deg",
+                "color": "success",
+            },
+            {
+                "title": "Unlinked Players",
+                "value": unlinked_count,
+                "icon": "bi-exclamation-triangle",
+                "color": "warning" if unlinked_count > 0 else "secondary",
+            },
+            {
+                "title": "Linking Coverage",
+                "value": f"{linking_pct:.0f}%",
+                "icon": "bi-diagram-3",
+                "color": "info",
             },
         ]
 
@@ -393,7 +470,7 @@ def update_rankings_table(n_intervals: int) -> List[Dict[str, Any]]:
         n_intervals: Number of interval triggers
 
     Returns:
-        List of player ranking data
+        List of player ranking data with visual indicators for unlinked players
     """
     try:
         queries = get_queries()
@@ -406,8 +483,26 @@ def update_rankings_table(n_intervals: int) -> List[Dict[str, Any]]:
         df = df.sort_values("win_rate", ascending=False).reset_index(drop=True)
         df["rank"] = range(1, len(df) + 1)
 
-        # Convert win rate to percentage for display
+        # Convert win rate to percentage for display (already 0-100, need 0-1 for formatter)
         df["win_rate"] = df["win_rate"] / 100
+
+        # Create display columns with indicators
+        df["player_display"] = df.apply(
+            lambda row: (
+                f"⚠️ {row['player_name']}"  # Warning emoji for unlinked
+                if row["is_unlinked"]
+                else row["player_name"]
+            ),
+            axis=1,
+        )
+
+        # Format civilizations with favorite highlighted
+        df["civilizations_display"] = df.apply(
+            lambda row: _format_civilizations_display(
+                row["civilizations_played"], row["favorite_civilization"]
+            ),
+            axis=1,
+        )
 
         return df.to_dict("records")
 
