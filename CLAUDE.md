@@ -387,6 +387,49 @@ database_player_id = int(xml_id) + 1
 **Logging**: Check logs for "Applying winner override" messages
 **Validation**: Errors logged if override player name not found in save file
 
+### Participant Name Overrides
+
+**Problem**: Save file player names often don't match Challonge participant names:
+- Save files store short nicknames (e.g., "Ninja", "Fonder")
+- Challonge uses full usernames (e.g., "Ninjaa", "FonderCargo348")
+- Normalized name matching fails on these differences
+
+**Solution**: Manual override system via JSON configuration
+
+**Location**: `data/participant_name_overrides.json` (not in git)
+
+**Format**:
+```json
+{
+  "match_id": {
+    "SaveFileName": {
+      "participant_id": 272470588,
+      "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
+      "date_added": "YYYY-MM-DD"
+    }
+  }
+}
+```
+
+**Usage**:
+1. Copy `data/participant_name_overrides.json.example` to `data/participant_name_overrides.json`
+2. Add override entries for mismatched names
+3. Run linking: `uv run python scripts/link_players_to_participants.py`
+4. For production: `./scripts/sync_tournament_data.sh` (uploads override file automatically)
+
+**Finding mismatches**:
+```bash
+# Show unlinked players
+uv run duckdb data/tournament_data.duckdb -readonly -c "
+SELECT match_id, player_name
+FROM players
+WHERE participant_id IS NULL
+"
+```
+
+**Priority**: Overrides checked before normalized name matching
+**Logging**: Check logs for "Using override" messages during linking
+
 ## Deployment (Fly.io)
 
 ### Quick Reference
