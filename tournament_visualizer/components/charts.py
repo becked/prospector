@@ -1930,11 +1930,12 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
     X-axis: Turn to reach 4 laws
     Y-axis: Turn to reach 7 laws
 
-    Players in the lower-left corner are most efficient (reached milestones quickly).
-    Players in the upper-right are slower.
+    Shows one point per match-player instance. Players in the lower-left corner
+    are most efficient (reached milestones quickly). Players in the upper-right
+    are slower. Color-coded by participant.
 
     Args:
-        df: DataFrame with player_name, civilization, turn_to_4_laws, turn_to_7_laws
+        df: DataFrame with player_name, civilization, match_id, turn_to_4_laws, turn_to_7_laws
 
     Returns:
         Plotly figure with scatter plot
@@ -1963,39 +1964,39 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
         df_complete["turn_to_7_laws"] - df_complete["turn_to_4_laws"]
     )
 
-    # Color by civilization
-    unique_civs = df_complete["civilization"].unique()
-    civ_colors = {
-        civ: CIVILIZATION_COLORS.get(
-            civ, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
-        )
-        for i, civ in enumerate(unique_civs)
+    # Color by participant (not civilization)
+    unique_participants = df_complete["player_name"].unique()
+    participant_colors = {
+        name: Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        for i, name in enumerate(unique_participants)
     }
 
-    # Group by civilization for separate traces
-    for civ in unique_civs:
-        civ_data = df_complete[df_complete["civilization"] == civ]
+    # Group by participant - all their games get the same color
+    for participant in unique_participants:
+        participant_data = df_complete[df_complete["player_name"] == participant]
 
         fig.add_trace(
             go.Scatter(
-                x=civ_data["turn_to_4_laws"],
-                y=civ_data["turn_to_7_laws"],
+                x=participant_data["turn_to_4_laws"],
+                y=participant_data["turn_to_7_laws"],
                 mode="markers+text",
-                name=civ,
+                name=participant,
                 marker=dict(
                     size=12,
-                    color=civ_colors[civ],
+                    color=participant_colors[participant],
                     line=dict(width=1, color="white"),
                 ),
-                text=civ_data["player_name"],
+                text=participant_data["player_name"],
                 textposition="top center",
                 hovertemplate=(
                     "<b>%{text}</b><br>"
-                    f"{civ}<br>"
+                    "Civilization: %{customdata[0]}<br>"
+                    "Match ID: %{customdata[1]}<br>"
                     "4 Laws: Turn %{x}<br>"
                     "7 Laws: Turn %{y}<br>"
                     "<extra></extra>"
                 ),
+                customdata=participant_data[["civilization", "match_id"]].values,
             )
         )
 

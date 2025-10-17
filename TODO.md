@@ -8,3 +8,4 @@ Rincewind:
 
 Siontific
 * Actual time played of matches: https://github.com/becked/prospector/blob/main/docs/plans/youtube-playtime-tracking-implementation-plan.md 
+* Challonge attachment links aren't being downloaded (ex. Aran v Sabertooth, with a discord link)
