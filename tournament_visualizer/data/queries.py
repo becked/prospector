@@ -217,26 +217,103 @@ class TournamentQueries:
     def get_head_to_head_stats(self, player1: str, player2: str) -> Dict[str, Any]:
         """Get head-to-head statistics between two players.
 
+        Matches players by participant_id when possible (authoritative),
+        falls back to name matching for unlinked players.
+
         Args:
-            player1: Name of first player
-            player2: Name of second player
+            player1: Display name of first player (participant or player name)
+            player2: Display name of second player (participant or player name)
 
         Returns:
-            Dictionary with head-to-head statistics
+            Dictionary with head-to-head statistics:
+                - total_matches: Number of matches played against each other
+                - player1_wins: Wins for player1
+                - player2_wins: Wins for player2
+                - avg_match_length: Average match duration in turns
+                - first_match: Earliest match date
+                - last_match: Most recent match date
+
+        Note:
+            If either player is linked to a participant, uses participant_id for
+            matching. This ensures accurate matching even if in-game names vary.
         """
         query = """
-        WITH match_participants AS (
+        WITH player_identification AS (
+            -- Find player1's participant_id (if linked)
             SELECT
+                COALESCE(
+                    CAST(tp1.participant_id AS VARCHAR),
+                    'unlinked_' || ?
+                ) as player1_key,
+                ? as player1_name
+            FROM (SELECT ? as name) input
+            LEFT JOIN tournament_participants tp1 ON tp1.display_name = input.name
+        ),
+        player2_identification AS (
+            -- Find player2's participant_id (if linked)
+            SELECT
+                COALESCE(
+                    CAST(tp2.participant_id AS VARCHAR),
+                    'unlinked_' || ?
+                ) as player2_key,
+                ? as player2_name
+            FROM (SELECT ? as name) input
+            LEFT JOIN tournament_participants tp2 ON tp2.display_name = input.name
+        ),
+        match_participants AS (
+            -- Find all matches where both players participated
+            SELECT DISTINCT
                 m.match_id,
                 m.game_name,
                 m.save_date,
                 m.total_turns,
-                w.player_name as winner_name
+                p1_id.player1_name,
+                p2_id.player2_name,
+                -- Determine winner using participant matching
+                CASE
+                    WHEN p_winner.participant_id IS NOT NULL
+                         AND CAST(p_winner.participant_id AS VARCHAR) = p1_id.player1_key
+                        THEN p1_id.player1_name
+                    WHEN p_winner.participant_id IS NOT NULL
+                         AND CAST(p_winner.participant_id AS VARCHAR) = p2_id.player2_key
+                        THEN p2_id.player2_name
+                    WHEN p_winner.participant_id IS NULL
+                         AND LOWER(p_winner.player_name) = SUBSTRING(p1_id.player1_key, 10)
+                        THEN p1_id.player1_name
+                    WHEN p_winner.participant_id IS NULL
+                         AND LOWER(p_winner.player_name) = SUBSTRING(p2_id.player2_key, 10)
+                        THEN p2_id.player2_name
+                    ELSE NULL
+                END as winner_name
             FROM matches m
-            JOIN players p1 ON m.match_id = p1.match_id AND p1.player_name = ?
-            JOIN players p2 ON m.match_id = p2.match_id AND p2.player_name = ?
+            CROSS JOIN player_identification p1_id
+            CROSS JOIN player2_identification p2_id
+            -- Join to find player1 in this match
+            JOIN players p1 ON m.match_id = p1.match_id
+                AND (
+                    -- Match by participant_id if linked
+                    (p1.participant_id IS NOT NULL
+                     AND CAST(p1.participant_id AS VARCHAR) = p1_id.player1_key)
+                    OR
+                    -- Match by normalized name if unlinked
+                    (p1.participant_id IS NULL
+                     AND p1_id.player1_key = 'unlinked_' || LOWER(p1.player_name))
+                )
+            -- Join to find player2 in the same match
+            JOIN players p2 ON m.match_id = p2.match_id
+                AND p2.player_id != p1.player_id
+                AND (
+                    -- Match by participant_id if linked
+                    (p2.participant_id IS NOT NULL
+                     AND CAST(p2.participant_id AS VARCHAR) = p2_id.player2_key)
+                    OR
+                    -- Match by normalized name if unlinked
+                    (p2.participant_id IS NULL
+                     AND p2_id.player2_key = 'unlinked_' || LOWER(p2.player_name))
+                )
+            -- Get winner information
             LEFT JOIN match_winners mw ON m.match_id = mw.match_id
-            LEFT JOIN players w ON mw.winner_player_id = w.player_id
+            LEFT JOIN players p_winner ON mw.winner_player_id = p_winner.player_id
         )
         SELECT
             COUNT(*) as total_matches,
@@ -249,7 +326,17 @@ class TournamentQueries:
         """
 
         result = self.db.fetch_one(
-            query, {"1": player1, "2": player2, "3": player1, "4": player2}
+            query,
+            {
+                "1": player1.lower(),  # player1_identification CTE param 1
+                "2": player1,  # player1_identification CTE param 2
+                "3": player1,  # player1_identification CTE param 3
+                "4": player2.lower(),  # player2_identification CTE param 1
+                "5": player2,  # player2_identification CTE param 2
+                "6": player2,  # player2_identification CTE param 3
+                "7": player1,  # Final aggregation player1
+                "8": player2,  # Final aggregation player2
+            },
         )
 
         if result:

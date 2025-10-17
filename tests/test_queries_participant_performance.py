@@ -257,3 +257,172 @@ class TestPlayerPerformanceEdgeCases:
         # First row should have highest win_rate
         # If tied, should have most matches
         assert df.iloc[0]['win_rate'] >= df.iloc[1]['win_rate']
+
+
+class TestHeadToHeadParticipantAware:
+    """Tests for participant-aware head-to-head matching."""
+
+    @pytest.fixture
+    def h2h_test_db(self, tmp_path):
+        """Create test database with head-to-head scenarios."""
+        db_path = tmp_path / "h2h_test.duckdb"
+
+        # Create database with schema
+        import duckdb
+        conn = duckdb.connect(str(db_path))
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version VARCHAR(20) PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                description TEXT
+            )
+        """)
+        conn.execute("""
+            INSERT INTO schema_migrations (version, description)
+            VALUES ('4', 'Add tournament participant tracking')
+        """)
+        conn.close()
+
+        db = TournamentDatabase(str(db_path), read_only=False)
+        db.create_schema()
+
+        with db.get_connection() as conn:
+            # Insert participants
+            conn.execute("""
+                INSERT INTO tournament_participants (
+                    participant_id, display_name, display_name_normalized
+                ) VALUES
+                (2001, 'Ninja', 'ninja'),
+                (2002, 'Fiddler', 'fiddler')
+            """)
+
+            # Insert matches where these two play each other
+            conn.execute("""
+                INSERT INTO matches (match_id, challonge_match_id, file_name, file_hash, total_turns, save_date)
+                VALUES
+                (200, 426504750, 'match1.zip', 'hash1', 50, '2025-01-01'),
+                (201, 426504751, 'match2.zip', 'hash2', 75, '2025-01-02'),
+                (202, 426504752, 'match3.zip', 'hash3', 60, '2025-01-03')
+            """)
+
+            # Match 200: Ninja wins
+            conn.execute("""
+                INSERT INTO players (
+                    player_id, match_id, player_name, player_name_normalized, participant_id
+                ) VALUES
+                (1, 200, 'Ninja', 'ninja', 2001),
+                (2, 200, 'Fiddler', 'fiddler', 2002)
+            """)
+            conn.execute("INSERT INTO match_winners (match_id, winner_player_id) VALUES (200, 1)")
+
+            # Match 201: Fiddler wins
+            conn.execute("""
+                INSERT INTO players (
+                    player_id, match_id, player_name, player_name_normalized, participant_id
+                ) VALUES
+                (3, 201, 'Ninja', 'ninja', 2001),
+                (4, 201, 'Fiddler', 'fiddler', 2002)
+            """)
+            conn.execute("INSERT INTO match_winners (match_id, winner_player_id) VALUES (201, 4)")
+
+            # Match 202: Ninja wins (name variation test - both still linked)
+            conn.execute("""
+                INSERT INTO players (
+                    player_id, match_id, player_name, player_name_normalized, participant_id
+                ) VALUES
+                (5, 202, 'Ninja', 'ninja', 2001),
+                (6, 202, 'fiddler', 'fiddler', 2002)
+            """)
+            conn.execute("INSERT INTO match_winners (match_id, winner_player_id) VALUES (202, 5)")
+
+        yield db
+        db.close()
+
+    def test_linked_players_h2h(self, h2h_test_db):
+        """Head-to-head should find all matches between linked participants."""
+        queries = TournamentQueries(h2h_test_db)
+        stats = queries.get_head_to_head_stats('Ninja', 'Fiddler')
+
+        assert stats['total_matches'] == 3
+        assert stats['player1_wins'] == 2  # Ninja won twice
+        assert stats['player2_wins'] == 1  # Fiddler won once
+        assert stats['avg_match_length'] == pytest.approx(61.67, rel=0.1)  # (50+75+60)/3
+
+    def test_h2h_with_unlinked_player(self, tmp_path):
+        """Head-to-head should work when one player is unlinked."""
+        db_path = tmp_path / "h2h_unlinked.duckdb"
+
+        # Create database
+        import duckdb
+        conn = duckdb.connect(str(db_path))
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version VARCHAR(20) PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                description TEXT
+            )
+        """)
+        conn.execute("""
+            INSERT INTO schema_migrations (version, description)
+            VALUES ('4', 'Add tournament participant tracking')
+        """)
+        conn.close()
+
+        db = TournamentDatabase(str(db_path), read_only=False)
+        db.create_schema()
+
+        with db.get_connection() as conn:
+            # One linked, one unlinked participant
+            conn.execute("""
+                INSERT INTO tournament_participants (
+                    participant_id, display_name, display_name_normalized
+                ) VALUES (3001, 'LinkedPlayer', 'linkedplayer')
+            """)
+
+            conn.execute("""
+                INSERT INTO matches (match_id, challonge_match_id, file_name, file_hash, total_turns)
+                VALUES (300, 426504750, 'match.zip', 'hash1', 50)
+            """)
+
+            conn.execute("""
+                INSERT INTO players (
+                    player_id, match_id, player_name, player_name_normalized, participant_id
+                ) VALUES
+                (1, 300, 'LinkedPlayer', 'linkedplayer', 3001),
+                (2, 300, 'UnlinkedPlayer', 'unlinkedplayer', NULL)
+            """)
+
+            conn.execute("INSERT INTO match_winners (match_id, winner_player_id) VALUES (300, 1)")
+
+        queries = TournamentQueries(db)
+        stats = queries.get_head_to_head_stats('LinkedPlayer', 'UnlinkedPlayer')
+
+        assert stats['total_matches'] == 1
+        assert stats['player1_wins'] == 1
+        db.close()
+
+    def test_h2h_no_matches(self, h2h_test_db):
+        """Should handle case where players never faced each other."""
+        queries = TournamentQueries(h2h_test_db)
+
+        with h2h_test_db.get_connection() as conn:
+            # Add a third player who hasn't played against anyone yet
+            conn.execute("""
+                INSERT INTO tournament_participants (
+                    participant_id, display_name, display_name_normalized
+                ) VALUES (2003, 'NewPlayer', 'newplayer')
+            """)
+
+        stats = queries.get_head_to_head_stats('Ninja', 'NewPlayer')
+
+        # Should return empty dict or zeros
+        assert stats.get('total_matches', 0) == 0
+
+    def test_h2h_date_range(self, h2h_test_db):
+        """Should correctly identify first and last match dates."""
+        queries = TournamentQueries(h2h_test_db)
+        stats = queries.get_head_to_head_stats('Ninja', 'Fiddler')
+
+        # DuckDB returns datetime objects, compare as strings
+        assert str(stats['first_match'])[:10] == '2025-01-01'
+        assert str(stats['last_match'])[:10] == '2025-01-03'
