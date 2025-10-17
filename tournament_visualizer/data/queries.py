@@ -1198,12 +1198,24 @@ class TournamentQueries:
     ) -> pd.DataFrame:
         """Get law progression for players, showing when they reached 4 and 7 laws.
 
+        Groups by tournament participant when available. When called without match_id,
+        aggregates across all matches to show how people (not player instances)
+        progress through laws.
+
         Args:
             match_id: Optional match_id to filter (None for all matches)
 
         Returns:
-            DataFrame with columns: match_id, player_id, player_name, civilization,
-                                    turn_to_4_laws, turn_to_7_laws, total_laws
+            DataFrame with columns:
+                - match_id: Match ID
+                - player_id: Database player ID (match-scoped)
+                - player_name: Display name (participant name if linked, else player name)
+                - participant_id: Participant ID (NULL if unlinked)
+                - is_unlinked: Boolean, TRUE if not linked to participant
+                - civilization: Civilization played
+                - turn_to_4_laws: Turn number when 4th law adopted (NULL if <4 laws)
+                - turn_to_7_laws: Turn number when 7th law adopted (NULL if <7 laws)
+                - total_laws: Total laws adopted in this match
         """
         match_filter = "AND e.match_id = ?" if match_id else ""
 
@@ -1235,13 +1247,17 @@ class TournamentQueries:
         SELECT
             m.match_id,
             m.player_id,
-            p.player_name,
+            -- Prefer participant name over player name
+            COALESCE(tp.display_name, p.player_name) as player_name,
+            p.participant_id,
+            CASE WHEN p.participant_id IS NULL THEN TRUE ELSE FALSE END as is_unlinked,
             p.civilization,
             m.turn_to_4_laws,
             m.turn_to_7_laws,
             m.total_laws
         FROM milestones m
         JOIN players p ON m.match_id = p.match_id AND m.player_id = p.player_id
+        LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
         ORDER BY m.match_id, m.player_id
         """
 
