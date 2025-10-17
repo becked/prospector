@@ -30,6 +30,13 @@ class Config:
         "PARTICIPANT_NAME_OVERRIDES_PATH", "data/participant_name_overrides.json"
     )
 
+    # Google Drive configuration (for oversized save files)
+    GOOGLE_DRIVE_API_KEY = os.getenv("GOOGLE_DRIVE_API_KEY", "")
+    GOOGLE_DRIVE_FOLDER_ID = os.getenv(
+        "GOOGLE_DRIVE_FOLDER_ID",
+        "1ss8ToApXPY7o2syLV76i_CJdoS-lnHQk"  # Default: completed-game-save-files folder
+    )
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000
