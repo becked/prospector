@@ -38,6 +38,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tournament_visualizer.config import Config
+from tournament_visualizer.data.name_normalizer import normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -289,8 +290,18 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                     f"  ⚠️  Second pick nation mismatch: {second_nation}, "
                     f"but players are {db_p1_civ}/{db_p2_civ}"
                 )
-                failed += 1
-                continue
+                # Don't fail - continue with first pick match only
+                # This is more lenient for typos/nation name variations
+
+            # Validate participant IDs are not NULL
+            if first_picker_participant is None:
+                logger.warning(
+                    f"  ⚠️  First picker has no participant_id linked"
+                )
+            if second_picker_participant is None:
+                logger.warning(
+                    f"  ⚠️  Second picker has no participant_id linked"
+                )
 
             if dry_run:
                 logger.info(
