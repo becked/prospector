@@ -2,8 +2,11 @@
 """
 Script to download all attachments from a Challonge tournament.
 Uses chyllonge library to interact with the Challonge API.
+
+Falls back to Google Drive for files that exceed Challonge's 250KB limit.
 """
 
+import json
 import os
 import sys
 import urllib.request
@@ -12,6 +15,12 @@ from typing import Any
 
 from chyllonge.api import ChallongeApi
 from dotenv import load_dotenv
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from tournament_visualizer.config import Config
+from tournament_visualizer.data.gdrive_client import GoogleDriveClient
 
 
 def load_config() -> str:
@@ -105,6 +114,136 @@ def download_attachment(
         return False
 
 
+def load_gdrive_mapping(mapping_path: Path = Path("data/gdrive_match_mapping.json")) -> dict[str, Any]:
+    """Load Google Drive match mapping file.
+
+    Args:
+        mapping_path: Path to mapping JSON file
+
+    Returns:
+        Mapping dictionary, or empty dict if file doesn't exist
+    """
+    if not mapping_path.exists():
+        print(f"No Google Drive mapping file found at {mapping_path}")
+        return {"matches": {}}
+
+    try:
+        with open(mapping_path) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading GDrive mapping: {e}")
+        return {"matches": {}}
+
+
+def download_from_gdrive(
+    gdrive_client: GoogleDriveClient,
+    file_id: str,
+    filename: str,
+    save_dir: Path,
+) -> bool:
+    """Download file from Google Drive.
+
+    Args:
+        gdrive_client: Google Drive client instance
+        file_id: Google Drive file ID
+        filename: Filename to save as
+        save_dir: Directory to save file in
+
+    Returns:
+        True if download successful, False otherwise
+    """
+    save_path = save_dir / filename
+
+    # Skip if already exists
+    if save_path.exists():
+        print(f"Skipped (already exists): {filename}")
+        return True
+
+    print(f"Downloading from Google Drive: {filename}")
+    success = gdrive_client.download_file(file_id, save_path)
+
+    if success:
+        print(f"✓ Downloaded from GDrive: {filename}")
+    else:
+        print(f"✗ GDrive download failed: {filename}")
+
+    return success
+
+
+def download_match_save(
+    match_data: dict[str, Any],
+    api: ChallongeApi,
+    tournament_id: str,
+    save_dir: Path,
+    gdrive_client: GoogleDriveClient | None,
+    gdrive_mapping: dict[str, Any],
+) -> tuple[bool, str]:
+    """Download save file for a match from best available source.
+
+    Tries Challonge first, falls back to Google Drive if needed.
+
+    Args:
+        match_data: Match data from Challonge API
+        api: Challonge API client
+        tournament_id: Tournament ID
+        save_dir: Directory to save files
+        gdrive_client: Google Drive client (or None if not configured)
+        gdrive_mapping: GDrive match mapping dictionary
+
+    Returns:
+        Tuple of (success: bool, source: str)
+        source is "challonge", "gdrive", or "none"
+    """
+    match_id = match_data.get("id")
+    attachment_count = match_data.get("attachment_count", 0)
+
+    # Try Challonge first
+    if attachment_count and attachment_count > 0:
+        try:
+            attachments = api.attachments.get_all(tournament_id, match_id)
+
+            for attachment in attachments:
+                asset_url = attachment.get("asset_url")
+                if asset_url:
+                    # Fix URL protocol if missing
+                    if asset_url.startswith("//"):
+                        asset_url = "https:" + asset_url
+
+                    # Use original filename
+                    filename = attachment.get("asset_file_name") or f"match_{match_id}.zip"
+                    safe_filename = f"match_{match_id}_{filename}"
+                    safe_filename = "".join(
+                        c for c in safe_filename if c.isalnum() or c in "._- "
+                    )
+
+                    # Try to download
+                    if download_attachment(
+                        asset_url,
+                        safe_filename,
+                        save_dir,
+                        attachment.get("asset_file_size"),
+                    ):
+                        return True, "challonge"
+        except Exception as e:
+            print(f"Challonge download failed for match {match_id}: {e}")
+
+    # Fall back to Google Drive
+    if gdrive_client and str(match_id) in gdrive_mapping.get("matches", {}):
+        mapping_entry = gdrive_mapping["matches"][str(match_id)]
+        file_id = mapping_entry["gdrive_file_id"]
+        gdrive_filename = mapping_entry["gdrive_filename"]
+
+        safe_filename = f"match_{match_id}_{gdrive_filename}"
+        safe_filename = "".join(
+            c for c in safe_filename if c.isalnum() or c in "._- "
+        )
+
+        if download_from_gdrive(gdrive_client, file_id, safe_filename, save_dir):
+            return True, "gdrive"
+
+    return False, "none"
+
+
 def extract_attachments_from_matches(
     api: ChallongeApi, matches: list[dict[str, Any]], tournament_id: str
 ) -> list[dict[str, str]]:
@@ -166,8 +305,25 @@ def main() -> None:
         # Create Challonge API client
         api = create_challonge_client()
 
+        # Initialize Google Drive client (if API key configured)
+        gdrive_client = None
+        gdrive_mapping = load_gdrive_mapping()
+
+        if Config.GOOGLE_DRIVE_API_KEY:
+            try:
+                gdrive_client = GoogleDriveClient(
+                    api_key=Config.GOOGLE_DRIVE_API_KEY,
+                    folder_id=Config.GOOGLE_DRIVE_FOLDER_ID,
+                )
+                print(f"✓ Google Drive integration enabled")
+                print(f"  Loaded {len(gdrive_mapping.get('matches', {}))} GDrive mappings")
+            except Exception as e:
+                print(f"⚠ Google Drive initialization failed: {e}")
+                print("  Will only use Challonge attachments")
+        else:
+            print("ℹ Google Drive API key not configured (will only use Challonge)")
+
         # Create downloads directory
-        # Use SAVES_DIRECTORY env var if set, otherwise default to "saves"
         downloads_dir = Path(os.getenv("SAVES_DIRECTORY", "saves"))
         downloads_dir.mkdir(exist_ok=True)
 
@@ -181,34 +337,37 @@ def main() -> None:
 
         print(f"Found {len(matches)} matches")
 
-        # Extract attachments from matches
-        attachments = extract_attachments_from_matches(api, matches, tournament_id)
-
-        if not attachments:
-            print("No attachments found in tournament")
-            return
-
-        print(f"Found {len(attachments)} attachments to download")
-
-        # Download each attachment
+        # Download saves for each match
         successful_downloads = 0
-        for attachment in attachments:
-            # Create filename with match ID prefix for organization
-            safe_filename = f"match_{attachment['match_id']}_{attachment['filename']}"
-            # Remove or replace invalid filename characters
-            safe_filename = "".join(
-                c for c in safe_filename if c.isalnum() or c in "._- "
+        challonge_downloads = 0
+        gdrive_downloads = 0
+        failed_downloads = 0
+
+        for match in matches:
+            success, source = download_match_save(
+                match,
+                api,
+                tournament_id,
+                downloads_dir,
+                gdrive_client,
+                gdrive_mapping,
             )
 
-            if download_attachment(
-                attachment["url"], safe_filename, downloads_dir, attachment.get("size")
-            ):
+            if success:
                 successful_downloads += 1
+                if source == "challonge":
+                    challonge_downloads += 1
+                elif source == "gdrive":
+                    gdrive_downloads += 1
+            else:
+                failed_downloads += 1
+                print(f"⚠ No save file found for match {match.get('id')}")
 
-        print(
-            f"\nDownload complete: {successful_downloads}/{len(attachments)} "
-            "files downloaded successfully"
-        )
+        print(f"\nDownload complete:")
+        print(f"  Total successful: {successful_downloads}/{len(matches)}")
+        print(f"  From Challonge: {challonge_downloads}")
+        print(f"  From Google Drive: {gdrive_downloads}")
+        print(f"  Failed: {failed_downloads}")
         print(f"Files saved to: {downloads_dir.absolute()}")
 
     except ValueError as e:
