@@ -848,31 +848,35 @@ class TournamentDatabase:
         logger.info("Checking for participant tracking migration...")
 
         try:
-            # Ensure schema_migrations table exists
-            self.conn.execute(
+            with self.get_connection() as conn:
+                # Ensure schema_migrations table exists
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        version VARCHAR(20) PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        description TEXT
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version VARCHAR(20) PRIMARY KEY,
-                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    description TEXT
                 )
-            """
-            )
 
-            # Check if migration already applied
-            result = self.conn.execute(
+                # Check if migration already applied
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM schema_migrations
+                    WHERE version = '4'
                 """
-                SELECT COUNT(*)
-                FROM schema_migrations
-                WHERE version = '4'
-            """
-            ).fetchone()
+                ).fetchone()
 
-            if result[0] > 0:
-                logger.info("Participant tracking migration already applied")
-                return
+                if result[0] > 0:
+                    logger.info("Participant tracking migration already applied")
+                    return
 
-            logger.info("Applying participant tracking migration...")
+                logger.info("Applying participant tracking migration...")
+                logger.info(
+                    "IMPORTANT: Consider backing up your database before applying schema changes"
+                )
 
             # Create tournament_participants table if not exists
             self._create_tournament_participants_table()
@@ -880,66 +884,65 @@ class TournamentDatabase:
             # Create participant_name_overrides table if not exists
             self._create_participant_name_overrides_table()
 
-            # Add columns to matches table (checking if they exist first)
-            # DuckDB doesn't support IF NOT EXISTS in ALTER TABLE ADD COLUMN
-            # So we need to check manually
-            matches_columns_to_add = [
-                ("player1_participant_id", "BIGINT"),
-                ("player2_participant_id", "BIGINT"),
-                ("winner_participant_id", "BIGINT"),
-            ]
+            with self.get_connection() as conn:
+                # Add columns to matches table (checking if they exist first)
+                # DuckDB doesn't support IF NOT EXISTS in ALTER TABLE ADD COLUMN
+                # So we need to check manually
+                matches_columns_to_add = [
+                    ("player1_participant_id", "BIGINT"),
+                    ("player2_participant_id", "BIGINT"),
+                    ("winner_participant_id", "BIGINT"),
+                ]
 
-            for column_name, column_type in matches_columns_to_add:
-                # Check if column exists
-                existing = self.conn.execute(
-                    f"""
+                for column_name, column_type in matches_columns_to_add:
+                    # Check if column exists
+                    existing = conn.execute(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_name = 'matches'
+                        AND column_name = '{column_name}'
+                    """
+                    ).fetchone()
+
+                    if existing[0] == 0:
+                        conn.execute(
+                            f"ALTER TABLE matches ADD COLUMN {column_name} {column_type}"
+                        )
+                        logger.info(f"Added column {column_name} to matches table")
+
+                # Add participant_id to players table
+                existing = conn.execute(
+                    """
                     SELECT COUNT(*)
                     FROM information_schema.columns
-                    WHERE table_name = 'matches'
-                    AND column_name = '{column_name}'
+                    WHERE table_name = 'players'
+                    AND column_name = 'participant_id'
                 """
                 ).fetchone()
 
                 if existing[0] == 0:
-                    self.conn.execute(
-                        f"ALTER TABLE matches ADD COLUMN {column_name} {column_type}"
-                    )
-                    logger.info(f"Added column {column_name} to matches table")
+                    conn.execute("ALTER TABLE players ADD COLUMN participant_id BIGINT")
+                    logger.info("Added participant_id column to players table")
 
-            # Add participant_id to players table
-            existing = self.conn.execute(
-                """
-                SELECT COUNT(*)
-                FROM information_schema.columns
-                WHERE table_name = 'players'
-                AND column_name = 'participant_id'
-            """
-            ).fetchone()
-
-            if existing[0] == 0:
-                self.conn.execute(
-                    "ALTER TABLE players ADD COLUMN participant_id BIGINT"
-                )
-                logger.info("Added participant_id column to players table")
-
-                # Create index
-                self.conn.execute(
+                    # Create index
+                    conn.execute(
+                        """
+                        CREATE INDEX IF NOT EXISTS idx_players_participant
+                        ON players(participant_id)
                     """
-                    CREATE INDEX IF NOT EXISTS idx_players_participant
-                    ON players(participant_id)
+                    )
+                    logger.info("Created index on players.participant_id")
+
+                # Record migration
+                conn.execute(
+                    """
+                    INSERT INTO schema_migrations (version, description, applied_at)
+                    VALUES ('4', 'Add tournament participant tracking', CURRENT_TIMESTAMP)
                 """
                 )
-                logger.info("Created index on players.participant_id")
 
-            # Record migration
-            self.conn.execute(
-                """
-                INSERT INTO schema_migrations (version, description, applied_at)
-                VALUES ('4', 'Add tournament participant tracking', CURRENT_TIMESTAMP)
-            """
-            )
-
-            logger.info("Participant tracking migration completed successfully")
+                logger.info("Participant tracking migration completed successfully")
 
         except Exception as e:
             logger.error(f"Error during participant tracking migration: {e}")
