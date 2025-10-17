@@ -25,6 +25,11 @@ class Config:
     SAVES_DIRECTORY = os.getenv("SAVES_DIRECTORY", "saves")
     ASSETS_DIRECTORY = "tournament_visualizer/assets"
 
+    # Override files
+    PARTICIPANT_NAME_OVERRIDES_PATH = os.getenv(
+        "PARTICIPANT_NAME_OVERRIDES_PATH", "data/participant_name_overrides.json"
+    )
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000
