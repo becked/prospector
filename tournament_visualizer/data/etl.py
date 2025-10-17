@@ -830,6 +830,39 @@ def process_tournament_directory(
     duplicates_removed = etl.cleanup_duplicate_entries()
     validation_results = etl.validate_data_integrity()
 
+    # Link players to participants (if participants exist)
+    participant_linking_stats = None
+    try:
+        from .participant_matcher import ParticipantMatcher
+
+        # Check if there are participants in the database
+        participant_count = db.fetch_one(
+            "SELECT COUNT(*) FROM tournament_participants"
+        )[0]
+
+        if participant_count > 0:
+            logger.info("Linking players to tournament participants...")
+            matcher = ParticipantMatcher(db)
+            participant_linking_stats = matcher.link_all_matches()
+
+            logger.info(
+                f"Linked {participant_linking_stats['matched_players']}/{participant_linking_stats['total_players']} "
+                f"players to participants"
+            )
+
+            # Warn if there are unmatched players
+            if participant_linking_stats['unmatched_players'] > 0:
+                logger.warning(
+                    f"{participant_linking_stats['unmatched_players']} players could not be matched to participants. "
+                    "Run scripts/link_players_to_participants.py for details."
+                )
+        else:
+            logger.info("No participants in database, skipping player-participant linking")
+
+    except Exception as e:
+        logger.warning(f"Error linking players to participants: {e}")
+        logger.warning("Player-participant linking skipped. You can run scripts/link_players_to_participants.py manually.")
+
     # Get final summary
     summary = etl.get_processing_summary()
 
@@ -843,5 +876,6 @@ def process_tournament_directory(
         },
         "cleanup": {"duplicates_removed": duplicates_removed},
         "validation": validation_results,
+        "participant_linking": participant_linking_stats,
         "summary": summary,
     }
