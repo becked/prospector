@@ -1,0 +1,12 @@
+{
+  "game_1": {
+    "challonge_match_id": 123456,
+    "reason": "Example: Sheet has different player name than database",
+    "date_added": "2025-01-15"
+  },
+  "game_42": {
+    "challonge_match_id": 789012,
+    "reason": "Example: Nation name typo in sheet (Hatti vs Hittite)",
+    "date_added": "2025-01-20"
+  }
+}

@@ -253,26 +253,19 @@ def match_games_to_matches(dry_run: bool = False) -> None:
             first_picker_sheet_name = None
             second_picker_sheet_name = None
 
+            # Determine which database player picked first
             if db_p1_civ == first_nation:
-                # Player 1 picked first
+                # db_p1 picked first
                 first_picker_participant = db_p1_participant
                 second_picker_participant = db_p2_participant
-                first_picker_sheet_name = p1_name
-                second_picker_sheet_name = p2_name
-                logger.debug(
-                    f"  → {db_p1_name} picked {first_nation} first, "
-                    f"{db_p2_name} picked {second_nation} second"
-                )
+                first_picker_db_name = db_p1_name
+                second_picker_db_name = db_p2_name
             elif db_p2_civ == first_nation:
-                # Player 2 picked first
+                # db_p2 picked first
                 first_picker_participant = db_p2_participant
                 second_picker_participant = db_p1_participant
-                first_picker_sheet_name = p2_name
-                second_picker_sheet_name = p1_name
-                logger.debug(
-                    f"  → {db_p2_name} picked {first_nation} first, "
-                    f"{db_p1_name} picked {second_nation} second"
-                )
+                first_picker_db_name = db_p2_name
+                second_picker_db_name = db_p1_name
             else:
                 logger.warning(
                     f"  ⚠️  Nation mismatch: first_pick={first_nation}, "
@@ -280,6 +273,26 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                 )
                 failed += 1
                 continue
+
+            # Now match database player names to sheet player names
+            # to determine correct sheet names for first/second picker
+            if first_picker_db_name.lower() == p1_name.lower():
+                first_picker_sheet_name = p1_name
+                second_picker_sheet_name = p2_name
+            elif first_picker_db_name.lower() == p2_name.lower():
+                first_picker_sheet_name = p2_name
+                second_picker_sheet_name = p1_name
+            else:
+                logger.warning(
+                    f"  ⚠️  Cannot match database name '{first_picker_db_name}' to sheet names '{p1_name}'/'{p2_name}'"
+                )
+                failed += 1
+                continue
+
+            logger.debug(
+                f"  → {first_picker_sheet_name} picked {first_nation} first, "
+                f"{second_picker_sheet_name} picked {second_nation} second"
+            )
 
             # Verify second pick nation also matches
             if db_p1_civ == second_nation or db_p2_civ == second_nation:

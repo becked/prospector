@@ -37,6 +37,7 @@ data/*.duckdb.*
 # Override files (production data, not versioned)
 data/match_winner_overrides.json
 data/participant_name_overrides.json
+data/pick_order_overrides.json
 
 # Generated mapping files
 data/gdrive_match_mapping.json
