@@ -145,25 +145,44 @@ else
 fi
 echo ""
 
-# Step 4.5: Upload override file if it exists
+# Step 4.5: Upload override files if they exist
+echo -e "${YELLOW}[4.5/6] Uploading override files...${NC}"
+
+# Upload match winner overrides
 if [ -f "data/match_winner_overrides.json" ]; then
-    echo -e "${YELLOW}[4.5/6] Uploading match winner overrides...${NC}"
+    echo -e "${BLUE}Uploading match winner overrides...${NC}"
 
     if echo "put data/match_winner_overrides.json /data/match_winner_overrides.json" | fly ssh sftp shell -a "${APP_NAME}"; then
-        echo -e "${GREEN}✓ Override file uploaded${NC}"
+        echo -e "${GREEN}✓ Match winner override file uploaded${NC}"
 
         # Fix permissions
         fly ssh console -a "${APP_NAME}" -C "chmod 664 /data/match_winner_overrides.json" 2>/dev/null
         fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser /data/match_winner_overrides.json" 2>/dev/null
     else
-        echo -e "${YELLOW}Warning: Could not upload override file${NC}"
+        echo -e "${YELLOW}Warning: Could not upload match winner override file${NC}"
     fi
-
-    echo ""
 else
-    echo -e "${BLUE}No override file found - skipping upload${NC}"
-    echo ""
+    echo -e "${BLUE}No match winner override file found - skipping${NC}"
 fi
+
+# Upload participant name overrides
+if [ -f "data/participant_name_overrides.json" ]; then
+    echo -e "${BLUE}Uploading participant name overrides...${NC}"
+
+    if echo "put data/participant_name_overrides.json /data/participant_name_overrides.json" | fly ssh sftp shell -a "${APP_NAME}"; then
+        echo -e "${GREEN}✓ Participant name override file uploaded${NC}"
+
+        # Fix permissions
+        fly ssh console -a "${APP_NAME}" -C "chmod 664 /data/participant_name_overrides.json" 2>/dev/null
+        fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser /data/participant_name_overrides.json" 2>/dev/null
+    else
+        echo -e "${YELLOW}Warning: Could not upload participant name override file${NC}"
+    fi
+else
+    echo -e "${BLUE}No participant name override file found - skipping${NC}"
+fi
+
+echo ""
 
 # Step 5: Atomically replace database and restart
 echo -e "${YELLOW}[5/6] Replacing database and restarting app...${NC}"
