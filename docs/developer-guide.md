@@ -1288,3 +1288,263 @@ Checks:
 
 Due to a DuckDB limitation with updating tables that have foreign key references TO them, the participant linking process must drop and recreate the `idx_players_participant` index during bulk updates. This is handled automatically by the `ParticipantMatcher.link_all_matches()` method.
 
+## Participant UI Integration
+
+### Overview
+
+The web application displays **tournament participants** (real people) rather than match-scoped player instances. This provides accurate cross-match analytics and persistent player identity.
+
+### Display Strategy: Show All with Fallback
+
+The UI uses a "participant-first, fallback to name" strategy:
+
+- **Linked players**: Grouped by `participant_id`, show participant display name
+- **Unlinked players**: Grouped by `player_name_normalized`, show player name with ⚠️ indicator
+- **Visual feedback**: Unlinked players marked for data quality awareness
+
+This ensures:
+✅ All match data visible to users
+✅ Graceful degradation when linking incomplete
+✅ Works during active tournaments (new players not yet in Challonge)
+✅ Incentivizes data quality through visual indicators
+
+### Key Queries
+
+#### Player Performance (`get_player_performance()`)
+
+Returns one row per person, grouping by participant when available:
+
+```sql
+-- Smart grouping key: participant_id if linked, else normalized name
+COALESCE(
+    CAST(tp.participant_id AS VARCHAR),
+    'unlinked_' || p.player_name_normalized
+) as grouping_key
+```
+
+**Columns returned:**
+- `player_name`: Display name (participant or player)
+- `participant_id`: Participant ID (NULL for unlinked)
+- `is_unlinked`: Boolean flag for UI indicators
+- `total_matches`, `wins`, `win_rate`: Standard stats
+- `civilizations_played`: All civs used (comma-separated)
+- `favorite_civilization`: Most-played civ
+
+**Use cases:**
+- Players page rankings table
+- Player performance metrics
+- Head-to-head comparisons
+
+#### Head-to-Head Stats (`get_head_to_head_stats()`)
+
+Matches players by `participant_id` first, falls back to name matching:
+
+```python
+stats = queries.get_head_to_head_stats('Ninja', 'Fiddler')
+# Uses participant_id if both are linked
+# Falls back to name matching for unlinked
+```
+
+**Returns:**
+```python
+{
+    'total_matches': 5,
+    'player1_wins': 3,
+    'player2_wins': 2,
+    'avg_match_length': 87.4,
+    'first_match': '2025-01-01',
+    'last_match': '2025-02-15'
+}
+```
+
+#### Civilization Performance (`get_civilization_performance()`)
+
+Counts unique **participants**, not unique names:
+
+```sql
+-- Counts distinct people who played this civ
+COUNT(DISTINCT COALESCE(
+    CAST(p.participant_id AS VARCHAR),
+    'unlinked_' || p.player_name_normalized
+)) as unique_participants
+```
+
+**Columns returned:**
+- `unique_participants`: Total unique people
+- `unique_linked_participants`: Count of linked only
+- `unique_unlinked_players`: Count of unlinked only
+
+Data quality columns help track linking coverage.
+
+### UI Components
+
+#### Players Page (`pages/players.py`)
+
+**Rankings Table:**
+- One row per person (not per match instance)
+- Player column uses markdown with ⚠️ for unlinked
+- Civilizations column shows all civs played (favorite bolded)
+
+**Summary Metrics:**
+- Total Players
+- Linked Participants
+- Unlinked Players
+- Linking Coverage %
+
+**Head-to-Head:**
+- Dropdowns populated with participant names
+- Matching by participant_id ensures accuracy
+
+### Data Quality Indicators
+
+#### Visual Indicators
+
+| Indicator | Meaning | Action |
+|-----------|---------|--------|
+| ⚠️ | Player not linked to participant | Consider adding manual override |
+| **Bold civ** | Most-played civilization | User info |
+| Linking Coverage % | Percentage of players linked | Data quality metric |
+
+#### Validation
+
+Run validation script to check data quality:
+
+```bash
+uv run python scripts/validate_participant_ui_data.py
+```
+
+Checks:
+- Query correctness
+- Data consistency
+- Linking coverage
+- Potential linking opportunities
+
+### Common Queries
+
+**Find unlinked players:**
+```sql
+SELECT
+    player_name,
+    COUNT(DISTINCT match_id) as matches_played
+FROM players
+WHERE participant_id IS NULL
+GROUP BY player_name_normalized, player_name
+ORDER BY matches_played DESC;
+```
+
+**Check participant linking coverage:**
+```sql
+SELECT
+    COUNT(*) as total_instances,
+    COUNT(participant_id) as linked,
+    COUNT(*) - COUNT(participant_id) as unlinked,
+    ROUND(COUNT(participant_id) * 100.0 / COUNT(*), 1) as coverage_pct
+FROM players;
+```
+
+**Find participants with multiple civs:**
+```sql
+SELECT
+    tp.display_name,
+    STRING_AGG(DISTINCT p.civilization, ', ') as civs,
+    COUNT(DISTINCT p.civilization) as civ_count
+FROM tournament_participants tp
+JOIN players p ON tp.participant_id = p.participant_id
+GROUP BY tp.participant_id, tp.display_name
+HAVING COUNT(DISTINCT p.civilization) > 1
+ORDER BY civ_count DESC;
+```
+
+### Troubleshooting
+
+#### "Players appearing multiple times in table"
+
+Check if query is grouping correctly:
+```python
+df = queries.get_player_performance()
+duplicates = df[df.duplicated('player_name', keep=False)]
+print(duplicates[['player_name', 'participant_id', 'is_unlinked']])
+```
+
+If linked players duplicate: Bug in grouping logic (participant_id should be unique)
+If unlinked players duplicate: Check normalized name grouping
+
+#### "Win rates don't match Challonge"
+
+Verify participant linking:
+```bash
+# Check if player is linked correctly
+uv run duckdb data/tournament_data.duckdb -readonly -c "
+SELECT
+    p.player_name,
+    p.participant_id,
+    tp.display_name as participant_name
+FROM players p
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE p.player_name LIKE '%PlayerName%'
+"
+```
+
+If linked to wrong participant: Add manual override
+If unlinked: Add participant and re-run linking
+
+#### "Unlinked players not grouping by name"
+
+Check for case variations:
+```sql
+SELECT
+    player_name,
+    player_name_normalized,
+    COUNT(*)
+FROM players
+WHERE participant_id IS NULL
+GROUP BY player_name_normalized, player_name
+HAVING COUNT(*) > 1;
+```
+
+Should collapse to single row per normalized name.
+
+### Performance Considerations
+
+#### Query Optimization
+
+Participant queries use CTEs and appropriate indexes:
+
+```sql
+-- Indexes used:
+-- - players.participant_id (for JOIN)
+-- - players.player_name_normalized (for fallback grouping)
+-- - tournament_participants.participant_id (PRIMARY KEY)
+```
+
+For large datasets (>1000 matches):
+- Queries typically execute in <100ms
+- No additional optimization needed
+- DuckDB handles aggregations efficiently
+
+#### Caching
+
+Dash app does NOT cache query results by default. Each page visit executes queries fresh.
+
+For production with high traffic, consider:
+- Add `dcc.Interval` component for periodic refresh
+- Cache results in Redis/Memcached
+- Pre-compute aggregations in background job
+
+### Future Enhancements
+
+**Multi-tournament support** (YAGNI - not implemented):
+- Currently tracks single tournament via `participant_id`
+- Could extend using `challonge_user_id` for cross-tournament
+- Would require additional grouping level
+
+**Fuzzy name matching** (YAGNI - not implemented):
+- Current matching is exact normalized string match
+- Could add Levenshtein distance for "Ninja" vs "Ninjaa"
+- Manual overrides cover edge cases for now
+
+**Participant detail page**:
+- Dedicated `/participants/<id>` page
+- Match history, opponent analysis, trends
+- See Task 3 in implementation plan
+

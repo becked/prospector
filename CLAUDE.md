@@ -98,6 +98,9 @@ uv run python scripts/validate_memorydata_ownership.py
 # For participant tracking changes
 uv run python scripts/validate_participants.py
 
+# For participant UI data quality
+uv run python scripts/validate_participant_ui_data.py
+
 # For analytics queries
 uv run python scripts/verify_analytics.py
 ```
@@ -125,6 +128,76 @@ uv run python scripts/link_players_to_participants.py
 ```
 
 **Cross-match queries** use `participant_id` to track individuals across multiple matches.
+
+## Participant UI Integration
+
+### Display Strategy
+
+The web app shows **participants** (real people), not match-scoped player instances.
+
+**What this means:**
+- Players page: One row per person, even if they played multiple matches
+- Stats aggregate across all matches for that person
+- Unlinked players (⚠️) grouped by normalized name until linked
+
+### Key Queries
+
+```python
+from tournament_visualizer.data.queries import get_queries
+
+queries = get_queries()
+
+# Player performance (one row per person)
+df = queries.get_player_performance()
+# Columns: player_name, participant_id, is_unlinked, total_matches, wins, win_rate, ...
+
+# Head-to-head (matches by participant_id)
+stats = queries.get_head_to_head_stats('Player1', 'Player2')
+# Returns: total_matches, player1_wins, player2_wins, avg_match_length, ...
+
+# Civilization stats (counts unique participants)
+df = queries.get_civilization_performance()
+# Columns: civilization, total_matches, unique_participants, ...
+```
+
+### Visual Indicators
+
+- ⚠️ = Unlinked player (needs manual override or better name matching)
+- **Bold civ** = Favorite/most-played civilization
+- Linking Coverage % = Data quality metric
+
+### Data Quality
+
+Run validation:
+```bash
+uv run python scripts/validate_participant_ui_data.py
+```
+
+Shows linking coverage and potential match opportunities.
+
+### Common Tasks
+
+**Check linking status:**
+```bash
+uv run duckdb data/tournament_data.duckdb -readonly -c "
+SELECT
+    COUNT(*) as total,
+    COUNT(participant_id) as linked,
+    ROUND(COUNT(participant_id) * 100.0 / COUNT(*), 1) as coverage
+FROM players
+"
+```
+
+**Find unlinked players:**
+```bash
+uv run duckdb data/tournament_data.duckdb -readonly -c "
+SELECT player_name, COUNT(*) as instances
+FROM players
+WHERE participant_id IS NULL
+GROUP BY player_name_normalized, player_name
+ORDER BY instances DESC
+"
+```
 
 ### Syncing Tournament Data
 
