@@ -246,6 +246,84 @@ uv run python manage.py restart
 
 This is the same fast local processing that the production sync script uses!
 
+## Google Drive Integration
+
+### Overview
+
+Tournament save files are stored in two locations:
+1. **Challonge attachments** - Files under 250KB (most files)
+2. **Google Drive** - Files over 250KB (fallback for oversized files)
+
+The download script tries Challonge first, then falls back to Google Drive.
+
+### Setup
+
+**Local Development:**
+
+1. Get a Google Drive API key:
+   - Visit https://console.cloud.google.com/
+   - Create project or use existing
+   - Enable "Google Drive API"
+   - Create API Key (Credentials → Create → API Key)
+   - Optionally restrict to Drive API only
+
+2. Add to `.env`:
+   ```bash
+   GOOGLE_DRIVE_API_KEY=your_api_key_here
+   GOOGLE_DRIVE_FOLDER_ID=1ss8ToApXPY7o2syLV76i_CJdoS-lnHQk
+   ```
+
+**Production (Fly.io):**
+
+```bash
+fly secrets set GOOGLE_DRIVE_API_KEY="your_key" -a prospector
+```
+
+### Workflow
+
+The Google Drive integration is automatic:
+
+```bash
+# Generate mapping (run once, or when new files added)
+uv run python scripts/generate_gdrive_mapping.py
+
+# Download saves (tries Challonge, falls back to GDrive)
+uv run python scripts/download_attachments.py
+
+# Import and sync as usual
+uv run python scripts/import_attachments.py --directory saves --force
+uv run python scripts/link_players_to_participants.py
+```
+
+For production sync:
+```bash
+# Automatically handles GDrive mapping and download
+./scripts/sync_tournament_data.sh
+```
+
+### Files
+
+- `tournament_visualizer/data/gdrive_client.py` - Google Drive API client
+- `scripts/generate_gdrive_mapping.py` - Auto-matches GDrive files to Challonge matches
+- `data/gdrive_match_mapping.json` - Generated mapping file (not in git)
+
+### Troubleshooting
+
+**No GDrive files downloaded:**
+- Check that `GOOGLE_DRIVE_API_KEY` is set
+- Run `generate_gdrive_mapping.py` to create mapping
+- Verify mapping file exists: `cat data/gdrive_match_mapping.json`
+
+**Low confidence matches:**
+- Review mapping output for confidence scores
+- Manually edit `data/gdrive_match_mapping.json` if needed
+- Player name mismatches can cause failed matches
+
+**API quota errors:**
+- Google Drive API has rate limits
+- Script handles this automatically with retries
+- If persistent, wait a few minutes and retry
+
 ## Testing & Code Quality
 
 ### Running Tests
