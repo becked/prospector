@@ -37,6 +37,16 @@ class Config:
         "1ss8ToApXPY7o2syLV76i_CJdoS-lnHQk"  # Default: completed-game-save-files folder
     )
 
+    # Google Sheets configuration (for pick order data)
+    GOOGLE_SHEETS_SPREADSHEET_ID = os.getenv(
+        "GOOGLE_SHEETS_SPREADSHEET_ID",
+        "19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc"  # Default: OWT 25 Stats sheet
+    )
+    GOOGLE_SHEETS_GAMEDATA_GID = os.getenv(
+        "GOOGLE_SHEETS_GAMEDATA_GID",
+        "1663493966"  # Default: GAMEDATA *SPOILER WARNING* tab
+    )
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000
