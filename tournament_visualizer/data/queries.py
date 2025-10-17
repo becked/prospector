@@ -159,25 +159,54 @@ class TournamentQueries:
     def get_civilization_performance(self) -> pd.DataFrame:
         """Get performance statistics by civilization.
 
+        Counts unique participants (people) rather than unique player names
+        to accurately reflect how many different people have played each civ.
+
         Returns:
-            DataFrame with civilization performance data
+            DataFrame with columns:
+                - civilization: Civilization name
+                - total_matches: Number of matches played with this civ
+                - wins: Number of wins
+                - win_rate: Win percentage (0-100)
+                - avg_score: Average final score
+                - unique_participants: Count of unique people who played this civ
+                - unique_linked_participants: Count of linked only
+                - unique_unlinked_players: Count of unlinked only (for data quality)
         """
         query = """
+        WITH player_identity AS (
+            SELECT
+                p.player_id,
+                p.match_id,
+                p.civilization,
+                p.final_score,
+                -- Use participant_id if available, else use normalized name as proxy
+                COALESCE(
+                    CAST(p.participant_id AS VARCHAR),
+                    'unlinked_' || p.player_name_normalized
+                ) as person_key,
+                CASE WHEN p.participant_id IS NOT NULL THEN TRUE ELSE FALSE END as is_linked
+            FROM players p
+        )
         SELECT
-            COALESCE(p.civilization, 'Unknown') as civilization,
-            COUNT(DISTINCT p.match_id) as total_matches,
-            COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
+            COALESCE(pi.civilization, 'Unknown') as civilization,
+            COUNT(DISTINCT pi.match_id) as total_matches,
+            COUNT(CASE WHEN mw.winner_player_id = pi.player_id THEN 1 END) as wins,
             ROUND(
-                COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
-                COUNT(DISTINCT p.match_id), 2
+                COUNT(CASE WHEN mw.winner_player_id = pi.player_id THEN 1 END) * 100.0 /
+                NULLIF(COUNT(DISTINCT pi.match_id), 0), 2
             ) as win_rate,
-            AVG(p.final_score) as avg_score,
-            COUNT(DISTINCT p.player_name) as unique_players
-        FROM players p
-        JOIN matches m ON p.match_id = m.match_id
-        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
-        GROUP BY COALESCE(p.civilization, 'Unknown')
-        HAVING COUNT(DISTINCT p.match_id) > 0
+            AVG(pi.final_score) as avg_score,
+            -- Count unique people (participants + unlinked player name proxies)
+            COUNT(DISTINCT pi.person_key) as unique_participants,
+            -- Count only linked participants for data quality insight
+            COUNT(DISTINCT CASE WHEN pi.is_linked THEN pi.person_key END) as unique_linked_participants,
+            -- Count unlinked for data quality insight
+            COUNT(DISTINCT CASE WHEN NOT pi.is_linked THEN pi.person_key END) as unique_unlinked_players
+        FROM player_identity pi
+        LEFT JOIN match_winners mw ON pi.match_id = mw.match_id
+        GROUP BY COALESCE(pi.civilization, 'Unknown')
+        HAVING COUNT(DISTINCT pi.match_id) > 0
         ORDER BY win_rate DESC, total_matches DESC
         """
 
