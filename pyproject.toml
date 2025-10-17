@@ -27,6 +27,7 @@ dependencies = [
     "chyllonge>=1.1.1",
     # Production WSGI server
     "gunicorn>=21.2.0",
+    "google-api-python-client>=2.185.0",
 ]
 
 [project.optional-dependencies]
