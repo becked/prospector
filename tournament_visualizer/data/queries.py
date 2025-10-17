@@ -243,6 +243,71 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_opponents(self, player_name: str) -> List[str]:
+        """Get list of players who have faced the given player.
+
+        Matches players by participant_id when possible (authoritative),
+        falls back to name matching for unlinked players.
+
+        Args:
+            player_name: Display name of player (participant or player name)
+
+        Returns:
+            List of opponent display names, sorted alphabetically
+        """
+        query = """
+        WITH player_identification AS (
+            -- Find target player's participant_id (if linked)
+            SELECT
+                COALESCE(
+                    CAST(tp.participant_id AS VARCHAR),
+                    'unlinked_' || LOWER(?)
+                ) as player_key,
+                ? as player_name
+            FROM (SELECT ? as name) input
+            LEFT JOIN tournament_participants tp ON tp.display_name = input.name
+        ),
+        player_matches AS (
+            -- Find all matches where target player participated
+            SELECT DISTINCT
+                m.match_id,
+                p_target.player_id as target_player_id
+            FROM matches m
+            CROSS JOIN player_identification p_id
+            -- Join to find target player in matches
+            JOIN players p_target ON m.match_id = p_target.match_id
+                AND (
+                    -- Match by participant_id if linked
+                    (p_target.participant_id IS NOT NULL
+                     AND CAST(p_target.participant_id AS VARCHAR) = p_id.player_key)
+                    OR
+                    -- Match by normalized name if unlinked
+                    (p_target.participant_id IS NULL
+                     AND p_id.player_key = 'unlinked_' || LOWER(p_target.player_name))
+                )
+        ),
+        opponents AS (
+            -- Find all players who faced the target player
+            SELECT DISTINCT
+                COALESCE(tp.display_name, p.player_name) as opponent_name
+            FROM player_matches pm
+            JOIN players p ON pm.match_id = p.match_id
+                AND p.player_id != pm.target_player_id
+            LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+        )
+        SELECT opponent_name
+        FROM opponents
+        ORDER BY opponent_name
+        """
+
+        with self.db.get_connection() as conn:
+            result = conn.execute(
+                query,
+                [player_name.lower(), player_name, player_name],
+            ).fetchall()
+
+        return [row[0] for row in result]
+
     def get_head_to_head_stats(self, player1: str, player2: str) -> Dict[str, Any]:
         """Get head-to-head statistics between two players.
 

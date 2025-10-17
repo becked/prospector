@@ -177,8 +177,9 @@ layout = html.Div(
                                                         ),
                                                         dcc.Dropdown(
                                                             id="h2h-player2-selector",
-                                                            placeholder="Select second player...",
+                                                            placeholder="Select first player first...",
                                                             options=[],
+                                                            disabled=True,
                                                         ),
                                                     ],
                                                     width=5,
@@ -294,27 +295,24 @@ def update_player_summary_metrics(n_intervals: int) -> html.Div:
 
 
 @callback(
-    [
-        Output("h2h-player1-selector", "options"),
-        Output("h2h-player2-selector", "options"),
-    ],
+    Output("h2h-player1-selector", "options"),
     Input("refresh-interval", "n_intervals"),
 )
-def update_h2h_player_options(n_intervals: int) -> tuple:
-    """Update head-to-head player selector options.
+def update_h2h_player1_options(n_intervals: int) -> List[Dict[str, str]]:
+    """Update Player 1 selector options.
 
     Args:
         n_intervals: Number of interval triggers
 
     Returns:
-        Tuple of (player1_options, player2_options)
+        List of player options sorted by activity
     """
     try:
         queries = get_queries()
         df = queries.get_player_performance()
 
         if df.empty:
-            return [], []
+            return []
 
         # Create player options sorted by activity
         options = []
@@ -322,11 +320,53 @@ def update_h2h_player_options(n_intervals: int) -> tuple:
             label = f"{player['player_name']} ({player['total_matches']} matches)"
             options.append({"label": label, "value": player["player_name"]})
 
-        return options, options
+        return options
 
     except Exception as e:
-        logger.error(f"Error updating H2H options: {e}")
-        return [], []
+        logger.error(f"Error updating H2H Player 1 options: {e}")
+        return []
+
+
+@callback(
+    [
+        Output("h2h-player2-selector", "options"),
+        Output("h2h-player2-selector", "value"),
+        Output("h2h-player2-selector", "disabled"),
+    ],
+    Input("h2h-player1-selector", "value"),
+)
+def update_h2h_player2_options(
+    player1: Optional[str],
+) -> tuple[List[Dict[str, str]], Optional[str], bool]:
+    """Update Player 2 selector options based on Player 1 selection.
+
+    Args:
+        player1: Selected Player 1 name
+
+    Returns:
+        Tuple of (player2_options, player2_value, disabled)
+    """
+    if not player1:
+        # Player 1 not selected - disable Player 2
+        return [], None, True
+
+    try:
+        queries = get_queries()
+        opponents = queries.get_opponents(player1)
+
+        if not opponents:
+            # No opponents found - disable Player 2
+            return [], None, True
+
+        # Create opponent options (already sorted alphabetically by query)
+        options = [{"label": name, "value": name} for name in opponents]
+
+        # Enable Player 2 dropdown
+        return options, None, False
+
+    except Exception as e:
+        logger.error(f"Error updating H2H Player 2 options: {e}")
+        return [], None, True
 
 
 @callback(
