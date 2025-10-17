@@ -508,6 +508,163 @@ WHERE participant_id IS NULL
 **Priority**: Overrides checked before normalized name matching
 **Logging**: Check logs for "Using override" messages during linking
 
+## Pick Order Data Integration
+
+### Overview
+
+Tournament games have a draft phase where one player picks their nation first, then the other player picks second. Save files don't capture this information (both nations show as chosen on turn 1), so we integrate pick order data from a Google Sheet maintained by the tournament organizer.
+
+**Data Sources:**
+1. **Save files** - Contain nations played and game outcomes
+2. **Google Sheet (GAMEDATA tab)** - Contains pick order information
+
+**Use Cases:**
+- Does picking first or second affect win rate?
+- Which nations are picked first most often?
+- Counter-pick analysis (what beats what?)
+- Player pick order preferences
+
+### Database Schema
+
+**`pick_order_games` table** - Stores parsed sheet data:
+- Game number, round, player names from sheet
+- First/second pick nations
+- Matching metadata (match_id, confidence, etc.)
+
+**`matches` table additions:**
+- `first_picker_participant_id` - Who picked first
+- `second_picker_participant_id` - Who picked second
+
+### Workflow
+
+The pick order integration is automatic during full sync:
+
+```bash
+# Full sync (includes pick order)
+./scripts/sync_tournament_data.sh
+```
+
+Or run manually:
+
+```bash
+# 1. Fetch and parse sheet data
+uv run python scripts/sync_pick_order_data.py
+
+# 2. Match games to database
+uv run python scripts/match_pick_order_games.py
+```
+
+### Configuration
+
+**.env variables:**
+```bash
+# Same API key used for Google Drive
+GOOGLE_DRIVE_API_KEY=your_api_key_here
+
+# Spreadsheet ID (from sheet URL)
+GOOGLE_SHEETS_SPREADSHEET_ID=19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc
+
+# Sheet GID (optional, has default)
+GOOGLE_SHEETS_GAMEDATA_GID=1663493966
+```
+
+**For production (Fly.io):**
+```bash
+# API key is already set for GDrive
+# Just add spreadsheet ID if different
+fly secrets set GOOGLE_SHEETS_SPREADSHEET_ID="id" -a prospector
+```
+
+### Manual Overrides
+
+Some games may fail to auto-match (name mismatches, nation mismatches). Create manual overrides:
+
+1. Copy example file:
+   ```bash
+   cp data/pick_order_overrides.json.example data/pick_order_overrides.json
+   ```
+
+2. Add override entries for failing games:
+   ```json
+   {
+     "game_1": {
+       "challonge_match_id": 426504734,
+       "reason": "Player name mismatch: sheet has 'Ninja', save has 'Ninjaa'",
+       "date_added": "2025-10-17"
+     }
+   }
+   ```
+
+3. Re-run matching:
+   ```bash
+   uv run python scripts/match_pick_order_games.py
+   ```
+
+### Analytics
+
+Example queries available in `scripts/pick_order_analytics_examples.sql`:
+
+```bash
+# Run all examples
+uv run duckdb data/tournament_data.duckdb -readonly < scripts/pick_order_analytics_examples.sql
+```
+
+**Query examples:**
+- Overall pick order win rate
+- Nation performance by pick position
+- Counter-pick patterns
+- Player pick preferences
+- Data quality checks
+
+### Troubleshooting
+
+**No pick order data synced:**
+- Check `GOOGLE_DRIVE_API_KEY` is set
+- Verify `GOOGLE_SHEETS_SPREADSHEET_ID` is correct
+- Check sheet is publicly readable
+
+**Low match rate:**
+- Check player names in sheet vs save files (use `validate_participants.py`)
+- Add overrides to `data/pick_order_overrides.json`
+- Run matching with `--verbose` flag to see why matches fail
+
+**Nation mismatches:**
+- Verify nations in sheet match civilization names exactly:
+  - Correct: "Assyria", "Egypt", "Persia"
+  - Incorrect: "ASSYRIA", "egyptian", "Persians"
+- Check if player changed nation after draft (needs override)
+
+**Check data quality:**
+```bash
+# See how many games have pick order data
+uv run duckdb data/tournament_data.duckdb -readonly -c "
+SELECT
+    COUNT(*) as total_matches,
+    COUNT(first_picker_participant_id) as with_pick_order,
+    ROUND(COUNT(first_picker_participant_id) * 100.0 / COUNT(*), 1) as coverage_pct
+FROM matches
+"
+```
+
+### Files
+
+**Data:**
+- `data/pick_order_overrides.json` - Manual match overrides (not in git)
+- `data/pick_order_overrides.json.example` - Override file template
+
+**Scripts:**
+- `scripts/sync_pick_order_data.py` - Fetch and parse sheet
+- `scripts/match_pick_order_games.py` - Match to database
+- `scripts/pick_order_analytics_examples.sql` - Example queries
+
+**Modules:**
+- `tournament_visualizer/data/gsheets_client.py` - Google Sheets API client
+- `tournament_visualizer/data/gamedata_parser.py` - Sheet parser
+
+**Documentation:**
+- `docs/migrations/008_add_pick_order_tracking.md` - Schema migration docs
+- `docs/plans/pick-order-integration-implementation-plan.md` - Full implementation plan
+
 ## Deployment (Fly.io)
 
 ### Quick Reference
