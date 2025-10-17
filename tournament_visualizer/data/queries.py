@@ -448,22 +448,60 @@ class TournamentQueries:
     def get_map_performance_analysis(self) -> pd.DataFrame:
         """Get performance analysis by map characteristics.
 
+        Counts unique participants (people) rather than player name strings
+        to accurately reflect how many different people have played on each
+        map configuration.
+
         Returns:
-            DataFrame with map performance data including aspect ratio
+            DataFrame with map performance data including aspect ratio and participant counts:
+                - map_size: Map size (e.g., 'SMALL', 'MEDIUM', 'LARGE')
+                - map_class: Map class (e.g., 'INLAND', 'LAKES')
+                - map_aspect_ratio: Aspect ratio (e.g., 'STANDARD', 'WIDE')
+                - total_matches: Number of matches with this configuration
+                - avg_turns: Average match length in turns
+                - min_turns: Shortest match
+                - max_turns: Longest match
+                - unique_participants: Count of unique people (linked + unlinked proxy)
+                - unique_linked_participants: Count of properly linked only
+                - unique_unlinked_players: Count of unlinked only (data quality metric)
         """
         query = """
+        WITH player_identity AS (
+            SELECT
+                m.match_id,
+                p.player_id,
+                m.map_size,
+                m.map_class,
+                m.map_aspect_ratio,
+                m.total_turns,
+                -- Create person key: participant_id if available, else normalized name
+                COALESCE(
+                    CAST(p.participant_id AS VARCHAR),
+                    'unlinked_' || p.player_name_normalized
+                ) as person_key,
+                CASE WHEN p.participant_id IS NOT NULL THEN TRUE ELSE FALSE END as is_linked
+            FROM matches m
+            LEFT JOIN players p ON m.match_id = p.match_id
+        )
         SELECT
-            COALESCE(m.map_size, 'Unknown') as map_size,
-            COALESCE(m.map_class, 'Unknown') as map_class,
-            COALESCE(m.map_aspect_ratio, 'Unknown') as map_aspect_ratio,
-            COUNT(DISTINCT m.match_id) as total_matches,
-            AVG(m.total_turns) as avg_turns,
-            MIN(m.total_turns) as min_turns,
-            MAX(m.total_turns) as max_turns,
-            COUNT(DISTINCT p.player_name) as unique_players
-        FROM matches m
-        LEFT JOIN players p ON m.match_id = p.match_id
-        GROUP BY COALESCE(m.map_size, 'Unknown'), COALESCE(m.map_class, 'Unknown'), COALESCE(m.map_aspect_ratio, 'Unknown')
+            COALESCE(pi.map_size, 'Unknown') as map_size,
+            COALESCE(pi.map_class, 'Unknown') as map_class,
+            COALESCE(pi.map_aspect_ratio, 'Unknown') as map_aspect_ratio,
+            COUNT(DISTINCT pi.match_id) as total_matches,
+            AVG(pi.total_turns) as avg_turns,
+            MIN(pi.total_turns) as min_turns,
+            MAX(pi.total_turns) as max_turns,
+            -- Count unique people (participants + unlinked player proxies)
+            COUNT(DISTINCT pi.person_key) as unique_participants,
+            -- Count only linked participants for data quality insight
+            COUNT(DISTINCT CASE WHEN pi.is_linked THEN pi.person_key END) as unique_linked_participants,
+            -- Count unlinked for data quality insight
+            COUNT(DISTINCT CASE WHEN NOT pi.is_linked THEN pi.person_key END) as unique_unlinked_players
+        FROM player_identity pi
+        GROUP BY
+            COALESCE(pi.map_size, 'Unknown'),
+            COALESCE(pi.map_class, 'Unknown'),
+            COALESCE(pi.map_aspect_ratio, 'Unknown')
         ORDER BY total_matches DESC
         """
 
