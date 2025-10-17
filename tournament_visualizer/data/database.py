@@ -129,6 +129,7 @@ class TournamentDatabase:
 
         # Create tables in dependency order
         self._create_matches_table()
+        self._create_tournament_participants_table()
         self._create_players_table()
         self._create_rulers_table()
         self._create_match_winners_table()
@@ -145,6 +146,7 @@ class TournamentDatabase:
         self._create_player_legitimacy_history_table()
         self._create_family_opinion_history_table()
         self._create_religion_opinion_history_table()
+        self._create_participant_name_overrides_table()
         self._create_schema_migrations_table()
         self._create_views()
 
@@ -199,15 +201,39 @@ class TournamentDatabase:
             victory_conditions TEXT,
             total_turns INTEGER,
             winner_player_id BIGINT,
+            player1_participant_id BIGINT,
+            player2_participant_id BIGINT,
+            winner_participant_id BIGINT,
 
             CONSTRAINT unique_file UNIQUE(file_name, file_hash),
             CONSTRAINT check_total_turns CHECK(total_turns >= 0)
         );
-        
+
         CREATE INDEX IF NOT EXISTS idx_matches_processed_date ON matches(processed_date);
         CREATE INDEX IF NOT EXISTS idx_matches_challonge_id ON matches(challonge_match_id);
         CREATE INDEX IF NOT EXISTS idx_matches_save_date ON matches(save_date);
         CREATE INDEX IF NOT EXISTS idx_matches_winner ON matches(winner_player_id);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_tournament_participants_table(self) -> None:
+        """Create the tournament_participants table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS tournament_participants (
+            participant_id BIGINT PRIMARY KEY,
+            display_name VARCHAR NOT NULL,
+            display_name_normalized VARCHAR NOT NULL,
+            challonge_username VARCHAR,
+            challonge_user_id BIGINT,
+            seed INTEGER,
+            final_rank INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_participants_normalized
+        ON tournament_participants(display_name_normalized);
         """
         with self.get_connection() as conn:
             conn.execute(query)
@@ -226,6 +252,7 @@ class TournamentDatabase:
             final_score INTEGER DEFAULT 0,
             is_human BOOLEAN DEFAULT TRUE,
             final_turn_active INTEGER,
+            participant_id BIGINT,
 
             CONSTRAINT check_final_score CHECK(final_score >= 0),
             CONSTRAINT check_final_turn_active CHECK(final_turn_active >= 0)
@@ -236,6 +263,7 @@ class TournamentDatabase:
         CREATE INDEX IF NOT EXISTS idx_players_name_normalized ON players(player_name_normalized);
         CREATE INDEX IF NOT EXISTS idx_players_civilization ON players(civilization);
         CREATE INDEX IF NOT EXISTS idx_players_match_name ON players(match_id, player_name_normalized);
+        CREATE INDEX IF NOT EXISTS idx_players_participant ON players(participant_id);
         """
         with self.get_connection() as conn:
             conn.execute(query)
@@ -715,6 +743,22 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             conn.execute(query)
 
+    def _create_participant_name_overrides_table(self) -> None:
+        """Create the participant_name_overrides table."""
+        query = """
+        CREATE TABLE IF NOT EXISTS participant_name_overrides (
+            override_id INTEGER PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            save_file_player_name VARCHAR NOT NULL,
+            participant_id BIGINT NOT NULL REFERENCES tournament_participants(participant_id),
+            reason VARCHAR,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(match_id, save_file_player_name)
+        );
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
     def _create_schema_migrations_table(self) -> None:
         """Create the schema migrations tracking table."""
         query = """
@@ -933,20 +977,24 @@ class TournamentDatabase:
             for ruler in rulers:
                 # Validate required fields
                 if "player_id" not in ruler or "character_id" not in ruler:
-                    logger.warning(f"Skipping ruler with missing required fields: {ruler}")
+                    logger.warning(
+                        f"Skipping ruler with missing required fields: {ruler}"
+                    )
                     continue
 
                 # Build insert tuple
-                insert_data.append({
-                    "match_id": match_id,
-                    "player_id": ruler["player_id"],
-                    "character_id": ruler["character_id"],
-                    "ruler_name": ruler.get("ruler_name"),
-                    "archetype": ruler.get("archetype"),
-                    "starting_trait": ruler.get("starting_trait"),
-                    "succession_order": ruler.get("succession_order", 0),
-                    "succession_turn": ruler.get("succession_turn", 1),
-                })
+                insert_data.append(
+                    {
+                        "match_id": match_id,
+                        "player_id": ruler["player_id"],
+                        "character_id": ruler["character_id"],
+                        "ruler_name": ruler.get("ruler_name"),
+                        "archetype": ruler.get("archetype"),
+                        "starting_trait": ruler.get("starting_trait"),
+                        "succession_order": ruler.get("succession_order", 0),
+                        "succession_turn": ruler.get("succession_turn", 1),
+                    }
+                )
 
             if not insert_data:
                 logger.warning(f"No valid rulers to insert for match {match_id}")
@@ -963,7 +1011,9 @@ class TournamentDatabase:
 
                 values = []
                 for d in insert_data:
-                    ruler_id = conn.execute("SELECT nextval('rulers_id_seq')").fetchone()[0]
+                    ruler_id = conn.execute(
+                        "SELECT nextval('rulers_id_seq')"
+                    ).fetchone()[0]
                     values.append(
                         [
                             ruler_id,
@@ -980,7 +1030,9 @@ class TournamentDatabase:
 
                 conn.executemany(query, values)
 
-            logger.info(f"Successfully inserted {len(insert_data)} rulers for match {match_id}")
+            logger.info(
+                f"Successfully inserted {len(insert_data)} rulers for match {match_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error inserting rulers for match {match_id}: {e}")
@@ -1272,9 +1324,7 @@ class TournamentDatabase:
 
             conn.executemany(query, values)
 
-    def bulk_insert_military_history(
-        self, military_data: List[Dict[str, Any]]
-    ) -> None:
+    def bulk_insert_military_history(self, military_data: List[Dict[str, Any]]) -> None:
         """Bulk insert military power history records.
 
         Args:
