@@ -83,6 +83,17 @@ else
 fi
 echo ""
 
+# Step 1.5: Generate Google Drive mapping (if API key configured)
+if [ -n "${GOOGLE_DRIVE_API_KEY}" ]; then
+    echo -e "${YELLOW}[1.5/6] Generating Google Drive mapping...${NC}"
+    if uv run python scripts/generate_gdrive_mapping.py --output data/gdrive_match_mapping.json; then
+        echo -e "${GREEN}✓ GDrive mapping generated${NC}"
+    else
+        echo -e "${YELLOW}⚠ GDrive mapping generation failed (will skip GDrive files)${NC}"
+    fi
+    echo ""
+fi
+
 # Step 2: Import attachments into DuckDB (locally - FAST!)
 echo -e "${YELLOW}[2/6] Importing save files into DuckDB (local - fast!)...${NC}"
 IMPORT_CMD="uv run python scripts/import_attachments.py --directory saves --verbose ${FORCE_FLAG}"
@@ -180,6 +191,23 @@ if [ -f "data/participant_name_overrides.json" ]; then
     fi
 else
     echo -e "${BLUE}No participant name override file found - skipping${NC}"
+fi
+
+# Upload Google Drive mapping
+if [ -f "data/gdrive_match_mapping.json" ]; then
+    echo -e "${BLUE}Uploading Google Drive mapping...${NC}"
+
+    if echo "put data/gdrive_match_mapping.json /data/gdrive_match_mapping.json" | fly ssh sftp shell -a "${APP_NAME}"; then
+        echo -e "${GREEN}✓ GDrive mapping file uploaded${NC}"
+
+        # Fix permissions
+        fly ssh console -a "${APP_NAME}" -C "chmod 664 /data/gdrive_match_mapping.json" 2>/dev/null
+        fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser /data/gdrive_match_mapping.json" 2>/dev/null
+    else
+        echo -e "${YELLOW}Warning: Could not upload GDrive mapping file${NC}"
+    fi
+else
+    echo -e "${BLUE}No GDrive mapping file found - skipping${NC}"
 fi
 
 echo ""
