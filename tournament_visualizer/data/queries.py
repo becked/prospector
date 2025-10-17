@@ -71,27 +71,85 @@ class TournamentQueries:
     def get_player_performance(self) -> pd.DataFrame:
         """Get player performance statistics.
 
+        Groups by tournament participant when available, falls back to
+        player name for unlinked players. Returns one row per person.
+
         Returns:
-            DataFrame with player performance data
+            DataFrame with columns:
+                - player_name: Display name (participant or player name)
+                - participant_id: Participant ID (NULL for unlinked)
+                - is_unlinked: Boolean, TRUE if not linked to participant
+                - total_matches: Count of matches played
+                - wins: Count of wins
+                - win_rate: Win percentage (0-100)
+                - avg_score: Average final score
+                - max_score: Highest final score
+                - min_score: Lowest final score
+                - civilizations_played: Comma-separated list of civs used
+                - favorite_civilization: Most-played civ
         """
         query = """
+        WITH player_grouping AS (
+            -- Create smart grouping key: participant_id if linked, else normalized name
+            SELECT
+                p.player_id,
+                p.match_id,
+                p.player_name,
+                p.civilization,
+                p.final_score,
+                tp.participant_id,
+                tp.display_name as participant_display_name,
+                -- Grouping key: use participant_id if available, else normalized name
+                COALESCE(
+                    CAST(tp.participant_id AS VARCHAR),
+                    'unlinked_' || p.player_name_normalized
+                ) as grouping_key,
+                -- Display name: prefer participant, fallback to player
+                COALESCE(tp.display_name, p.player_name) as display_name,
+                -- Flag for unlinked players
+                CASE WHEN tp.participant_id IS NULL THEN TRUE ELSE FALSE END as is_unlinked
+            FROM players p
+            LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+        ),
+        aggregated_stats AS (
+            SELECT
+                pg.grouping_key,
+                MAX(pg.display_name) as player_name,
+                MAX(pg.participant_id) as participant_id,
+                MAX(pg.is_unlinked) as is_unlinked,
+                COUNT(DISTINCT pg.match_id) as total_matches,
+                COUNT(CASE WHEN mw.winner_player_id = pg.player_id THEN 1 END) as wins,
+                ROUND(
+                    COUNT(CASE WHEN mw.winner_player_id = pg.player_id THEN 1 END) * 100.0 /
+                    NULLIF(COUNT(DISTINCT pg.match_id), 0), 2
+                ) as win_rate,
+                AVG(pg.final_score) as avg_score,
+                MAX(pg.final_score) as max_score,
+                MIN(pg.final_score) as min_score,
+                -- Aggregate civilizations
+                STRING_AGG(DISTINCT pg.civilization, ', ' ORDER BY pg.civilization)
+                    FILTER (WHERE pg.civilization IS NOT NULL) as civilizations_played,
+                -- Count civ usage for favorite
+                MODE() WITHIN GROUP (ORDER BY pg.civilization)
+                    FILTER (WHERE pg.civilization IS NOT NULL) as favorite_civilization
+            FROM player_grouping pg
+            LEFT JOIN match_winners mw ON pg.match_id = mw.match_id
+            GROUP BY pg.grouping_key
+            HAVING COUNT(DISTINCT pg.match_id) > 0
+        )
         SELECT
-            MAX(p.player_name) as player_name,
-            p.civilization,
-            COUNT(DISTINCT p.match_id) as total_matches,
-            COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
-            ROUND(
-                COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
-                COUNT(DISTINCT p.match_id), 2
-            ) as win_rate,
-            AVG(p.final_score) as avg_score,
-            MAX(p.final_score) as max_score,
-            MIN(p.final_score) as min_score
-        FROM players p
-        JOIN matches m ON p.match_id = m.match_id
-        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
-        GROUP BY p.player_name_normalized, p.civilization
-        HAVING COUNT(DISTINCT p.match_id) > 0
+            player_name,
+            participant_id,
+            is_unlinked,
+            total_matches,
+            wins,
+            win_rate,
+            avg_score,
+            max_score,
+            min_score,
+            civilizations_played,
+            favorite_civilization
+        FROM aggregated_stats
         ORDER BY win_rate DESC, total_matches DESC
         """
 
