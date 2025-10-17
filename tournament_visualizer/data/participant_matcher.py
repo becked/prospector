@@ -226,42 +226,55 @@ class ParticipantMatcher:
         """
         logger.info("Linking all players to participants...")
 
-        # Get all match IDs
-        match_ids = self.db.fetch_all("SELECT match_id FROM matches ORDER BY match_id")
+        # DuckDB workaround: Drop index before bulk updates to avoid foreign key issues
+        # This is due to a DuckDB limitation with tables that have foreign key references
+        logger.info("Dropping idx_players_participant index for bulk updates...")
+        self.db.execute_query("DROP INDEX IF EXISTS idx_players_participant")
 
-        total_players = 0
-        matched_players = 0
-        unmatched_players = 0
-        matches_fully_matched = 0
-        matches_with_unmatched = 0
-        unmatched_by_match = {}
+        try:
+            # Get all match IDs
+            match_ids = self.db.fetch_all("SELECT match_id FROM matches ORDER BY match_id")
 
-        for (match_id,) in match_ids:
-            stats = self.link_match_players(match_id)
+            total_players = 0
+            matched_players = 0
+            unmatched_players = 0
+            matches_fully_matched = 0
+            matches_with_unmatched = 0
+            unmatched_by_match = {}
 
-            total_players += stats["total_players"]
-            matched_players += stats["matched"]
-            unmatched_players += stats["unmatched"]
+            for (match_id,) in match_ids:
+                stats = self.link_match_players(match_id)
 
-            if stats["unmatched"] == 0:
-                matches_fully_matched += 1
-            else:
-                matches_with_unmatched += 1
-                unmatched_by_match[match_id] = stats["unmatched_names"]
+                total_players += stats["total_players"]
+                matched_players += stats["matched"]
+                unmatched_players += stats["unmatched"]
 
-        summary = {
-            "total_matches": len(match_ids),
-            "total_players": total_players,
-            "matched_players": matched_players,
-            "unmatched_players": unmatched_players,
-            "matches_fully_matched": matches_fully_matched,
-            "matches_with_unmatched": matches_with_unmatched,
-            "unmatched_by_match": unmatched_by_match,
-        }
+                if stats["unmatched"] == 0:
+                    matches_fully_matched += 1
+                else:
+                    matches_with_unmatched += 1
+                    unmatched_by_match[match_id] = stats["unmatched_names"]
 
-        logger.info(
-            f"Linking complete: {matched_players}/{total_players} players matched "
-            f"across {len(match_ids)} matches"
-        )
+            summary = {
+                "total_matches": len(match_ids),
+                "total_players": total_players,
+                "matched_players": matched_players,
+                "unmatched_players": unmatched_players,
+                "matches_fully_matched": matches_fully_matched,
+                "matches_with_unmatched": matches_with_unmatched,
+                "unmatched_by_match": unmatched_by_match,
+            }
 
-        return summary
+            logger.info(
+                f"Linking complete: {matched_players}/{total_players} players matched "
+                f"across {len(match_ids)} matches"
+            )
+
+            return summary
+
+        finally:
+            # Always recreate the index, even if there's an error
+            logger.info("Recreating idx_players_participant index...")
+            self.db.execute_query(
+                "CREATE INDEX IF NOT EXISTS idx_players_participant ON players(participant_id)"
+            )
