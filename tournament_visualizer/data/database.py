@@ -35,6 +35,7 @@ class TournamentDatabase:
         if not read_only:
             self.connect()  # Ensure connection exists
             self.migrate_to_participant_tracking()
+            self.migrate_to_pick_order_tracking()
 
     @contextmanager
     def get_connection(self):
@@ -152,6 +153,7 @@ class TournamentDatabase:
         self._create_family_opinion_history_table()
         self._create_religion_opinion_history_table()
         self._create_participant_name_overrides_table()
+        self._create_pick_order_games_table()
         self._create_schema_migrations_table()
         self._create_views()
 
@@ -209,6 +211,8 @@ class TournamentDatabase:
             player1_participant_id BIGINT,
             player2_participant_id BIGINT,
             winner_participant_id BIGINT,
+            first_picker_participant_id BIGINT,
+            second_picker_participant_id BIGINT,
 
             CONSTRAINT unique_file UNIQUE(file_name, file_hash),
             CONSTRAINT check_total_turns CHECK(total_turns >= 0)
@@ -764,6 +768,46 @@ class TournamentDatabase:
         with self.get_connection() as conn:
             conn.execute(query)
 
+    def _create_pick_order_games_table(self) -> None:
+        """Create the pick_order_games table for storing Google Sheets pick order data."""
+        query = """
+        CREATE TABLE IF NOT EXISTS pick_order_games (
+            game_number INTEGER PRIMARY KEY,
+            round_number INTEGER NOT NULL,
+            round_label VARCHAR,
+
+            player1_sheet_name VARCHAR NOT NULL,
+            player2_sheet_name VARCHAR NOT NULL,
+
+            first_pick_nation VARCHAR NOT NULL,
+            second_pick_nation VARCHAR NOT NULL,
+
+            first_picker_sheet_name VARCHAR,
+            second_picker_sheet_name VARCHAR,
+
+            matched_match_id BIGINT,
+            first_picker_participant_id BIGINT,
+            second_picker_participant_id BIGINT,
+            match_confidence VARCHAR,
+            match_reason VARCHAR,
+
+            fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            matched_at TIMESTAMP,
+
+            FOREIGN KEY (matched_match_id) REFERENCES matches(match_id),
+            FOREIGN KEY (first_picker_participant_id) REFERENCES tournament_participants(participant_id),
+            FOREIGN KEY (second_picker_participant_id) REFERENCES tournament_participants(participant_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pick_order_games_round
+        ON pick_order_games(round_number);
+
+        CREATE INDEX IF NOT EXISTS idx_pick_order_games_matched_match
+        ON pick_order_games(matched_match_id);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
     def _create_schema_migrations_table(self) -> None:
         """Create the schema migrations tracking table."""
         query = """
@@ -946,6 +990,85 @@ class TournamentDatabase:
 
         except Exception as e:
             logger.error(f"Error during participant tracking migration: {e}")
+            raise
+
+    def migrate_to_pick_order_tracking(self) -> None:
+        """Migrate existing database to support pick order tracking.
+
+        Adds first_picker_participant_id and second_picker_participant_id columns
+        to matches table, and creates pick_order_games table if it doesn't exist.
+
+        This migration is idempotent - safe to run multiple times.
+        """
+        logger.info("Checking for pick order tracking migration...")
+
+        try:
+            with self.get_connection() as conn:
+                # Ensure schema_migrations table exists
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        version VARCHAR(20) PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        description TEXT
+                    )
+                """
+                )
+
+                # Check if migration already applied
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM schema_migrations
+                    WHERE version = '5'
+                """
+                ).fetchone()
+
+                if result[0] > 0:
+                    logger.info("Pick order tracking migration already applied")
+                    return
+
+                logger.info("Applying pick order tracking migration...")
+
+            # Create pick_order_games table if not exists
+            self._create_pick_order_games_table()
+
+            with self.get_connection() as conn:
+                # Add columns to matches table (checking if they exist first)
+                matches_columns_to_add = [
+                    ("first_picker_participant_id", "BIGINT"),
+                    ("second_picker_participant_id", "BIGINT"),
+                ]
+
+                for column_name, column_type in matches_columns_to_add:
+                    # Check if column exists
+                    existing = conn.execute(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_name = 'matches'
+                        AND column_name = '{column_name}'
+                    """
+                    ).fetchone()
+
+                    if existing[0] == 0:
+                        conn.execute(
+                            f"ALTER TABLE matches ADD COLUMN {column_name} {column_type}"
+                        )
+                        logger.info(f"Added column {column_name} to matches table")
+
+                # Record migration
+                conn.execute(
+                    """
+                    INSERT INTO schema_migrations (version, description, applied_at)
+                    VALUES ('5', 'Add pick order tracking', CURRENT_TIMESTAMP)
+                """
+                )
+
+                logger.info("Pick order tracking migration completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during pick order tracking migration: {e}")
             raise
 
     def get_processed_files(self) -> List[Tuple[str, str]]:
