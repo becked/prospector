@@ -1,0 +1,26 @@
+{
+  "_comment": "Participant name overrides for save file player names that don't match Challonge names",
+  "_instructions": [
+    "Copy this file to participant_name_overrides.json and add your overrides",
+    "This is needed when save file player names differ from Challonge display names",
+    "Structure: match_id -> { save_file_name: { participant_id, reason, date_added } }",
+    "Match IDs and participant IDs must be numbers (not strings)",
+    "save_file_name must match the exact player name from save file",
+    "Required fields: participant_id, reason",
+    "Optional fields: date_added, notes"
+  ],
+  "1": {
+    "Marauder": {
+      "participant_id": 272323229,
+      "reason": "Save file uses 'Marauder' but Challonge name is 'MarauderPL'",
+      "date_added": "2025-10-17"
+    }
+  },
+  "8": {
+    "Ninja": {
+      "participant_id": 272470588,
+      "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
+      "date_added": "2025-10-17"
+    }
+  }
+}
