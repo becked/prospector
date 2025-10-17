@@ -8,5 +8,3 @@ Rincewind:
 
 Siontific
 * Actual time played of matches: https://github.com/becked/prospector/blob/main/docs/plans/youtube-playtime-tracking-implementation-plan.md 
-* Challonge attachment links aren't being downloaded (ex. Aran v Sabertooth, with a discord link)
-    * Per Alcaras' suggestion, we ought to migrate away from Challonge for saves and instead use the google drive which stores all saves.
