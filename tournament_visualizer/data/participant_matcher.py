@@ -4,9 +4,12 @@ Links save file players to tournament participants using name matching
 and manual overrides.
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
+from tournament_visualizer.config import Config
 from tournament_visualizer.data.database import TournamentDatabase
 from tournament_visualizer.data.name_normalizer import (
     normalize_name,
@@ -18,15 +21,23 @@ logger = logging.getLogger(__name__)
 class ParticipantMatcher:
     """Matches save file players to tournament participants."""
 
-    def __init__(self, db: TournamentDatabase) -> None:
+    def __init__(
+        self,
+        db: TournamentDatabase,
+        overrides_path: Optional[str] = None,
+    ) -> None:
         """Initialize matcher with database connection.
 
         Args:
             db: Database instance
+            overrides_path: Path to participant name overrides JSON file.
+                          If None, uses Config.PARTICIPANT_NAME_OVERRIDES_PATH
         """
         self.db = db
         self._participant_lookup: Optional[dict[str, tuple[int, str]]] = None
-        self._override_cache: dict[tuple[int, str], int] = {}
+        self._overrides_path = overrides_path or Config.PARTICIPANT_NAME_OVERRIDES_PATH
+        self._overrides: dict[int, dict[str, dict[str, Any]]] = {}
+        self._overrides_loaded = False
 
     def _load_participants(self) -> None:
         """Load participant data and build lookup table.
@@ -57,27 +68,57 @@ class ParticipantMatcher:
 
         logger.info(f"Loaded {len(self._participant_lookup)} participants for matching")
 
-    def _load_overrides(self, match_id: int) -> None:
-        """Load name overrides for a specific match.
+    def _load_overrides(self) -> None:
+        """Load participant name overrides from JSON file.
 
-        Args:
-            match_id: Match ID to load overrides for
+        The JSON structure is:
+        {
+            "match_id": {
+                "save_file_name": {
+                    "participant_id": 123,
+                    "reason": "explanation",
+                    "date_added": "YYYY-MM-DD"
+                }
+            }
+        }
         """
-        overrides = self.db.fetch_all(
-            """
-            SELECT save_file_player_name, participant_id
-            FROM participant_name_overrides
-            WHERE match_id = ?
-            """,
-            {"1": match_id},
-        )
+        if self._overrides_loaded:
+            return
 
-        for save_name, participant_id in overrides:
-            cache_key = (match_id, save_name)
-            self._override_cache[cache_key] = participant_id
+        overrides_path = Path(self._overrides_path)
 
-        if overrides:
-            logger.info(f"Loaded {len(overrides)} name overrides for match {match_id}")
+        if not overrides_path.exists():
+            logger.info(
+                f"No participant name overrides file found at {self._overrides_path}"
+            )
+            self._overrides_loaded = True
+            return
+
+        try:
+            with open(overrides_path, "r") as f:
+                data = json.load(f)
+
+            # Convert match IDs from strings to ints and build lookup
+            override_count = 0
+            for match_id_str, players in data.items():
+                # Skip metadata entries
+                if match_id_str.startswith("_"):
+                    continue
+
+                match_id = int(match_id_str)
+                self._overrides[match_id] = players
+                override_count += len(players)
+
+            logger.info(
+                f"Loaded {override_count} participant name overrides from {self._overrides_path}"
+            )
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse overrides file {self._overrides_path}: {e}")
+        except Exception as e:
+            logger.error(f"Error loading overrides from {self._overrides_path}: {e}")
+
+        self._overrides_loaded = True
 
     def match_player(
         self, match_id: int, player_name: str, allow_override: bool = True
@@ -91,7 +132,7 @@ class ParticipantMatcher:
         Args:
             match_id: Match ID (for override lookup)
             player_name: Player name from save file
-            allow_override: Whether to check override table
+            allow_override: Whether to check override file
 
         Returns:
             Participant ID if match found, None otherwise
@@ -104,17 +145,21 @@ class ParticipantMatcher:
 
         # Check override first
         if allow_override:
-            # Load overrides for this match if not cached
-            cache_key = (match_id, player_name)
-            if cache_key not in self._override_cache:
-                self._load_overrides(match_id)
+            # Load overrides if not already loaded
+            if not self._overrides_loaded:
+                self._load_overrides()
 
-            if cache_key in self._override_cache:
-                participant_id = self._override_cache[cache_key]
-                logger.debug(
-                    f"Using override: '{player_name}' -> participant {participant_id}"
-                )
-                return participant_id
+            # Check if this match has overrides
+            if match_id in self._overrides:
+                match_overrides = self._overrides[match_id]
+                if player_name in match_overrides:
+                    override_data = match_overrides[player_name]
+                    participant_id = override_data["participant_id"]
+                    logger.debug(
+                        f"Using override: '{player_name}' -> participant {participant_id} "
+                        f"(reason: {override_data.get('reason', 'not specified')})"
+                    )
+                    return participant_id
 
         # Try normalized name matching
         normalized_player_name = normalize_name(player_name)
