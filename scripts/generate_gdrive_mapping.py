@@ -23,6 +23,10 @@ from typing import Any
 from chyllonge.api import ChallongeApi
 from dotenv import load_dotenv
 
+# Load environment variables before importing Config
+# (Config class variables are evaluated at import time)
+load_dotenv()
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -226,9 +230,6 @@ def generate_mapping(
     Returns:
         Mapping dictionary
     """
-    # Load environment
-    load_dotenv()
-
     # Initialize clients
     logger.info("Initializing API clients...")
     gdrive_client = GoogleDriveClient(
