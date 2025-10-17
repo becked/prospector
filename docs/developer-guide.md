@@ -1144,3 +1144,147 @@ Validates:
 - Valid archetype values
 - No duplicate rulers
 
+## Tournament Participant Tracking
+
+The participant tracking system links players across multiple matches using Challonge tournament data. This enables cross-match analytics, persistent player identity, and bracket integration.
+
+### Architecture
+
+**Two-tier identity system:**
+1. **Match-scoped players** (`players` table): Independent player_ids per save file
+2. **Tournament participants** (`tournament_participants` table): Persistent identity
+
+**Data flow:**
+1. Import Challonge participants via API
+2. Import save files (creates match-scoped players)
+3. Link players to participants via name matching
+4. Enable cross-match queries using participant_id
+
+### Schema
+
+**tournament_participants table:**
+```sql
+CREATE TABLE tournament_participants (
+    participant_id BIGINT PRIMARY KEY,           -- Challonge participant ID
+    display_name VARCHAR NOT NULL,               -- Display name
+    display_name_normalized VARCHAR NOT NULL,    -- Normalized for matching
+    challonge_username VARCHAR,
+    challonge_user_id BIGINT,                    -- Persistent across tournaments
+    seed INTEGER,
+    final_rank INTEGER
+);
+```
+
+**Foreign keys:**
+- `players.participant_id` → `tournament_participants.participant_id`
+- `matches.player1_participant_id` → `tournament_participants.participant_id`
+- `matches.player2_participant_id` → `tournament_participants.participant_id`
+- `matches.winner_participant_id` → `tournament_participants.participant_id`
+
+### Common Queries
+
+**Player performance across matches:**
+```sql
+SELECT
+    tp.display_name,
+    COUNT(DISTINCT p.match_id) as matches_played,
+    SUM(CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END) as wins
+FROM tournament_participants tp
+JOIN players p ON tp.participant_id = p.participant_id
+JOIN match_winners mw ON p.match_id = mw.match_id
+GROUP BY tp.participant_id, tp.display_name
+ORDER BY wins DESC;
+```
+
+**Participant civilizations:**
+```sql
+SELECT
+    tp.display_name,
+    p.civilization,
+    COUNT(*) as times_played
+FROM tournament_participants tp
+JOIN players p ON tp.participant_id = p.participant_id
+WHERE p.civilization IS NOT NULL
+GROUP BY tp.participant_id, tp.display_name, p.civilization
+ORDER BY tp.display_name, times_played DESC;
+```
+
+### Workflow
+
+**Initial setup:**
+```bash
+# 1. Sync participants from Challonge
+uv run python scripts/sync_challonge_participants.py
+
+# 2. Import save files
+uv run python scripts/import_attachments.py --directory saves --force
+
+# 3. Link players to participants (automatic in ETL, or manual)
+uv run python scripts/link_players_to_participants.py
+
+# 4. Validate
+uv run python scripts/validate_participants.py
+```
+
+**After tournament updates:**
+```bash
+# Re-sync participants (handles new/changed participants)
+uv run python scripts/sync_challonge_participants.py
+
+# Re-link (if participant names changed)
+uv run python scripts/link_players_to_participants.py
+```
+
+### Name Matching
+
+**Normalization process:**
+1. Strip whitespace
+2. Convert to lowercase
+3. Remove Unicode accents
+4. Remove special characters
+5. Remove all remaining whitespace
+
+**Examples:**
+- "FluffybunnyMohawk" → "fluffybunnymohawk"
+- "Ninja [OW]" → "ninjaow"
+- "José García" → "josegarcia"
+
+### Manual Overrides
+
+**When automated matching fails, add manual override:**
+
+```sql
+INSERT INTO participant_name_overrides (
+    match_id,
+    save_file_player_name,
+    participant_id,
+    reason
+) VALUES (
+    123,
+    'SaveFileName',
+    456,
+    'Player changed name mid-tournament'
+);
+```
+
+Then re-run linking:
+```bash
+uv run python scripts/link_players_to_participants.py
+```
+
+### Validation
+
+```bash
+uv run python scripts/validate_participants.py
+```
+
+Checks:
+- Participant data integrity
+- Player-participant foreign key validity
+- Match participant consistency
+- No orphaned links
+
+### DuckDB Workaround
+
+Due to a DuckDB limitation with updating tables that have foreign key references TO them, the participant linking process must drop and recreate the `idx_players_participant` index during bulk updates. This is handled automatically by the `ParticipantMatcher.link_all_matches()` method.
+

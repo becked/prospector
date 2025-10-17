@@ -95,9 +95,36 @@ uv run python scripts/validate_logdata.py
 # For MemoryData-related changes
 uv run python scripts/validate_memorydata_ownership.py
 
+# For participant tracking changes
+uv run python scripts/validate_participants.py
+
 # For analytics queries
 uv run python scripts/verify_analytics.py
 ```
+
+### Participant Tracking
+
+The database links players across matches using Challonge participant data.
+
+**Key concepts:**
+- `player_id` is match-scoped (different ID per match)
+- `participant_id` is tournament-scoped (same ID across matches)
+- Name matching uses normalized names (lowercase, no special chars)
+- Manual overrides available for edge cases
+
+**Sync workflow:**
+```bash
+# 1. Import participants from Challonge
+uv run python scripts/sync_challonge_participants.py
+
+# 2. Import save files
+uv run python scripts/import_attachments.py --directory saves --force
+
+# 3. Participants automatically linked (or run manually)
+uv run python scripts/link_players_to_participants.py
+```
+
+**Cross-match queries** use `participant_id` to track individuals across multiple matches.
 
 ### Syncing Tournament Data
 
