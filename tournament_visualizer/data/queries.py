@@ -1162,15 +1162,15 @@ class TournamentQueries:
         SELECT
             COALESCE(p.civilization, 'Unknown') as nation,
             COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) as wins,
-            COUNT(DISTINCT p.match_id) as total_matches,
+            COUNT(*) as total_matches,
             ROUND(
                 COUNT(CASE WHEN mw.winner_player_id = p.player_id THEN 1 END) * 100.0 /
-                NULLIF(COUNT(DISTINCT p.match_id), 0), 2
+                NULLIF(COUNT(*), 0), 2
             ) as win_percentage
         FROM players p
         LEFT JOIN match_winners mw ON p.match_id = mw.match_id
         GROUP BY p.civilization
-        HAVING COUNT(DISTINCT p.match_id) > 0
+        HAVING COUNT(*) > 0
         ORDER BY wins DESC
         """
 
@@ -1187,15 +1187,15 @@ class TournamentQueries:
         SELECT
             COALESCE(p.civilization, 'Unknown') as nation,
             COUNT(CASE WHEN mw.winner_player_id != p.player_id OR mw.winner_player_id IS NULL THEN 1 END) as losses,
-            COUNT(DISTINCT p.match_id) as total_matches,
+            COUNT(*) as total_matches,
             ROUND(
                 COUNT(CASE WHEN mw.winner_player_id != p.player_id OR mw.winner_player_id IS NULL THEN 1 END) * 100.0 /
-                NULLIF(COUNT(DISTINCT p.match_id), 0), 2
+                NULLIF(COUNT(*), 0), 2
             ) as loss_percentage
         FROM players p
         LEFT JOIN match_winners mw ON p.match_id = mw.match_id
         GROUP BY p.civilization
-        HAVING COUNT(DISTINCT p.match_id) > 0
+        HAVING COUNT(*) > 0
         ORDER BY losses DESC
         """
 
