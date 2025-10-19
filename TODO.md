@@ -1,5 +1,4 @@
 Nolegskitten:
-* I'd like to see if there is significant divergence between first pick nations and second pick nations (not in save file, will need to reference https://docs.google.com/spreadsheets/d/19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc/edit?gid=1663493966#gid=1663493966)
 * Army composition
 
 Rincewind:
