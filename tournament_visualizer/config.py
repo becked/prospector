@@ -47,6 +47,9 @@ class Config:
         "1663493966"  # Default: GAMEDATA tab
     )
 
+    # Anthropic API configuration (for match narrative generation)
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000
