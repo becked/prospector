@@ -102,7 +102,7 @@ if [ -n "${GOOGLE_DRIVE_API_KEY}" ]; then
 fi
 
 # Step 2: Import attachments into DuckDB (locally - FAST!)
-echo -e "${YELLOW}[2/7] Importing save files into DuckDB (local - fast!)...${NC}"
+echo -e "${YELLOW}[2/8] Importing save files into DuckDB (local - fast!)...${NC}"
 IMPORT_CMD="uv run python scripts/import_attachments.py --directory saves --verbose ${FORCE_FLAG}"
 if ${IMPORT_CMD}; then
     echo -e "${GREEN}✓ Import complete${NC}"
@@ -114,11 +114,11 @@ echo ""
 
 # Step 2.5: Sync pick order data from Google Sheets (if configured)
 if [ -n "${GOOGLE_DRIVE_API_KEY}" ] && [ -n "${GOOGLE_SHEETS_SPREADSHEET_ID}" ]; then
-    echo -e "${YELLOW}[2.5/7] Syncing pick order data from Google Sheets...${NC}"
+    echo -e "${YELLOW}[2.5/8] Syncing pick order data from Google Sheets...${NC}"
     if uv run python scripts/sync_pick_order_data.py; then
         echo -e "${GREEN}✓ Pick order data synced${NC}"
 
-        echo -e "${YELLOW}[2.6/7] Matching pick order games to matches...${NC}"
+        echo -e "${YELLOW}[2.6/8] Matching pick order games to matches...${NC}"
         if uv run python scripts/match_pick_order_games.py; then
             echo -e "${GREEN}✓ Pick order games matched${NC}"
         else
@@ -129,12 +129,26 @@ if [ -n "${GOOGLE_DRIVE_API_KEY}" ] && [ -n "${GOOGLE_SHEETS_SPREADSHEET_ID}" ];
     fi
     echo ""
 else
-    echo -e "${BLUE}[2.5/7] Skipping pick order sync (API key or spreadsheet ID not configured)${NC}"
+    echo -e "${BLUE}[2.5/8] Skipping pick order sync (API key or spreadsheet ID not configured)${NC}"
+    echo ""
+fi
+
+# Step 2.7: Generate match narratives (if API key configured)
+if [ -n "${ANTHROPIC_API_KEY}" ]; then
+    echo -e "${YELLOW}[2.7/8] Generating match narratives...${NC}"
+    if uv run python scripts/generate_match_narratives.py; then
+        echo -e "${GREEN}✓ Match narratives generated${NC}"
+    else
+        echo -e "${YELLOW}⚠ Narrative generation failed (non-critical, continuing...)${NC}"
+    fi
+    echo ""
+else
+    echo -e "${BLUE}[2.7/8] Skipping narrative generation (ANTHROPIC_API_KEY not configured)${NC}"
     echo ""
 fi
 
 # Step 3: Upload new database via atomic replacement
-echo -e "${YELLOW}[3/7] Uploading new database...${NC}"
+echo -e "${YELLOW}[3/8] Uploading new database...${NC}"
 DB_PATH="data/tournament_data.duckdb"
 REMOTE_PATH="/data/tournament_data.duckdb"
 REMOTE_TEMP_PATH="/data/tournament_data.duckdb.new"
@@ -158,7 +172,7 @@ fi
 echo ""
 
 # Step 4: Verify upload succeeded
-echo -e "${YELLOW}[4/7] Verifying upload...${NC}"
+echo -e "${YELLOW}[4/8] Verifying upload...${NC}"
 
 # Get local file size (macOS syntax)
 LOCAL_SIZE=$(stat -f %z "${DB_PATH}" 2>/dev/null || stat -c %s "${DB_PATH}" 2>/dev/null)
@@ -185,7 +199,7 @@ fi
 echo ""
 
 # Step 4.5: Upload override files if they exist
-echo -e "${YELLOW}[4.5/7] Uploading override files...${NC}"
+echo -e "${YELLOW}[4.5/8] Uploading override files...${NC}"
 
 # Upload match winner overrides
 if [ -f "data/match_winner_overrides.json" ]; then
@@ -275,7 +289,7 @@ fi
 echo ""
 
 # Step 5: Atomically replace database and restart
-echo -e "${YELLOW}[5/7] Replacing database and restarting app...${NC}"
+echo -e "${YELLOW}[5/8] Replacing database and restarting app...${NC}"
 
 # Atomic move (replaces locked file while app is running)
 if fly ssh console -a "${APP_NAME}" -C "mv ${REMOTE_TEMP_PATH} ${REMOTE_PATH}"; then
