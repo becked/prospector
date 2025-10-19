@@ -221,9 +221,9 @@ def match_games_to_matches(dry_run: bool = False) -> None:
 
             else:
                 # Match by player names (normalized)
-                # NOTE: Database uses simple .lower() normalization, not normalize_name()
-                p1_norm = p1_name.lower()
-                p2_norm = p2_name.lower()
+                # Use same normalization as database (normalize_name function)
+                p1_norm = normalize_name(p1_name)
+                p2_norm = normalize_name(p2_name)
 
                 logger.debug(f"  Normalized: '{p1_norm}' vs '{p2_norm}'")
 

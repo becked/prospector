@@ -245,9 +245,11 @@ class OldWorldSaveParser:
             # Get player name and normalize it for consistent matching
             original_name = player_elem.get("Name", f"Player {len(players)+1}").strip()
 
+            from .name_normalizer import normalize_name
+
             player_data = {
                 "player_name": original_name,
-                "player_name_normalized": original_name.lower(),
+                "player_name_normalized": normalize_name(original_name),
                 "civilization": civilization,
                 "team_id": self._safe_int(player_elem.get("team")),
                 "difficulty_level": player_elem.get("difficulty"),
