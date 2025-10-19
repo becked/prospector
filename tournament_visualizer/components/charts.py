@@ -3231,7 +3231,8 @@ def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> 
     fig.update_yaxes(title="First Pick")
 
     # Add more right margin to prevent colorbar overlap
-    fig.update_layout(margin=dict(r=120))
+    # Add bottom margin to show annotation
+    fig.update_layout(margin=dict(r=120, b=80))
 
     # Add annotation explaining the heatmap
     fig.add_annotation(
