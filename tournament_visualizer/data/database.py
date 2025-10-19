@@ -922,13 +922,32 @@ class TournamentDatabase:
                     "IMPORTANT: Consider backing up your database before applying schema changes"
                 )
 
+                # Check if matches table exists before trying to alter it or create related tables
+                matches_table_exists = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_name = 'matches'
+                """
+                ).fetchone()
+
+                if matches_table_exists[0] == 0:
+                    logger.info(
+                        "Matches table does not exist yet - skipping migration "
+                        "(will be applied after initial import)"
+                    )
+                    # Still create tournament_participants table (no FK to matches)
+                    self._create_tournament_participants_table()
+                    return
+
             # Create tournament_participants table if not exists
             self._create_tournament_participants_table()
 
-            # Create participant_name_overrides table if not exists
+            # Create participant_name_overrides table if not exists (has FK to matches)
             self._create_participant_name_overrides_table()
 
             with self.get_connection() as conn:
+
                 # Add columns to matches table (checking if they exist first)
                 # DuckDB doesn't support IF NOT EXISTS in ALTER TABLE ADD COLUMN
                 # So we need to check manually
@@ -954,6 +973,19 @@ class TournamentDatabase:
                             f"ALTER TABLE matches ADD COLUMN {column_name} {column_type}"
                         )
                         logger.info(f"Added column {column_name} to matches table")
+
+                # Check if players table exists before trying to alter it
+                players_table_exists = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_name = 'players'
+                """
+                ).fetchone()
+
+                if players_table_exists[0] == 0:
+                    logger.info("Players table does not exist yet - skipping")
+                    return
 
                 # Add participant_id to players table
                 existing = conn.execute(
@@ -1030,10 +1062,27 @@ class TournamentDatabase:
 
                 logger.info("Applying pick order tracking migration...")
 
-            # Create pick_order_games table if not exists
+                # Check if matches table exists before trying to create related tables or alter it
+                matches_table_exists = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_name = 'matches'
+                """
+                ).fetchone()
+
+                if matches_table_exists[0] == 0:
+                    logger.info(
+                        "Matches table does not exist yet - skipping pick order migration "
+                        "(will be applied after initial import)"
+                    )
+                    return
+
+            # Create pick_order_games table if not exists (has FK to matches)
             self._create_pick_order_games_table()
 
             with self.get_connection() as conn:
+
                 # Add columns to matches table (checking if they exist first)
                 matches_columns_to_add = [
                     ("first_picker_participant_id", "BIGINT"),
