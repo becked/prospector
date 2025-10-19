@@ -213,6 +213,7 @@ class TournamentDatabase:
             winner_participant_id BIGINT,
             first_picker_participant_id BIGINT,
             second_picker_participant_id BIGINT,
+            narrative_summary TEXT,
 
             CONSTRAINT unique_file UNIQUE(file_name, file_hash),
             CONSTRAINT check_total_turns CHECK(total_turns >= 0)
