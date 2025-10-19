@@ -236,9 +236,7 @@ def process_match(
         # Save to database
         save_narrative(conn, match_id, narrative)
 
-        logger.info(
-            f"Match {match_id}: Generated narrative ({len(narrative)} chars)"
-        )
+        logger.info(f"Match {match_id}: Generated narrative ({len(narrative)} chars)")
         return True
 
     except Exception as e:
