@@ -1,26 +1,44 @@
 {
   "_comment": "Participant name overrides for save file player names that don't match Challonge names",
   "_instructions": [
-    "Copy this file to participant_name_overrides.json and add your overrides",
-    "This is needed when save file player names differ from Challonge display names",
-    "Structure: match_id -> { save_file_name: { participant_id, reason, date_added } }",
-    "Match IDs and participant IDs must be numbers (not strings)",
-    "save_file_name must match the exact player name from save file",
-    "Required fields: participant_id, reason",
-    "Optional fields: date_added, notes"
+    "1. Copy this file to participant_name_overrides.json (not in git)",
+    "2. Add entries for players that can't auto-match by name",
+    "3. Run: uv run python scripts/link_players_to_participants.py",
+    "4. For production: ./scripts/sync_tournament_data.sh"
   ],
-  "1": {
-    "Marauder": {
-      "participant_id": 272323229,
-      "reason": "Save file uses 'Marauder' but Challonge name is 'MarauderPL'",
-      "date_added": "2025-10-17"
+  "_format": {
+    "challonge_match_id": {
+      "save_file_name": {
+        "participant_id": "The tournament participant ID to link to",
+        "reason": "Why this override is needed (for documentation)",
+        "date_added": "YYYY-MM-DD (when override was added)"
+      }
     }
   },
-  "8": {
-    "Ninja": {
-      "participant_id": 272470588,
-      "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
-      "date_added": "2025-10-17"
+  "_how_to_find_ids": {
+    "challonge_match_id": "Get from matches table: SELECT match_id, challonge_match_id FROM matches",
+    "participant_id": "Get from tournament_participants table: SELECT participant_id, display_name FROM tournament_participants",
+    "save_file_name": "Exact player name as it appears in the save file XML"
+  },
+  "_examples": {
+    "426504734": {
+      "Ninja": {
+        "participant_id": 272470588,
+        "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
+        "date_added": "2025-10-17"
+      }
+    },
+    "426504756": {
+      "Fiddler": {
+        "participant_id": 272452137,
+        "reason": "Save file uses 'Fiddler' but Challonge name is 'fiddlers25'",
+        "date_added": "2025-10-17"
+      },
+      "Ninja": {
+        "participant_id": 272470588,
+        "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
+        "date_added": "2025-10-17"
+      }
     }
   }
 }
