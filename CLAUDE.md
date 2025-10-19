@@ -256,6 +256,35 @@ Tournament save files are stored in two locations:
 
 The download script tries Challonge first, then falls back to Google Drive.
 
+### Manual Overrides
+
+**Problem**: Some Google Drive files can't be automatically matched to Challonge matches:
+- Player names in filename don't match Challonge names
+- In-game player names differ from both filename and Challonge
+
+**Solution**: Manual override system via JSON configuration
+
+**Location**: `data/gdrive_match_mapping_overrides.json` (not in git)
+
+**Format**:
+```json
+{
+  "challonge_match_id": {
+    "gdrive_filename": "XX-player1-player2.zip",
+    "reason": "Why this override is needed",
+    "date_added": "YYYY-MM-DD"
+  }
+}
+```
+
+**Usage**:
+1. Copy `data/gdrive_match_mapping_overrides.json.example` to `data/gdrive_match_mapping_overrides.json`
+2. Add override entry for unmatched file
+3. Re-run mapping: `uv run python scripts/generate_gdrive_mapping.py`
+4. For production: `./scripts/sync_tournament_data.sh` (uploads override file automatically)
+
+**Note**: If the in-game player name also differs, you'll also need to add a participant name override (see Participant Name Overrides section).
+
 ### Setup
 
 **Local Development:**
@@ -303,9 +332,17 @@ For production sync:
 
 ### Files
 
-- `tournament_visualizer/data/gdrive_client.py` - Google Drive API client
+**Data:**
+- `data/gdrive_match_mapping.json` - Auto-generated mapping (not in git)
+- `data/gdrive_match_mapping_overrides.json` - Manual overrides (not in git)
+- `data/gdrive_match_mapping_overrides.json.example` - Override file template
+
+**Scripts:**
 - `scripts/generate_gdrive_mapping.py` - Auto-matches GDrive files to Challonge matches
-- `data/gdrive_match_mapping.json` - Generated mapping file (not in git)
+- `scripts/download_attachments.py` - Downloads from Challonge and GDrive
+
+**Modules:**
+- `tournament_visualizer/data/gdrive_client.py` - Google Drive API client
 
 ### Troubleshooting
 
@@ -316,8 +353,9 @@ For production sync:
 
 **Low confidence matches:**
 - Review mapping output for confidence scores
-- Manually edit `data/gdrive_match_mapping.json` if needed
-- Player name mismatches can cause failed matches
+- Add manual overrides to `data/gdrive_match_mapping_overrides.json`
+- Re-run `generate_gdrive_mapping.py` to apply overrides
+- Player name mismatches require both GDrive and participant name overrides
 
 **API quota errors:**
 - Google Drive API has rate limits
