@@ -517,7 +517,7 @@ database_player_id = int(xml_id) + 1
 **Format**:
 ```json
 {
-  "match_id": {
+  "challonge_match_id": {
     "SaveFileName": {
       "participant_id": 272470588,
       "reason": "Save file uses 'Ninja' but Challonge name is 'Ninjaa'",
@@ -527,24 +527,60 @@ database_player_id = int(xml_id) + 1
 }
 ```
 
+**Key Design**:
+- Uses **`challonge_match_id`** (from Challonge API) - stable across database re-imports
+- NOT `match_id` (database row ID) - that would break on re-import
+- Consistent with other override systems (winner, pick order, GDrive mapping)
+
 **Usage**:
 1. Copy `data/participant_name_overrides.json.example` to `data/participant_name_overrides.json`
-2. Add override entries for mismatched names
-3. Run linking: `uv run python scripts/link_players_to_participants.py`
-4. For production: `./scripts/sync_tournament_data.sh` (uploads override file automatically)
+2. Find IDs using SQL:
+   ```bash
+   # Find challonge_match_id
+   uv run duckdb data/tournament_data.duckdb -readonly -c "
+   SELECT match_id, challonge_match_id, player1_name, player2_name
+   FROM matches
+   "
 
-**Finding mismatches**:
-```bash
-# Show unlinked players
-uv run duckdb data/tournament_data.duckdb -readonly -c "
-SELECT match_id, player_name
-FROM players
-WHERE participant_id IS NULL
-"
-```
+   # Find participant_id
+   uv run duckdb data/tournament_data.duckdb -readonly -c "
+   SELECT participant_id, display_name
+   FROM tournament_participants
+   "
+   ```
+3. Add override entries for mismatched names
+4. Run linking: `uv run python scripts/link_players_to_participants.py`
+5. For production: `./scripts/sync_tournament_data.sh` (uploads override file automatically)
 
-**Priority**: Overrides checked before normalized name matching
-**Logging**: Check logs for "Using override" messages during linking
+### Override Systems Design
+
+All override files in this application follow a consistent design:
+
+| Override File | Purpose | Key Type | Stability |
+|--------------|---------|----------|-----------|
+| `match_winner_overrides.json` | Fix corrupted winner data | `challonge_match_id` | ✅ Stable |
+| `pick_order_overrides.json` | Manually link games to matches | `game_number` | ✅ Stable |
+| `gdrive_match_mapping_overrides.json` | Map GDrive files to matches | `challonge_match_id` | ✅ Stable |
+| `participant_name_overrides.json` | Link mismatched player names | `challonge_match_id` | ✅ Stable |
+
+**Design Principles**:
+1. **Use stable external IDs** - Never use auto-incrementing database row IDs
+2. **Survive database re-imports** - Overrides must work after data is reimported
+3. **JSON format** - All overrides use JSON for easy editing
+4. **Not in git** - Override files contain tournament-specific data
+5. **Example templates** - Each has a `.example` file showing format
+
+**Why `challonge_match_id` is stable**:
+- Assigned by Challonge API when match is created
+- Never changes for the lifetime of the match
+- Same value across all database imports
+- Globally unique within the tournament
+
+**Why database `match_id` is NOT stable**:
+- Auto-incrementing row ID assigned during import
+- Changes based on import order (file system, API response order)
+- Different value after each database re-import
+- Only unique within that specific database instance
 
 ## Pick Order Data Integration
 
