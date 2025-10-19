@@ -9,6 +9,13 @@
 
 set -e  # Exit on error
 
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    set -a  # Automatically export all variables
+    source .env
+    set +a  # Disable automatic export
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
