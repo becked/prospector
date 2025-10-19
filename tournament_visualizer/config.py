@@ -8,6 +8,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 
 class Config:
     """Main configuration class for the tournament visualizer."""
