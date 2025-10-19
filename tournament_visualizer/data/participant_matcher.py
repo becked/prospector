@@ -36,7 +36,7 @@ class ParticipantMatcher:
         self.db = db
         self._participant_lookup: Optional[dict[str, tuple[int, str]]] = None
         self._overrides_path = overrides_path or Config.PARTICIPANT_NAME_OVERRIDES_PATH
-        self._overrides: dict[int, dict[str, dict[str, Any]]] = {}
+        self._overrides: dict[str, dict[str, dict[str, Any]]] = {}
         self._overrides_loaded = False
 
     def _load_participants(self) -> None:
@@ -73,7 +73,7 @@ class ParticipantMatcher:
 
         The JSON structure is:
         {
-            "match_id": {
+            "challonge_match_id": {
                 "save_file_name": {
                     "participant_id": 123,
                     "reason": "explanation",
@@ -98,15 +98,24 @@ class ParticipantMatcher:
             with open(overrides_path, "r") as f:
                 data = json.load(f)
 
-            # Convert match IDs from strings to ints and build lookup
+            # Build lookup with challonge_match_id keys (kept as strings)
             override_count = 0
-            for match_id_str, players in data.items():
+            for challonge_match_id_str, players in data.items():
                 # Skip metadata entries
-                if match_id_str.startswith("_"):
+                if challonge_match_id_str.startswith("_"):
                     continue
 
-                match_id = int(match_id_str)
-                self._overrides[match_id] = players
+                # Validate it's a valid number (challonge_match_id)
+                try:
+                    int(challonge_match_id_str)  # Verify it's numeric
+                except ValueError:
+                    logger.warning(
+                        f"Invalid challonge_match_id key in overrides: '{challonge_match_id_str}'"
+                    )
+                    continue
+
+                # Store with string key (JSON keys must be strings)
+                self._overrides[challonge_match_id_str] = players
                 override_count += len(players)
 
             logger.info(
@@ -119,6 +128,32 @@ class ParticipantMatcher:
             logger.error(f"Error loading overrides from {self._overrides_path}: {e}")
 
         self._overrides_loaded = True
+
+    def _get_challonge_match_id(self, match_id: int) -> Optional[int]:
+        """Get challonge_match_id for a database match_id.
+
+        Args:
+            match_id: Database match ID (internal, unstable)
+
+        Returns:
+            Challonge match ID (external, stable), or None if not found
+        """
+        result = self.db.fetch_one(
+            """
+            SELECT challonge_match_id
+            FROM matches
+            WHERE match_id = ?
+            """,
+            {"1": match_id}
+        )
+
+        if result and result[0]:
+            return result[0]
+
+        logger.warning(
+            f"No challonge_match_id found for database match_id {match_id}"
+        )
+        return None
 
     def match_player(
         self, match_id: int, player_name: str, allow_override: bool = True
@@ -149,17 +184,25 @@ class ParticipantMatcher:
             if not self._overrides_loaded:
                 self._load_overrides()
 
-            # Check if this match has overrides
-            if match_id in self._overrides:
-                match_overrides = self._overrides[match_id]
-                if player_name in match_overrides:
-                    override_data = match_overrides[player_name]
-                    participant_id = override_data["participant_id"]
-                    logger.debug(
-                        f"Using override: '{player_name}' -> participant {participant_id} "
-                        f"(reason: {override_data.get('reason', 'not specified')})"
-                    )
-                    return participant_id
+            # Get challonge_match_id for override lookup
+            challonge_match_id = self._get_challonge_match_id(match_id)
+
+            if challonge_match_id:
+                # Check if this match has overrides
+                # Overrides are keyed by challonge_match_id (as string)
+                override_key = str(challonge_match_id)
+
+                if override_key in self._overrides:
+                    match_overrides = self._overrides[override_key]
+                    if player_name in match_overrides:
+                        override_data = match_overrides[player_name]
+                        participant_id = override_data["participant_id"]
+                        logger.debug(
+                            f"Using override for match {match_id} (challonge {challonge_match_id}): "
+                            f"'{player_name}' -> participant {participant_id} "
+                            f"(reason: {override_data.get('reason', 'not specified')})"
+                        )
+                        return participant_id
 
         # Try normalized name matching
         normalized_player_name = normalize_name(player_name)
