@@ -739,6 +739,98 @@ FROM matches
 - `docs/migrations/008_add_pick_order_tracking.md` - Schema migration docs
 - `docs/plans/pick-order-integration-implementation-plan.md` - Full implementation plan
 
+## Match Narrative Summaries
+
+### Overview
+
+Tournament matches include AI-generated narrative summaries on match detail pages.
+
+**How it works:**
+- Analyzes all match events (techs, laws, combat, cities, etc.)
+- Uses Claude API with two-pass approach:
+  1. Extract structured timeline from events
+  2. Generate 2-3 paragraph narrative from timeline
+- Stored in `matches.narrative_summary` column
+
+### Generation
+
+**Local Development:**
+
+Generate narratives for matches without summaries:
+```bash
+uv run python scripts/generate_match_narratives.py
+```
+
+Regenerate specific match:
+```bash
+uv run python scripts/generate_match_narratives.py --match-id 19 --force
+```
+
+Regenerate all narratives:
+```bash
+uv run python scripts/generate_match_narratives.py --force
+```
+
+**Production Sync:**
+
+Narratives are automatically generated during sync:
+```bash
+./scripts/sync_tournament_data.sh
+```
+
+This generates narratives locally before uploading database to Fly.io.
+
+### Requirements
+
+**API Key:**
+- `ANTHROPIC_API_KEY` must be set in `.env`
+- Get key from https://console.anthropic.com/
+
+**For production (Fly.io):**
+```bash
+fly secrets set ANTHROPIC_API_KEY="your_key" -a prospector
+```
+
+### Database Schema
+
+```sql
+-- Narratives stored in matches table
+ALTER TABLE matches ADD COLUMN narrative_summary TEXT;
+```
+
+See `docs/migrations/009_add_match_narrative_summary.md` for details.
+
+### Implementation
+
+**Modules:**
+- `tournament_visualizer/data/anthropic_client.py` - API client with retry logic
+- `tournament_visualizer/data/event_formatter.py` - Format events for LLM
+- `tournament_visualizer/data/narrative_generator.py` - Two-pass generation
+
+**Scripts:**
+- `scripts/generate_match_narratives.py` - Generate narratives
+
+**Tests:**
+- `tests/test_event_formatter.py`
+- `tests/test_narrative_generator.py`
+
+### Troubleshooting
+
+**No narratives generated:**
+- Check `ANTHROPIC_API_KEY` is set
+- Run with `--verbose` flag to see errors
+- Check API quota/billing at https://console.anthropic.com/
+
+**API errors:**
+- Rate limits handled with exponential backoff
+- Transient errors retried automatically
+- Persistent errors logged and skipped
+
+**Narrative quality issues:**
+- Regenerate specific match with `--force`
+- Check event data quality in database
+- Review prompts in `narrative_generator.py`
+
 ## Deployment (Fly.io)
 
 ### Quick Reference
