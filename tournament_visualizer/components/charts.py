@@ -3129,6 +3129,223 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> go.Figure:
+    """Create a heatmap showing nation counter-pick effectiveness.
+
+    Displays win rates for second picker by matchup (first_pick vs second_pick),
+    showing which nations are effective counters when picked second.
+
+    Args:
+        df: DataFrame with columns: first_pick_nation, second_pick_nation,
+            games, second_picker_wins, second_picker_win_rate
+        min_games: Minimum games to display (for hover text filtering)
+
+    Returns:
+        Plotly figure with heatmap showing counter-pick win rates
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No counter-pick data available. Pick order data needs to be synced."
+        )
+
+    # Pivot the data for heatmap
+    pivot_data = df.pivot_table(
+        index="first_pick_nation",
+        columns="second_pick_nation",
+        values="second_picker_win_rate",
+        aggfunc="first"
+    )
+
+    # Get games count for hover text
+    games_pivot = df.pivot_table(
+        index="first_pick_nation",
+        columns="second_pick_nation",
+        values="games",
+        aggfunc="first"
+    )
+
+    # Create hover text with win rates and game counts
+    hover_text = []
+    for i, first_pick in enumerate(pivot_data.index):
+        hover_row = []
+        for j, second_pick in enumerate(pivot_data.columns):
+            win_rate = pivot_data.iloc[i, j]
+            games = games_pivot.iloc[i, j]
+            if pd.notna(win_rate) and pd.notna(games):
+                # Show from second picker's perspective
+                hover_row.append(
+                    f"<b>{first_pick} (1st) vs {second_pick} (2nd)</b><br>"
+                    f"{second_pick} Win Rate: {win_rate:.1f}%<br>"
+                    f"Games: {int(games)}<br>"
+                    f"<i>{'Strong counter!' if win_rate >= 60 else 'Weak counter' if win_rate <= 40 else 'Even matchup'}</i>"
+                )
+            else:
+                hover_row.append(f"<b>{first_pick} vs {second_pick}</b><br>No data")
+        hover_text.append(hover_row)
+
+    fig = create_base_figure(
+        show_legend=False,
+        height=500,
+    )
+
+    # Create color scale: red (bad counter, low WR) -> yellow (even) -> green (good counter, high WR)
+    # Red = second picker loses often, Green = second picker wins often
+    colorscale = [
+        [0.0, "#EF5350"],    # Red (0% - terrible counter)
+        [0.5, "#FFF59D"],    # Yellow (50% - even matchup)
+        [1.0, "#66BB6A"],    # Green (100% - perfect counter)
+    ]
+
+    fig.add_trace(
+        go.Heatmap(
+            z=pivot_data.values,
+            x=pivot_data.columns,
+            y=pivot_data.index,
+            colorscale=colorscale,
+            zmin=0,
+            zmax=100,
+            hovertext=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(
+                title=dict(
+                    text="Counter<br>Effectiveness",
+                    side="right",
+                ),
+                ticksuffix="%",
+                tickvals=[0, 25, 50, 75, 100],
+                ticktext=["0%<br>(Bad)", "25%", "50%<br>(Even)", "75%", "100%<br>(Good)"],
+                len=0.75,
+                thickness=15,
+                x=1.02,
+            ),
+            text=[[f"{val:.0f}%" if pd.notna(val) else "-"
+                   for val in row]
+                  for row in pivot_data.values],
+            texttemplate="%{text}",
+            textfont={"size": 10},
+        )
+    )
+
+    fig.update_xaxes(title="Counter-Pick (2nd)", side="bottom")
+    fig.update_yaxes(title="First Pick")
+
+    # Add more right margin to prevent colorbar overlap
+    fig.update_layout(margin=dict(r=120))
+
+    # Add annotation explaining the heatmap
+    fig.add_annotation(
+        text="Higher % = Better counter when picked second",
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=-0.15,
+        showarrow=False,
+        font=dict(size=10, color="gray"),
+        xanchor="center",
+    )
+
+    return fig
+
+
+def create_pick_order_win_rate_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a grouped bar chart showing win rates by pick order.
+
+    Displays first pick vs second pick win rates with error bars for confidence
+    intervals and statistical significance annotation.
+
+    Args:
+        df: DataFrame with columns: pick_position, games, wins, win_rate,
+            ci_lower, ci_upper, standard_error
+
+    Returns:
+        Plotly figure with grouped bar chart showing pick order win rates
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No pick order data available")
+
+    fig = create_base_figure(
+        x_title="Pick Position",
+        y_title="Win Rate (%)",
+        show_legend=False,
+    )
+
+    # Create hover text
+    hover_text = []
+    for _, row in df.iterrows():
+        hover_text.append(
+            f"<b>{row['pick_position']}</b><br>"
+            f"Win Rate: {row['win_rate']:.1f}%<br>"
+            f"95% CI: [{row['ci_lower']:.1f}%, {row['ci_upper']:.1f}%]<br>"
+            f"Games: {int(row['games'])}<br>"
+            f"Wins: {int(row['wins'])}"
+        )
+
+    # Add bars with error bars
+    fig.add_trace(
+        go.Bar(
+            x=df["pick_position"],
+            y=df["win_rate"],
+            error_y=dict(
+                type="data",
+                symmetric=False,
+                array=df["ci_upper"] - df["win_rate"],
+                arrayminus=df["win_rate"] - df["ci_lower"],
+                color="rgba(0,0,0,0.3)",
+                thickness=1.5,
+                width=4,
+            ),
+            marker=dict(
+                color=[Config.PRIMARY_COLORS[0], Config.PRIMARY_COLORS[1]],
+                line=dict(color="white", width=1),
+            ),
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    # Add 50% reference line
+    fig.add_hline(
+        y=50,
+        line_dash="dash",
+        line_color="gray",
+        opacity=0.5,
+        annotation_text="Even (50%)",
+        annotation_position="right",
+    )
+
+    # Check if difference is statistically significant
+    # If confidence intervals don't overlap, the difference is significant
+    if len(df) == 2:
+        first_pick = df[df["pick_position"] == "First Pick"].iloc[0]
+        second_pick = df[df["pick_position"] == "Second Pick"].iloc[0]
+
+        # Check for overlap: if first_ci_lower > second_ci_upper or second_ci_lower > first_ci_upper
+        no_overlap = (
+            first_pick["ci_lower"] > second_pick["ci_upper"]
+            or second_pick["ci_lower"] > first_pick["ci_upper"]
+        )
+
+        if no_overlap:
+            # Add significance annotation
+            higher = first_pick if first_pick["win_rate"] > second_pick["win_rate"] else second_pick
+            fig.add_annotation(
+                text="★ Statistically significant difference (p < 0.05)",
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=1.05,
+                showarrow=False,
+                font=dict(size=11, color=Config.PRIMARY_COLORS[0]),
+                xanchor="center",
+            )
+
+    # Set y-axis range to make differences more visible
+    fig.update_yaxes(range=[0, 100])
+
+    return fig
+
+
 def create_ruler_succession_impact_chart(df: pd.DataFrame) -> go.Figure:
     """Create a line chart showing succession impact on victory.
 

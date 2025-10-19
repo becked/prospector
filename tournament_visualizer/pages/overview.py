@@ -18,9 +18,11 @@ from tournament_visualizer.components.charts import (
     create_law_efficiency_scatter,
     create_law_milestone_distribution_chart,
     create_map_breakdown_actual_sunburst_chart,
+    create_nation_counter_pick_heatmap,
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
     create_nation_win_percentage_chart,
+    create_pick_order_win_rate_chart,
     create_ruler_archetype_matchup_matrix,
     create_ruler_archetype_trait_combinations_chart,
     create_ruler_archetype_win_rates_chart,
@@ -207,6 +209,32 @@ layout = html.Div(
                         )
                     ],
                     width=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+        # Counter-Pick Analysis - heatmap and win rate chart
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Nation Counter-Pick Effectiveness",
+                            chart_id="overview-counter-pick-heatmap",
+                            height="550px",
+                        )
+                    ],
+                    width=8,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Pick Order Win Rate",
+                            chart_id="overview-pick-order-win-rate",
+                            height="550px",
+                        )
+                    ],
+                    width=4,
                 ),
             ],
             className="mb-4",
@@ -715,4 +743,67 @@ def update_ruler_combinations_chart(n_intervals: int):
 
     except Exception as e:
         logger.error(f"Error loading ruler combinations data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-counter-pick-heatmap", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_counter_pick_heatmap(n_intervals: int):
+    """Update nation counter-pick effectiveness heatmap.
+
+    Shows which nations are effective counters when picked second.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with heatmap
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_nation_counter_pick_matrix(min_games=1)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No counter-pick data available. Pick order data needs to be synced."
+            )
+
+        return create_nation_counter_pick_heatmap(df)
+
+    except Exception as e:
+        logger.error(f"Error loading counter-pick data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-pick-order-win-rate", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_pick_order_win_rate(n_intervals: int):
+    """Update pick order win rate bar chart.
+
+    Shows overall first pick vs second pick win rates with confidence intervals
+    and statistical significance annotation.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_pick_order_win_rates()
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No pick order data available. Pick order data needs to be synced."
+            )
+
+        return create_pick_order_win_rate_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading pick order win rate data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")

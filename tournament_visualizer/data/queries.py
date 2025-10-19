@@ -2256,6 +2256,150 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [limit]).df()
 
+    def get_nation_counter_pick_matrix(self, min_games: int = 1) -> pd.DataFrame:
+        """Get counter-pick matchup matrix showing nation performance by pick order.
+
+        Returns win rates for each first_pick_nation vs second_pick_nation combination
+        from the pick_order_games data. This shows which nations are effective
+        counter-picks against others.
+
+        Args:
+            min_games: Minimum number of games required to include a matchup (default 1)
+
+        Returns:
+            DataFrame with columns:
+            - first_pick_nation: Nation picked first
+            - second_pick_nation: Nation picked second (counter-pick)
+            - games: Number of games with this matchup
+            - second_picker_wins: Wins for the second picker
+            - second_picker_win_rate: Win rate for second picker (0-100)
+                Higher values = effective counter-pick
+
+        Example:
+            If "Assyria vs Egypt" has 70% second_picker_win_rate, Egypt is a strong
+            counter to Assyria when picked second.
+        """
+        query = """
+        WITH matchups AS (
+            SELECT
+                pog.first_pick_nation,
+                pog.second_pick_nation,
+                pog.matched_match_id,
+                pog.first_picker_participant_id,
+                pog.second_picker_participant_id,
+                mw.winner_player_id,
+                p_winner.participant_id as winner_participant_id
+            FROM pick_order_games pog
+            LEFT JOIN match_winners mw ON pog.matched_match_id = mw.match_id
+            LEFT JOIN players p_winner ON mw.winner_player_id = p_winner.player_id
+            WHERE pog.matched_match_id IS NOT NULL
+                AND pog.first_picker_participant_id IS NOT NULL
+                AND pog.second_picker_participant_id IS NOT NULL
+                AND pog.first_pick_nation IS NOT NULL
+                AND pog.second_pick_nation IS NOT NULL
+        )
+        SELECT
+            first_pick_nation,
+            second_pick_nation,
+            COUNT(*) as games,
+            SUM(CASE
+                WHEN winner_participant_id = second_picker_participant_id THEN 1
+                ELSE 0
+            END) as second_picker_wins,
+            ROUND(
+                SUM(CASE
+                    WHEN winner_participant_id = second_picker_participant_id THEN 1
+                    ELSE 0
+                END) * 100.0 / COUNT(*),
+                2
+            ) as second_picker_win_rate
+        FROM matchups
+        GROUP BY first_pick_nation, second_pick_nation
+        HAVING COUNT(*) >= ?
+        ORDER BY first_pick_nation, second_pick_nation
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [min_games]).df()
+
+    def get_pick_order_win_rates(self) -> pd.DataFrame:
+        """Get overall win rates by pick order (first picker vs second picker).
+
+        Returns win rates for first and second pickers with confidence intervals
+        and statistical significance testing using Wilson score interval.
+
+        Returns:
+            DataFrame with columns:
+            - pick_position: 'First Pick' or 'Second Pick'
+            - games: Number of games
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+            - ci_lower: Lower bound of 95% confidence interval (0-100)
+            - ci_upper: Upper bound of 95% confidence interval (0-100)
+            - standard_error: Standard error of the proportion
+        """
+        query = """
+        WITH pick_results AS (
+            SELECT
+                pog.matched_match_id,
+                pog.first_picker_participant_id,
+                pog.second_picker_participant_id,
+                mw.winner_player_id,
+                p_winner.participant_id as winner_participant_id
+            FROM pick_order_games pog
+            LEFT JOIN match_winners mw ON pog.matched_match_id = mw.match_id
+            LEFT JOIN players p_winner ON mw.winner_player_id = p_winner.player_id
+            WHERE pog.matched_match_id IS NOT NULL
+                AND pog.first_picker_participant_id IS NOT NULL
+                AND pog.second_picker_participant_id IS NOT NULL
+        ),
+        pick_stats AS (
+            SELECT
+                'First Pick' as pick_position,
+                COUNT(*) as games,
+                SUM(CASE WHEN winner_participant_id = first_picker_participant_id THEN 1 ELSE 0 END) as wins
+            FROM pick_results
+            UNION ALL
+            SELECT
+                'Second Pick' as pick_position,
+                COUNT(*) as games,
+                SUM(CASE WHEN winner_participant_id = second_picker_participant_id THEN 1 ELSE 0 END) as wins
+            FROM pick_results
+        )
+        SELECT
+            pick_position,
+            games,
+            wins,
+            ROUND(wins * 100.0 / games, 2) as win_rate,
+            -- Wilson score interval for 95% confidence (z=1.96)
+            -- Lower bound
+            ROUND(
+                (
+                    (wins + 1.96*1.96/2) / (games + 1.96*1.96)
+                    - 1.96 * SQRT((wins * (games - wins) / games + 1.96*1.96/4) / (games + 1.96*1.96))
+                ) * 100,
+                2
+            ) as ci_lower,
+            -- Upper bound
+            ROUND(
+                (
+                    (wins + 1.96*1.96/2) / (games + 1.96*1.96)
+                    + 1.96 * SQRT((wins * (games - wins) / games + 1.96*1.96/4) / (games + 1.96*1.96))
+                ) * 100,
+                2
+            ) as ci_upper,
+            -- Standard error for reference
+            ROUND(
+                SQRT((wins * 1.0 / games) * (1 - wins * 1.0 / games) / games) * 100,
+                2
+            ) as standard_error
+        FROM pick_stats
+        ORDER BY pick_position
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
