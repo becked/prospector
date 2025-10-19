@@ -53,15 +53,19 @@ class TournamentQueries:
             COALESCE(w.player_name, 'Unknown') as winner_name,
             COALESCE(w.civilization, 'Unknown') as winner_civilization,
             pi.players_with_nations,
-            m.processed_date
+            m.processed_date,
+            COALESCE(first_picker.display_name, 'Unknown') as first_picker_name,
+            m.first_picker_participant_id
         FROM matches m
         LEFT JOIN players p ON m.match_id = p.match_id
         LEFT JOIN match_winners mw ON m.match_id = mw.match_id
         LEFT JOIN players w ON mw.winner_player_id = w.player_id
         LEFT JOIN player_info pi ON m.match_id = pi.match_id
+        LEFT JOIN tournament_participants first_picker ON m.first_picker_participant_id = first_picker.participant_id
         GROUP BY m.match_id, m.game_name, m.save_date, m.total_turns,
                  m.map_size, m.map_class, m.turn_style, m.victory_conditions,
-                 w.player_name, w.civilization, pi.players_with_nations, m.processed_date
+                 w.player_name, w.civilization, pi.players_with_nations, m.processed_date,
+                 first_picker.display_name, m.first_picker_participant_id
         ORDER BY m.save_date DESC NULLS LAST, m.processed_date DESC
         """
 

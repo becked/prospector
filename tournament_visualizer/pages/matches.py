@@ -307,44 +307,81 @@ def update_match_details(match_id: Optional[int]) -> tuple:
             f"{winner_name} ({winner_civ})" if winner_civ != "Unknown" else winner_name
         )
 
+        # Get first picker info
+        first_picker_name = match_data.get("first_picker_name", "Unknown")
+        first_picker_display = first_picker_name if first_picker_name != "Unknown" else "No data"
+
         # Create match details layout
         details_content = [
-            # Match overview cards
+            # Game name header
+            html.Div(
+                [
+                    html.H1(
+                        [
+                            html.I(className="bi bi-controller me-3"),
+                            game_display,
+                        ],
+                        className="mb-4",
+                    )
+                ],
+            ),
+            # Match info and winner boxes
             dbc.Row(
                 [
+                    # Combined match info box
                     dbc.Col(
                         [
-                            create_metric_card(
-                                title="Game Name",
-                                value=game_display,
-                                icon="bi-controller",
-                                color="primary",
+                            dbc.Card(
+                                [
+                                    dbc.CardBody(
+                                        [
+                                            # First line: turns and players
+                                            html.Div(
+                                                [
+                                                    html.Div(
+                                                        [
+                                                            html.I(className="bi bi-clock me-2 text-info"),
+                                                            html.Span(
+                                                                f"{match_data.get('total_turns', 0)} ",
+                                                                className="fw-bold",
+                                                            ),
+                                                            html.Span("Turns", className="text-muted"),
+                                                        ],
+                                                        className="d-inline-block me-4",
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            html.I(className="bi bi-people me-2 text-success"),
+                                                            html.Span(
+                                                                f"{match_data.get('player_count', 0)} ",
+                                                                className="fw-bold",
+                                                            ),
+                                                            html.Span("Players", className="text-muted"),
+                                                        ],
+                                                        className="d-inline-block",
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            # Second line: first pick
+                                            html.Div(
+                                                [
+                                                    html.I(className="bi bi-1-circle me-2 text-primary"),
+                                                    html.Span(
+                                                        f"{first_picker_display} had first pick" if first_picker_name != "Unknown" else "First pick data not available",
+                                                        className="mb-0",
+                                                    ),
+                                                ],
+                                            ),
+                                        ]
+                                    )
+                                ],
+                                className="h-100",
                             )
                         ],
-                        width=3,
+                        width=8,
                     ),
-                    dbc.Col(
-                        [
-                            create_metric_card(
-                                title="Total Turns",
-                                value=match_data.get("total_turns", 0),
-                                icon="bi-clock",
-                                color="info",
-                            )
-                        ],
-                        width=3,
-                    ),
-                    dbc.Col(
-                        [
-                            create_metric_card(
-                                title="Players",
-                                value=match_data.get("player_count", 0),
-                                icon="bi-people",
-                                color="success",
-                            )
-                        ],
-                        width=3,
-                    ),
+                    # Winner box
                     dbc.Col(
                         [
                             create_metric_card(
@@ -354,7 +391,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 color="warning",
                             )
                         ],
-                        width=3,
+                        width=4,
                     ),
                 ],
                 className="mb-4",

@@ -42,6 +42,46 @@ from tournament_visualizer.data.name_normalizer import normalize_name
 
 logger = logging.getLogger(__name__)
 
+# Nation name mapping: sheet name -> game civilization name
+# Use this to handle differences between player-facing names and internal game names
+NATION_NAME_MAPPING = {
+    "Hatti": "Hittite",  # Sheet uses historical name, game uses demonym
+    # Add more mappings here as needed
+}
+
+
+def normalize_nation_name(nation_name: str) -> str:
+    """Normalize nation name from sheet to match game civilization names.
+
+    Args:
+        nation_name: Nation name from Google Sheet
+
+    Returns:
+        Normalized name matching game civilization names
+    """
+    return NATION_NAME_MAPPING.get(nation_name, nation_name)
+
+
+def fuzzy_name_match(name1: str, name2: str) -> bool:
+    """Check if two player names match with lenient rules.
+
+    Used for overrides where sheet names might differ slightly from database names
+    (e.g., underscores vs spaces, missing letters).
+
+    Args:
+        name1: First name to compare
+        name2: Second name to compare
+
+    Returns:
+        True if names match loosely, False otherwise
+    """
+    # Remove all non-alphanumeric characters and lowercase
+    clean1 = ''.join(c for c in name1.lower() if c.isalnum())
+    clean2 = ''.join(c for c in name2.lower() if c.isalnum())
+
+    # Match if one contains the other, or if they're identical
+    return clean1 in clean2 or clean2 in clean1
+
 
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging."""
@@ -246,6 +286,19 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                 f"{db_p2_name} ({db_p2_civ})"
             )
 
+            # Normalize nation names from sheet to match game civilization names
+            normalized_first_nation = normalize_nation_name(first_nation)
+            normalized_second_nation = normalize_nation_name(second_nation)
+
+            if normalized_first_nation != first_nation:
+                logger.debug(
+                    f"  Normalized nation: '{first_nation}' → '{normalized_first_nation}'"
+                )
+            if normalized_second_nation != second_nation:
+                logger.debug(
+                    f"  Normalized nation: '{second_nation}' → '{normalized_second_nation}'"
+                )
+
             # Determine which player picked first by matching nations
             # Compare first_pick_nation to player civilizations
             first_picker_participant = None
@@ -254,13 +307,13 @@ def match_games_to_matches(dry_run: bool = False) -> None:
             second_picker_sheet_name = None
 
             # Determine which database player picked first
-            if db_p1_civ == first_nation:
+            if db_p1_civ == normalized_first_nation:
                 # db_p1 picked first
                 first_picker_participant = db_p1_participant
                 second_picker_participant = db_p2_participant
                 first_picker_db_name = db_p1_name
                 second_picker_db_name = db_p2_name
-            elif db_p2_civ == first_nation:
+            elif db_p2_civ == normalized_first_nation:
                 # db_p2 picked first
                 first_picker_participant = db_p2_participant
                 second_picker_participant = db_p1_participant
@@ -268,7 +321,8 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                 second_picker_db_name = db_p1_name
             else:
                 logger.warning(
-                    f"  ⚠️  Nation mismatch: first_pick={first_nation}, "
+                    f"  ⚠️  Nation mismatch: first_pick={first_nation} "
+                    f"(normalized: {normalized_first_nation}), "
                     f"but players are {db_p1_civ}/{db_p2_civ}"
                 )
                 failed += 1
@@ -276,13 +330,38 @@ def match_games_to_matches(dry_run: bool = False) -> None:
 
             # Now match database player names to sheet player names
             # to determine correct sheet names for first/second picker
-            if first_picker_db_name.lower() == p1_name.lower():
-                first_picker_sheet_name = p1_name
-                second_picker_sheet_name = p2_name
-            elif first_picker_db_name.lower() == p2_name.lower():
-                first_picker_sheet_name = p2_name
-                second_picker_sheet_name = p1_name
+            # For overrides, use fuzzy matching; for auto-matches, use exact matching
+            using_override = game_num in overrides
+
+            name_matched = False
+            if using_override:
+                # Fuzzy matching for overrides (handles underscores, missing chars, etc.)
+                if fuzzy_name_match(first_picker_db_name, p1_name):
+                    first_picker_sheet_name = p1_name
+                    second_picker_sheet_name = p2_name
+                    name_matched = True
+                    logger.debug(
+                        f"  Fuzzy matched '{first_picker_db_name}' (db) to '{p1_name}' (sheet)"
+                    )
+                elif fuzzy_name_match(first_picker_db_name, p2_name):
+                    first_picker_sheet_name = p2_name
+                    second_picker_sheet_name = p1_name
+                    name_matched = True
+                    logger.debug(
+                        f"  Fuzzy matched '{first_picker_db_name}' (db) to '{p2_name}' (sheet)"
+                    )
             else:
+                # Exact matching for auto-discovered matches
+                if first_picker_db_name.lower() == p1_name.lower():
+                    first_picker_sheet_name = p1_name
+                    second_picker_sheet_name = p2_name
+                    name_matched = True
+                elif first_picker_db_name.lower() == p2_name.lower():
+                    first_picker_sheet_name = p2_name
+                    second_picker_sheet_name = p1_name
+                    name_matched = True
+
+            if not name_matched:
                 logger.warning(
                     f"  ⚠️  Cannot match database name '{first_picker_db_name}' to sheet names '{p1_name}'/'{p2_name}'"
                 )
@@ -295,12 +374,13 @@ def match_games_to_matches(dry_run: bool = False) -> None:
             )
 
             # Verify second pick nation also matches
-            if db_p1_civ == second_nation or db_p2_civ == second_nation:
+            if db_p1_civ == normalized_second_nation or db_p2_civ == normalized_second_nation:
                 # Good - second nation matches
                 pass
             else:
                 logger.warning(
-                    f"  ⚠️  Second pick nation mismatch: {second_nation}, "
+                    f"  ⚠️  Second pick nation mismatch: {second_nation} "
+                    f"(normalized: {normalized_second_nation}), "
                     f"but players are {db_p1_civ}/{db_p2_civ}"
                 )
                 # Don't fail - continue with first pick match only
