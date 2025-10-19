@@ -180,22 +180,38 @@ def match_games_to_matches(dry_run: bool = False) -> None:
 
             # Check for manual override
             if game_num in overrides:
-                match_id = overrides[game_num]
+                challonge_match_id = overrides[game_num]
                 logger.info(
-                    f"  Using override: game {game_num} → match {match_id}"
+                    f"  Using override: game {game_num} → match {challonge_match_id}"
                 )
 
-                # Get players from the match (need to get both from the match_id)
+                # First, get the database match_id from challonge_match_id
+                db_match_result = conn.execute("""
+                    SELECT match_id
+                    FROM matches
+                    WHERE challonge_match_id = ?
+                """, [challonge_match_id]).fetchone()
+
+                if not db_match_result:
+                    logger.warning(
+                        f"  ❌ Override challonge_match_id {challonge_match_id} not found in matches table"
+                    )
+                    failed += 1
+                    continue
+
+                db_match_id = db_match_result[0]
+
+                # Get players from the match using database match_id
                 match_players = conn.execute("""
                     SELECT player_id, player_name, civilization, participant_id
                     FROM players
                     WHERE match_id = ?
                     ORDER BY player_id
-                """, [match_id]).fetchall()
+                """, [db_match_id]).fetchall()
 
                 if len(match_players) != 2:
                     logger.warning(
-                        f"  ❌ Override match {match_id} has {len(match_players)} players (expected 2)"
+                        f"  ❌ Override match {challonge_match_id} has {len(match_players)} players (expected 2)"
                     )
                     failed += 1
                     continue
@@ -204,20 +220,20 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                 p1 = match_players[0]
                 p2 = match_players[1]
                 match_result = (
-                    match_id,
+                    db_match_id,
                     p1[0], p1[1], p1[2], p1[3],  # p1 data
                     p2[0], p2[1], p2[2], p2[3],  # p2 data
                 )
 
                 if not match_result:
                     logger.warning(
-                        f"  ❌ Override match {match_id} not found in database"
+                        f"  ❌ Override match {challonge_match_id} not found in database"
                     )
                     failed += 1
                     continue
 
                 confidence = "manual_override"
-                reason = f"Manual override to match {match_id}"
+                reason = f"Manual override to challonge_match_id {challonge_match_id}"
 
             else:
                 # Match by player names (normalized)
