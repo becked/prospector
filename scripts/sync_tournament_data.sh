@@ -238,6 +238,23 @@ else
     echo -e "${BLUE}No GDrive mapping file found - skipping${NC}"
 fi
 
+# Upload Google Drive mapping overrides
+if [ -f "data/gdrive_match_mapping_overrides.json" ]; then
+    echo -e "${BLUE}Uploading Google Drive mapping overrides...${NC}"
+
+    if echo "put data/gdrive_match_mapping_overrides.json /data/gdrive_match_mapping_overrides.json" | fly ssh sftp shell -a "${APP_NAME}"; then
+        echo -e "${GREEN}✓ GDrive mapping override file uploaded${NC}"
+
+        # Fix permissions
+        fly ssh console -a "${APP_NAME}" -C "chmod 664 /data/gdrive_match_mapping_overrides.json" 2>/dev/null
+        fly ssh console -a "${APP_NAME}" -C "chown appuser:appuser /data/gdrive_match_mapping_overrides.json" 2>/dev/null
+    else
+        echo -e "${YELLOW}Warning: Could not upload GDrive mapping override file${NC}"
+    fi
+else
+    echo -e "${BLUE}No GDrive mapping override file found - skipping${NC}"
+fi
+
 # Upload pick order overrides
 if [ -f "data/pick_order_overrides.json" ]; then
     echo -e "${BLUE}Uploading pick order overrides...${NC}"

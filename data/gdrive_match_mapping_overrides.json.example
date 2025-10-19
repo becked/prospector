@@ -1,0 +1,18 @@
+{
+  "_comment": "Manual overrides for Google Drive to Challonge match mappings",
+  "_instructions": [
+    "Copy this file to gdrive_match_mapping_overrides.json and add your overrides",
+    "This is needed when automated matching fails (e.g., player name mismatches)",
+    "Structure: match_id -> { gdrive_filename, reason, date_added }",
+    "Match IDs must be strings",
+    "gdrive_filename should be the exact filename on Google Drive (without file ID)",
+    "Required fields: gdrive_filename, reason",
+    "Optional fields: date_added, notes",
+    "The generate_gdrive_mapping.py script will use these overrides with 100% confidence"
+  ],
+  "426504760": {
+    "gdrive_filename": "32-cliff-groudon.zip",
+    "reason": "Save file uses 'Cliff' but Challonge name is 'squidleybungo'",
+    "date_added": "2025-10-19"
+  }
+}

@@ -217,6 +217,33 @@ def match_gdrive_file_to_challonge(
     return best_match_id, best_score, best_reason
 
 
+def load_overrides(overrides_file: Path = Path("data/gdrive_match_mapping_overrides.json")) -> dict[str, Any]:
+    """Load manual GDrive mapping overrides if they exist.
+
+    Args:
+        overrides_file: Path to overrides JSON file
+
+    Returns:
+        Dict mapping match_id -> override data, or empty dict if no overrides
+    """
+    if not overrides_file.exists():
+        logger.debug(f"No overrides file found at {overrides_file}")
+        return {}
+
+    try:
+        with open(overrides_file, 'r') as f:
+            data = json.load(f)
+
+        # Filter out metadata fields (starting with _)
+        overrides = {k: v for k, v in data.items() if not k.startswith('_')}
+
+        logger.info(f"Loaded {len(overrides)} manual override(s) from {overrides_file}")
+        return overrides
+    except Exception as e:
+        logger.warning(f"Failed to load overrides from {overrides_file}: {e}")
+        return {}
+
+
 def generate_mapping(
     min_confidence: float = 0.8,
     output_file: Path | None = None,
@@ -230,6 +257,9 @@ def generate_mapping(
     Returns:
         Mapping dictionary
     """
+    # Load manual overrides
+    overrides = load_overrides()
+
     # Initialize clients
     logger.info("Initializing API clients...")
     gdrive_client = GoogleDriveClient(
@@ -272,11 +302,55 @@ def generate_mapping(
     medium_confidence = 0
     low_confidence = 0
     unmatched = 0
+    override_count = 0
 
+    # Build reverse lookup: filename -> gdrive_file for overrides
+    gdrive_files_by_name = {f['name']: f for f in gdrive_files}
+
+    # First, apply manual overrides
+    for match_id_str, override_data in overrides.items():
+        gdrive_filename = override_data.get('gdrive_filename')
+        if not gdrive_filename:
+            logger.warning(f"Override for match {match_id_str} missing gdrive_filename, skipping")
+            continue
+
+        gdrive_file = gdrive_files_by_name.get(gdrive_filename)
+        if not gdrive_file:
+            logger.warning(
+                f"Override for match {match_id_str} references file '{gdrive_filename}' "
+                f"which was not found in Google Drive, skipping"
+            )
+            continue
+
+        file_size_kb = int(gdrive_file['size']) / 1024
+        reason = override_data.get('reason', 'Manual override')
+
+        mapping['matches'][match_id_str] = {
+            "gdrive_file_id": gdrive_file['id'],
+            "gdrive_filename": gdrive_file['name'],
+            "confidence": 1.0,  # Overrides have 100% confidence
+            "match_reason": f"MANUAL OVERRIDE: {reason}",
+            "file_size_kb": round(file_size_kb, 1),
+            "modified_time": gdrive_file.get('modifiedTime', ''),
+        }
+
+        logger.info(
+            f"🔧 OVERRIDE | {gdrive_file['name']} → Match {match_id_str} "
+            f"(manual: {reason})"
+        )
+        override_count += 1
+        high_confidence += 1
+
+    # Then run automated matching for remaining files
     for gdrive_file in gdrive_files:
         # Skip non-zip files
         if not gdrive_file['name'].endswith('.zip'):
             logger.debug(f"Skipping non-zip file: {gdrive_file['name']}")
+            continue
+
+        # Skip if already mapped via override
+        if any(m['gdrive_filename'] == gdrive_file['name'] for m in mapping['matches'].values()):
+            logger.debug(f"Skipping {gdrive_file['name']} (already mapped via override)")
             continue
 
         match_id, confidence, reason = match_gdrive_file_to_challonge(
@@ -336,6 +410,7 @@ def generate_mapping(
     print("=" * 70)
     print(f"Total files: {len(gdrive_files)}")
     print(f"Successfully mapped: {len(mapping['matches'])}")
+    print(f"  Manual overrides: {override_count}")
     print(f"  High confidence (≥90%): {high_confidence}")
     print(f"  Medium confidence (80-90%): {medium_confidence}")
     print(f"  Low confidence (below threshold): {low_confidence}")
