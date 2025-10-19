@@ -80,7 +80,7 @@ def sync_pick_order_data(dry_run: bool = False) -> None:
 
     # Fetch sheet data
     # Use a large range to capture all data (adjust if needed)
-    range_name = f"GAMEDATA *SPOILER WARNING*!A1:Z200"
+    range_name = "GAMEDATA!A1:Z200"
 
     logger.info(f"Fetching range: {range_name}")
 

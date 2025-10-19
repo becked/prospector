@@ -44,7 +44,7 @@ class Config:
     )
     GOOGLE_SHEETS_GAMEDATA_GID = os.getenv(
         "GOOGLE_SHEETS_GAMEDATA_GID",
-        "1663493966"  # Default: GAMEDATA *SPOILER WARNING* tab
+        "1663493966"  # Default: GAMEDATA tab
     )
 
     # UI Configuration

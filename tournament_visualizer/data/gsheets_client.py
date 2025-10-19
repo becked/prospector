@@ -9,7 +9,7 @@ Example:
     >>> client = GoogleSheetsClient(api_key=Config.GOOGLE_DRIVE_API_KEY)
     >>> data = client.get_sheet_values(
     ...     spreadsheet_id=Config.GOOGLE_SHEETS_SPREADSHEET_ID,
-    ...     range_name="GAMEDATA *SPOILER WARNING*!A1:Z200"
+    ...     range_name="GAMEDATA!A1:Z200"
     ... )
     >>> print(f"Got {len(data)} rows")
 """
@@ -82,7 +82,7 @@ class GoogleSheetsClient:
         Example:
             >>> values = client.get_sheet_values(
             ...     "19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc",
-            ...     "GAMEDATA *SPOILER WARNING*!A1:K100"
+            ...     "GAMEDATA!A1:K100"
             ... )
             >>> print(f"First cell: {values[0][0]}")
         """
