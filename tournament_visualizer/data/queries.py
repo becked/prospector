@@ -2398,6 +2398,7 @@ class TournamentQueries:
                 2
             ) as standard_error
         FROM pick_stats
+        WHERE games > 0
         ORDER BY pick_position
         """
 
