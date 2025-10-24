@@ -33,6 +33,7 @@ data/*.duckdb.*
 *.db
 *.sqlite
 *.sqlite3
+tournament_data.duckdb
 
 # Override files (production data, not versioned)
 data/match_winner_overrides.json

@@ -6,6 +6,7 @@ between save file player names and Challonge participant names.
 
 import re
 import unicodedata
+import jaro
 from typing import Optional
 
 
@@ -103,11 +104,9 @@ def find_best_match(
         require_exact: If True, only return exact normalized matches
 
     Returns:
-        Original name of best match, or None if no match found
+        Original name of best match, best fuzzy match with greater than 0.93 jaro winkler similarity or None if no match found
 
-    Note:
-        Currently only supports exact normalized matching.
-        Future: Could add fuzzy matching (Levenshtein distance, etc.)
+   
     """
     normalized_target = normalize_name(target_name)
 
@@ -117,6 +116,18 @@ def find_best_match(
     # Exact match on normalized name
     if normalized_target in candidate_names:
         return candidate_names[normalized_target]
+    
+    if require_exact != True:
+        set_minimum_threshold = 0.93
+        match = ''
+        for candidate in candidate_names:
+            sim_score = jaro.jaro_winkler_metric(normalized_target, candidate)
+            if sim_score >= set_minimum_threshold:
+                set_minimum_threshold = sim_score
+                match = candidate
+        if match != '':
+            return match
+
 
     # No match found
     return None

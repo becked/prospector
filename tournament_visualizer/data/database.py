@@ -541,6 +541,12 @@ class TournamentDatabase:
                     "Settler unit for founding cities",
                 ),
                 (
+                    "UNIT_CARAVAN",
+                    "civilian",
+                    "caravan",
+                    "Caravan unit for trade",
+                ),
+                (
                     "UNIT_SCOUT",
                     "civilian",
                     "scout",
@@ -574,6 +580,26 @@ class TournamentDatabase:
                 # Military - Infantry
                 ("UNIT_WARRIOR", "military", "infantry", "Basic melee infantry unit"),
                 ("UNIT_SPEARMAN", "military", "infantry", "Anti-cavalry infantry unit"),
+                (
+                    "UNIT_MILITIA",
+                    "military",
+                    "infantry",
+                    "Basic defensive infantry unit",
+                ),
+                (
+                    "UNIT_CONSCRIPT",
+                    "military",
+                    "infantry",
+                    "Advanced defensive infantry unit",
+                ),
+                ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
+                ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
+                ("UNIT_SWORDSMAN", "military", "infantry", "End game melee infantry unit"),
+                ("UNIT_PIKEMAN", "military", "infantry", "End game melee anti-mounted unit"),
+                ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
+                ("UNIT_SHOTELAI", "military", "infantry", "Special infantry unit"),
+                ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
+                ("UNIT_PHALANGITE", "military", "infantry", "Macedonian heavy infantry unit"),
                 ("UNIT_HASTATUS", "military", "infantry", "Roman infantry unit"),
                 (
                     "UNIT_LEGIONARY",
@@ -581,27 +607,18 @@ class TournamentDatabase:
                     "infantry",
                     "Advanced Roman infantry unit",
                 ),
-                (
-                    "UNIT_MILITIA",
-                    "military",
-                    "infantry",
-                    "Basic defensive infantry unit",
-                ),
-                ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
-                ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
-                ("UNIT_SWORDSMAN", "military", "infantry", "Melee infantry unit with sword"),
-                ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
-                ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
-                ("UNIT_PHALANGITE", "military", "infantry", "Macedonian heavy infantry unit"),
-                ("UNIT_PIKEMAN", "military", "infantry", "Anti-cavalry pike infantry unit"),
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
                 ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_LONGBOWMAN", "military", "ranged", "Long-range archer unit"),
+                ("UNIT_AKKADIAN_ARCHER", "military", "ranged", "Advanced ranged unit"),
+                ("UNIT_CIMMERIAN_ARCHER", "military", "ranged", "Advanced ranged unit"),
+                ("UNIT_MEDJAY_ARCHER", "military", "ranged", "Advanced ranged unit"),
+                ("UNIT_BEJA_ARCHER", "military", "ranged", "Advanced ranged unit"),
                 # Military - Cavalry
                 ("UNIT_CHARIOT", "military", "cavalry", "Chariot unit"),
-                ("UNIT_LIGHT_CHARIOT", "military", "cavalry", "Fast chariot unit"),
+                ("UNIT_LIGHT_CHARIOT", "military", "cavalry", "Egyptian Fast chariot unit"),
                 (
                     "UNIT_HITTITE_CHARIOT_1",
                     "military",
@@ -615,9 +632,11 @@ class TournamentDatabase:
                     "Hittite unique chariot unit (upgraded)",
                 ),
                 ("UNIT_HORSEMAN", "military", "cavalry", "Mounted cavalry unit"),
+                ("UNIT_MOUNTED_LANCER", "military", "cavalry", "Mounted lancer unit"),
                 ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
                 ("UNIT_HORSE_ARCHER", "military", "cavalry", "Mounted archer unit"),
                 ("UNIT_CAMEL_ARCHER", "military", "cavalry", "Mounted camel archer unit"),
+                ("UNIT_CATAPHRACT", "military", "cavalry", "Heavy cavalry unit"),
                 (
                     "UNIT_CATAPHRACT_ARCHER",
                     "military",
@@ -646,6 +665,7 @@ class TournamentDatabase:
                 ("UNIT_ONAGER", "military", "siege", "Stone-throwing siege weapon"),
                 ("UNIT_BALLISTA", "military", "siege", "Bolt-throwing siege weapon"),
                 ("UNIT_MANGONEL", "military", "siege", "Advanced stone-throwing siege weapon"),
+                ("UNIT_POLYBOLOS", "military", "siege", "Multi-bolt siege weapon"),
                 (
                     "UNIT_BATTERING_RAM",
                     "military",
@@ -661,6 +681,7 @@ class TournamentDatabase:
                 # Military - Naval
                 ("UNIT_BIREME", "military", "naval", "Ancient warship"),
                 ("UNIT_TRIREME", "military", "naval", "Advanced ancient warship"),
+                ("UNIT_DROMON", "military", "naval", "Advanced Byzantine warship"),
             ]
 
             insert_query = """
@@ -1796,13 +1817,13 @@ class TournamentDatabase:
 from ..config import Config
 
 # Global database instance
-db = TournamentDatabase(db_path=Config.DATABASE_PATH)
+db = TournamentDatabase(db_path=Config.DATABASE_PATH, read_only = True)
 
 
-def get_database() -> TournamentDatabase:
+def get_database(read_only: bool = True) -> TournamentDatabase:
     """Get the global database instance.
 
     Returns:
         TournamentDatabase instance
     """
-    return db
+    return TournamentDatabase(db_path=Config.DATABASE_PATH, read_only = read_only)

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  owt-visualizer:
+    build: .
+    image: owt-visualizer
+    container_name: owt-visualizer
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./duckdb:/duckdb
+    environment:
+      - SAVES_DIRECTORY=/duckdb/saves
+      - TOURNAMENT_DB_PATH=/duckdb/db/tournament_data.duckdb
+      - PORT=8080
+      - FLASK_ENV=production
+    restart: unless-stopped
