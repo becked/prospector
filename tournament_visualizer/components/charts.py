@@ -1563,22 +1563,59 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     parents = [""]
     values = [total_units]
 
+    # Define base colors for each military role
+    role_colors = {
+        "cavalry": "#8B4513",    # Brown - horses/chariots
+        "infantry": "#DC143C",   # Crimson - foot soldiers
+        "ranged": "#4169E1",     # Royal Blue - archers
+        "siege": "#696969",      # Dim Gray - siege engines
+        "naval": "#1E90FF",      # Dodger Blue - water
+    }
+
     # Level 1: Add roles (cavalry, infantry, ranged, siege, naval)
     role_totals = military_df.groupby("role")["total_count"].sum().to_dict()
     roles = sorted(role_totals.keys())
+    colors = ["#FFFFFF"]  # Root color (white)
 
     for role in roles:
         labels.append(role)
         parents.append(f"{total_units} units")
         values.append(role_totals[role])
+        colors.append(role_colors.get(role, "#808080"))  # Default to gray if role not found
 
-    # Level 2: Add individual unit types
-    for _, row in military_df.iterrows():
-        # Remove "UNIT_" prefix and convert to title case
-        unit_name = row["unit_type"].replace("UNIT_", "").replace("_", " ").title()
-        labels.append(unit_name)
-        parents.append(row["role"])
-        values.append(row["total_count"])
+    # Level 2: Add individual unit types with shaded colors
+    # Group units by role to calculate shades
+    for role in roles:
+        role_units = military_df[military_df["role"] == role].copy()
+        num_units = len(role_units)
+        base_color = role_colors.get(role, "#808080")
+
+        # Create shades from light to dark (or use base color if only one unit)
+        if num_units == 1:
+            shades = [base_color]
+        else:
+            # Parse the hex color to RGB
+            r = int(base_color[1:3], 16)
+            g = int(base_color[3:5], 16)
+            b = int(base_color[5:7], 16)
+
+            shades = []
+            for i in range(num_units):
+                # Create shades by blending with white (lighter) or black (darker)
+                # Use a range from 70% lightness to 100% darkness
+                factor = 0.7 + (0.3 * i / max(num_units - 1, 1))
+                shade_r = int(r * factor)
+                shade_g = int(g * factor)
+                shade_b = int(b * factor)
+                shades.append(f"#{shade_r:02x}{shade_g:02x}{shade_b:02x}")
+
+        for idx, (_, row) in enumerate(role_units.iterrows()):
+            # Remove "UNIT_" prefix and convert to title case
+            unit_name = row["unit_type"].replace("UNIT_", "").replace("_", " ").title()
+            labels.append(unit_name)
+            parents.append(row["role"])
+            values.append(row["total_count"])
+            colors.append(shades[idx])
 
     # Use labels directly as display text since we no longer have naming conflicts
     custom_text = labels
@@ -1591,7 +1628,7 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
             text=custom_text,
             branchvalues="total",
             textfont=dict(size=10),
-            marker=dict(colorscale="RdBu", cmid=50),
+            marker=dict(colors=colors, line=dict(color="white", width=2)),
             texttemplate="%{text}",  # Only show the custom text, not both label and text
             hovertemplate="<b>%{text}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
         )
