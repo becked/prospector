@@ -1537,66 +1537,51 @@ def create_map_breakdown_pie_charts(df: pd.DataFrame) -> go.Figure:
 
 
 def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
-    """Create a sunburst chart showing unit popularity by category, role, and type.
+    """Create a sunburst chart showing military unit popularity by role and type.
 
     Args:
         df: DataFrame with category, role, unit_type, total_count columns
 
     Returns:
-        Plotly figure with sunburst chart
+        Plotly figure with sunburst chart showing only military units
     """
     if df.empty:
         return create_empty_chart_placeholder("No unit data available")
 
+    # Filter to only military units
+    military_df = df[df["category"] == "military"].copy()
+
+    if military_df.empty:
+        return create_empty_chart_placeholder("No military unit data available")
+
     # Build the sunburst data structure
     # Calculate total for root
-    total_units = int(df["total_count"].sum())
+    total_units = int(military_df["total_count"].sum())
 
     # Level 0: Root with unit count
     labels = [f"{total_units} units"]
     parents = [""]
     values = [total_units]
 
-    # Level 1: Add categories (civilian, military, religious)
-    category_totals = df.groupby("category")["total_count"].sum().to_dict()
-    categories = sorted(category_totals.keys())
+    # Level 1: Add roles (cavalry, infantry, ranged, siege, naval)
+    role_totals = military_df.groupby("role")["total_count"].sum().to_dict()
+    roles = sorted(role_totals.keys())
 
-    for category in categories:
-        labels.append(category)
+    for role in roles:
+        labels.append(role)
         parents.append(f"{total_units} units")
-        values.append(category_totals[category])
+        values.append(role_totals[role])
 
-    # Level 2: Add roles within each category (worker, settler, scout, cavalry, infantry, etc.)
-    # Use category:role as unique identifier to avoid label collisions (e.g., "religious" appears as both category and role)
-    role_totals = df.groupby(["category", "role"])["total_count"].sum().reset_index()
-    role_display_names = []  # Track display names for custom text
-    for _, row in role_totals.iterrows():
-        # Create unique role label by combining category and role
-        unique_role_label = f"{row['category']}:{row['role']}"
-        labels.append(unique_role_label)
-        parents.append(row["category"])
-        values.append(row["total_count"])
-        role_display_names.append(row["role"])
-
-    # Level 3: Add individual unit types
-    for _, row in df.iterrows():
+    # Level 2: Add individual unit types
+    for _, row in military_df.iterrows():
         # Remove "UNIT_" prefix and convert to title case
         unit_name = row["unit_type"].replace("UNIT_", "").replace("_", " ").title()
-        # Use unique role label as parent
-        unique_role_label = f"{row['category']}:{row['role']}"
         labels.append(unit_name)
-        parents.append(unique_role_label)
+        parents.append(row["role"])
         values.append(row["total_count"])
 
-    # Build custom text array: use display names for roles, original labels for everything else
-    custom_text = []
-    role_idx = 0
-    for i, label in enumerate(labels):
-        if ":" in label:  # This is a role level with unique identifier
-            custom_text.append(role_display_names[role_idx])
-            role_idx += 1
-        else:
-            custom_text.append(label)
+    # Use labels directly as display text since we no longer have naming conflicts
+    custom_text = labels
 
     fig = go.Figure(
         go.Sunburst(
