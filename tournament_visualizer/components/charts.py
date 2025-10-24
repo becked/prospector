@@ -1537,7 +1537,7 @@ def create_map_breakdown_pie_charts(df: pd.DataFrame) -> go.Figure:
 
 
 def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
-    """Create a sunburst chart showing unit popularity by category and type.
+    """Create a sunburst chart showing unit popularity by category, role, and type.
 
     Args:
         df: DataFrame with category, role, unit_type, total_count columns
@@ -1557,7 +1557,7 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     parents = [""]
     values = [total_units]
 
-    # Level 1: Add categories (inner circle: military, civilian, religious)
+    # Level 1: Add categories (civilian, military, religious)
     category_totals = df.groupby("category")["total_count"].sum().to_dict()
     categories = sorted(category_totals.keys())
 
@@ -1566,12 +1566,19 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         parents.append(f"{total_units} units")
         values.append(category_totals[category])
 
-    # Level 2: Add unit types (outer circle)
+    # Level 2: Add roles within each category (worker, settler, scout, cavalry, infantry, etc.)
+    role_totals = df.groupby(["category", "role"])["total_count"].sum().reset_index()
+    for _, row in role_totals.iterrows():
+        labels.append(row["role"])
+        parents.append(row["category"])
+        values.append(row["total_count"])
+
+    # Level 3: Add individual unit types
     for _, row in df.iterrows():
         # Remove "UNIT_" prefix and convert to title case
         unit_name = row["unit_type"].replace("UNIT_", "").replace("_", " ").title()
         labels.append(unit_name)
-        parents.append(row["category"])
+        parents.append(row["role"])
         values.append(row["total_count"])
 
     fig = go.Figure(
