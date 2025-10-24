@@ -540,6 +540,12 @@ class TournamentDatabase:
                     "settler",
                     "Settler unit for founding cities",
                 ),
+                (
+                    "UNIT_SCOUT",
+                    "civilian",
+                    "scout",
+                    "Scout unit for exploration and reconnaissance",
+                ),
                 # Religious units
                 (
                     "UNIT_JUDAISM_DISCIPLE",
@@ -553,12 +559,17 @@ class TournamentDatabase:
                     "religious",
                     "Religious unit for spreading Zoroastrianism",
                 ),
-                # Military - Scout
                 (
-                    "UNIT_SCOUT",
-                    "military",
-                    "scout",
-                    "Scout unit for exploration and reconnaissance",
+                    "UNIT_CHRISTIANITY_DISCIPLE",
+                    "religious",
+                    "religious",
+                    "Religious unit for spreading Christianity",
+                ),
+                (
+                    "UNIT_MANICHAEISM_DISCIPLE",
+                    "religious",
+                    "religious",
+                    "Religious unit for spreading Manichaeism",
                 ),
                 # Military - Infantry
                 ("UNIT_WARRIOR", "military", "infantry", "Basic melee infantry unit"),
@@ -578,12 +589,16 @@ class TournamentDatabase:
                 ),
                 ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
                 ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
+                ("UNIT_SWORDSMAN", "military", "infantry", "Melee infantry unit with sword"),
                 ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
                 ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
+                ("UNIT_PHALANGITE", "military", "infantry", "Macedonian heavy infantry unit"),
+                ("UNIT_PIKEMAN", "military", "infantry", "Anti-cavalry pike infantry unit"),
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
                 ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
+                ("UNIT_LONGBOWMAN", "military", "ranged", "Long-range archer unit"),
                 # Military - Cavalry
                 ("UNIT_CHARIOT", "military", "cavalry", "Chariot unit"),
                 ("UNIT_LIGHT_CHARIOT", "military", "cavalry", "Fast chariot unit"),
@@ -593,7 +608,22 @@ class TournamentDatabase:
                     "cavalry",
                     "Hittite unique chariot unit",
                 ),
+                (
+                    "UNIT_HITTITE_CHARIOT_2",
+                    "military",
+                    "cavalry",
+                    "Hittite unique chariot unit (upgraded)",
+                ),
+                ("UNIT_HORSEMAN", "military", "cavalry", "Mounted cavalry unit"),
                 ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
+                ("UNIT_HORSE_ARCHER", "military", "cavalry", "Mounted archer unit"),
+                ("UNIT_CAMEL_ARCHER", "military", "cavalry", "Mounted camel archer unit"),
+                (
+                    "UNIT_CATAPHRACT_ARCHER",
+                    "military",
+                    "cavalry",
+                    "Heavy mounted archer unit",
+                ),
                 (
                     "UNIT_AFRICAN_ELEPHANT",
                     "military",
@@ -615,14 +645,22 @@ class TournamentDatabase:
                 # Military - Siege
                 ("UNIT_ONAGER", "military", "siege", "Stone-throwing siege weapon"),
                 ("UNIT_BALLISTA", "military", "siege", "Bolt-throwing siege weapon"),
+                ("UNIT_MANGONEL", "military", "siege", "Advanced stone-throwing siege weapon"),
                 (
                     "UNIT_BATTERING_RAM",
                     "military",
                     "siege",
                     "Siege weapon for attacking cities",
                 ),
+                (
+                    "UNIT_SIEGE_TOWER",
+                    "military",
+                    "siege",
+                    "Siege tower for scaling city walls",
+                ),
                 # Military - Naval
                 ("UNIT_BIREME", "military", "naval", "Ancient warship"),
+                ("UNIT_TRIREME", "military", "naval", "Advanced ancient warship"),
             ]
 
             insert_query = """
