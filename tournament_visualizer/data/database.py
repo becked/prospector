@@ -546,7 +546,12 @@ class TournamentDatabase:
                     "caravan",
                     "Caravan unit for trade",
                 ),
-                
+                (
+                    "UNIT_SCOUT",
+                    "civilian",
+                    "scout",
+                    "Scout unit for exploration and reconnaissance",
+                ),
                 # Religious units
                 (
                     "UNIT_JUDAISM_DISCIPLE",
@@ -572,15 +577,6 @@ class TournamentDatabase:
                     "religious",
                     "Religious unit for spreading Manichaeism",
                 ),
-
-                
-                # Military - Scout
-                (
-                    "UNIT_SCOUT",
-                    "military",
-                    "scout",
-                    "Scout unit for exploration and reconnaissance",
-                ),
                 # Military - Infantry
                 ("UNIT_WARRIOR", "military", "infantry", "Basic melee infantry unit"),
                 ("UNIT_SPEARMAN", "military", "infantry", "Anti-cavalry infantry unit"),
@@ -603,7 +599,7 @@ class TournamentDatabase:
                 ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
                 ("UNIT_SHOTELAI", "military", "infantry", "Special infantry unit"),
                 ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
-                ("UNIT_PHALANGITE", "military", "infantry", "Greek heavy infantry unit"),
+                ("UNIT_PHALANGITE", "military", "infantry", "Macedonian heavy infantry unit"),
                 ("UNIT_HASTATUS", "military", "infantry", "Roman infantry unit"),
                 (
                     "UNIT_LEGIONARY",
@@ -611,26 +607,18 @@ class TournamentDatabase:
                     "infantry",
                     "Advanced Roman infantry unit",
                 ),
-
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
                 ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
-                ("UNIT_LONGBOWMAN", "military", "ranged", "Advanced ranged unit"),
+                ("UNIT_LONGBOWMAN", "military", "ranged", "Long-range archer unit"),
                 ("UNIT_AKKADIAN_ARCHER", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_CIMMERIAN_ARCHER", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_MEDJAY_ARCHER", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_BEJA_ARCHER", "military", "ranged", "Advanced ranged unit"),
-              
                 # Military - Cavalry
                 ("UNIT_CHARIOT", "military", "cavalry", "Chariot unit"),
-                ("UNIT_HORSEMAN", "military", "cavalry", "Horseman unit"),
-                ("UNIT_CATAPHRACT", "military", "cavalry", "CATAPHRACT unit"),
-                ("UNIT_HORSE_ARCHER", "military", "cavalry", "Horse Archer unit"),
-                ("UNIT_CAMEL_ARCHER", "military", "cavalry", "Most OP unit in the game"),
-                ("UNIT_CATAPHRACT_ARCHER", "military", "cavalry", "Horseman unit"),
                 ("UNIT_LIGHT_CHARIOT", "military", "cavalry", "Egyptian Fast chariot unit"),
-                ("UNIT_MOUNTED_LANCER", "military", "cavalry", "Egyptian Fast chariot unit"),
                 (
                     "UNIT_HITTITE_CHARIOT_1",
                     "military",
@@ -641,9 +629,20 @@ class TournamentDatabase:
                     "UNIT_HITTITE_CHARIOT_2",
                     "military",
                     "cavalry",
-                    "Hittite unique chariot unit",
+                    "Hittite unique chariot unit (upgraded)",
                 ),
+                ("UNIT_HORSEMAN", "military", "cavalry", "Mounted cavalry unit"),
+                ("UNIT_MOUNTED_LANCER", "military", "cavalry", "Mounted lancer unit"),
                 ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
+                ("UNIT_HORSE_ARCHER", "military", "cavalry", "Mounted archer unit"),
+                ("UNIT_CAMEL_ARCHER", "military", "cavalry", "Mounted camel archer unit"),
+                ("UNIT_CATAPHRACT", "military", "cavalry", "Heavy cavalry unit"),
+                (
+                    "UNIT_CATAPHRACT_ARCHER",
+                    "military",
+                    "cavalry",
+                    "Heavy mounted archer unit",
+                ),
                 (
                     "UNIT_AFRICAN_ELEPHANT",
                     "military",
@@ -665,6 +664,8 @@ class TournamentDatabase:
                 # Military - Siege
                 ("UNIT_ONAGER", "military", "siege", "Stone-throwing siege weapon"),
                 ("UNIT_BALLISTA", "military", "siege", "Bolt-throwing siege weapon"),
+                ("UNIT_MANGONEL", "military", "siege", "Advanced stone-throwing siege weapon"),
+                ("UNIT_POLYBOLOS", "military", "siege", "Multi-bolt siege weapon"),
                 (
                     "UNIT_BATTERING_RAM",
                     "military",
@@ -675,15 +676,12 @@ class TournamentDatabase:
                     "UNIT_SIEGE_TOWER",
                     "military",
                     "siege",
-                    "Siege weapon for attacking cities",
+                    "Siege tower for scaling city walls",
                 ),
-                ("UNIT_POLYBOLOS", "military", "siege", "Toruqe siege weapon"),
-                ("UNIT_MANGONEL", "military", "siege", "Boulders of death siege weapon"),
                 # Military - Naval
                 ("UNIT_BIREME", "military", "naval", "Ancient warship"),
-                ("UNIT_TRIREME", "military", "naval", "Ancient warship lvl 2"),
-                ("UNIT_DROMON", "military", "naval", "Ancient warship lvl 3"),
-               
+                ("UNIT_TRIREME", "military", "naval", "Advanced ancient warship"),
+                ("UNIT_DROMON", "military", "naval", "Advanced Byzantine warship"),
             ]
 
             insert_query = """

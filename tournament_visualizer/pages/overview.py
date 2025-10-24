@@ -100,7 +100,7 @@ layout = html.Div(
                 dbc.Col(
                     [
                         create_chart_card(
-                            title="Unit Breakdown",
+                            title="Military Unit Breakdown",
                             chart_id="overview-units-chart",
                             height="400px",
                         )
