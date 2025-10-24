@@ -1567,29 +1567,47 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         values.append(category_totals[category])
 
     # Level 2: Add roles within each category (worker, settler, scout, cavalry, infantry, etc.)
+    # Use category:role as unique identifier to avoid label collisions (e.g., "religious" appears as both category and role)
     role_totals = df.groupby(["category", "role"])["total_count"].sum().reset_index()
+    role_display_names = []  # Track display names for custom text
     for _, row in role_totals.iterrows():
-        labels.append(row["role"])
+        # Create unique role label by combining category and role
+        unique_role_label = f"{row['category']}:{row['role']}"
+        labels.append(unique_role_label)
         parents.append(row["category"])
         values.append(row["total_count"])
+        role_display_names.append(row["role"])
 
     # Level 3: Add individual unit types
     for _, row in df.iterrows():
         # Remove "UNIT_" prefix and convert to title case
         unit_name = row["unit_type"].replace("UNIT_", "").replace("_", " ").title()
+        # Use unique role label as parent
+        unique_role_label = f"{row['category']}:{row['role']}"
         labels.append(unit_name)
-        parents.append(row["role"])
+        parents.append(unique_role_label)
         values.append(row["total_count"])
+
+    # Build custom text array: use display names for roles, original labels for everything else
+    custom_text = []
+    role_idx = 0
+    for i, label in enumerate(labels):
+        if ":" in label:  # This is a role level with unique identifier
+            custom_text.append(role_display_names[role_idx])
+            role_idx += 1
+        else:
+            custom_text.append(label)
 
     fig = go.Figure(
         go.Sunburst(
             labels=labels,
             parents=parents,
             values=values,
+            text=custom_text,
             branchvalues="total",
             textfont=dict(size=10),
             marker=dict(colorscale="RdBu", cmid=50),
-            hovertemplate="<b>%{label}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
+            hovertemplate="<b>%{text}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
         )
     )
 
