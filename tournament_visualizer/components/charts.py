@@ -1607,6 +1607,7 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
             branchvalues="total",
             textfont=dict(size=10),
             marker=dict(colorscale="RdBu", cmid=50),
+            texttemplate="%{text}",  # Only show the custom text, not both label and text
             hovertemplate="<b>%{text}</b><br>Count: %{value}<br>%{percentParent:.1%} of parent<extra></extra>",
         )
     )
