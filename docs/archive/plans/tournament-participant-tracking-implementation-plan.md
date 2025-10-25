@@ -1,5 +1,10 @@
 # Tournament Participant Tracking Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Participant Tracking section).
+> See migrations/004_add_tournament_participants.md for schema changes.
+
 ## Overview
 
 Add a tournament participant tracking system that links players across multiple matches using Challonge API data. This enables cross-match analytics, persistent player identity, and bracket integration.

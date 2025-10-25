@@ -1,5 +1,9 @@
 # Yields Visualization Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Charts implemented and working in app. See CLAUDE.md (Dashboard & Chart Conventions section).
+
 ## Overview
 
 **Goal**: Add comprehensive yield tracking visualizations to the Match Details page, displaying all 14 yield types (Food, Growth, Science, Culture, etc.) as line charts showing progression over time.

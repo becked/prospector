@@ -1,5 +1,10 @@
 # LogData Ingestion Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> LogData events are now documented in CLAUDE.md (Data Sources section).
+> See migrations/001_add_logdata_events.md for schema changes.
+
 > **Updated: 2025-10-08** - Plan corrected based on investigation of actual save file structure.
 > See `docs/plans/logdata-investigation-findings.md` for detailed findings.
 > Key changes: LogData is in `PermanentLogList` (not `TurnSummary`), no deduplication needed.

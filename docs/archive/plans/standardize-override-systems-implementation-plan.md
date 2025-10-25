@@ -1,5 +1,9 @@
 # Standardize Override Systems Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Override systems complete and documented in CLAUDE.md (Override Systems Design section).
+
 ## Executive Summary
 
 **Problem**: The `participant_name_overrides.json` file uses unstable database `match_id` values as keys. Every time the database is re-imported, match IDs change (they're auto-incrementing row IDs), breaking all the overrides and requiring manual remapping.

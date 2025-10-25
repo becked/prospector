@@ -1,5 +1,9 @@
 # Google Drive Integration Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Google Drive Integration section).
+
 ## Overview
 
 **Goal:** Enable downloading tournament save files from Google Drive for files that exceed Challonge's 250KB attachment limit.

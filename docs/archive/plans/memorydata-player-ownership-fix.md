@@ -1,5 +1,10 @@
 # MemoryData Player Ownership Fix - Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> MemoryData events are now documented in CLAUDE.md (Memory Event Ownership section).
+> See migrations/001_add_logdata_events.md for schema changes.
+
 ## Problem Statement
 
 Currently, MemoryData events that lack an explicit `<Player>` child element (e.g., MEMORYTRIBE_*, MEMORYFAMILY_*, MEMORYRELIGION_*) are stored in the database with `player_id = NULL`. However, these events ARE stored within a specific Player's `<MemoryList>` in the XML, meaning they belong to that player's perspective/memory.

@@ -1,5 +1,10 @@
 # LogData Investigation Findings
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> LogData events are now documented in CLAUDE.md (Data Sources section).
+> See migrations/001_add_logdata_events.md for schema changes.
+
 ## Investigation Date: 2025-10-08
 
 ## Questions Investigated

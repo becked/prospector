@@ -1,5 +1,10 @@
 # Fly.io Deployment Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Deployment complete and documented in CLAUDE.md (Deployment section).
+> See deployment-guide.md for comprehensive deployment instructions.
+
 ## Overview
 
 This plan covers deploying the Old World Tournament Visualizer Dash application to Fly.io with:

@@ -1,5 +1,10 @@
 # Match Narrative Generation Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Match Narrative Summaries section).
+> See migrations/009_add_match_narrative_summary.md for schema changes.
+
 ## Overview
 
 **Goal:** Generate AI-powered narrative summaries for each match to display on match detail pages.

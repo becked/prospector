@@ -1,5 +1,9 @@
 # Law Progression Visualizations Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Charts implemented and working in app. See CLAUDE.md (Dashboard & Chart Conventions section).
+
 > **Created:** 2025-10-08
 > **Target:** Add 6 law progression visualizations to the Technology & Research tab on the Matches page
 

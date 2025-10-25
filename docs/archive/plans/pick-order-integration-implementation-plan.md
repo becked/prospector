@@ -1,5 +1,10 @@
 # Pick Order Data Integration Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Pick Order Data Integration section).
+> See migrations/008_add_pick_order_tracking.md for schema changes.
+
 ## Overview
 
 **Goal:** Integrate nation pick order data from a Google Spreadsheet into the tournament database to enable analysis of whether picking first or second affects game outcomes.

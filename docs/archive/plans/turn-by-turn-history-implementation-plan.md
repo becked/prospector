@@ -1,5 +1,10 @@
 # Turn-by-Turn History Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Turn-by-turn history feature is now documented in CLAUDE.md (Yield Value Display Scale section).
+> See migrations/002_add_history_tables.md for schema changes.
+
 **Date:** October 8, 2025
 **Status:** Ready for Implementation
 **Estimated Time:** 12-15 hours

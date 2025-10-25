@@ -1,5 +1,10 @@
 # Participant Tracking UI Integration Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Participant UI Integration section).
+> See migrations/004_add_tournament_participants.md for schema changes.
+
 ## Overview
 
 Update the web application to display tournament participants (real people) instead of match-scoped player instances, while gracefully handling players who haven't been linked to Challonge participant data yet.

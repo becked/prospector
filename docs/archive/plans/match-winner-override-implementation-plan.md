@@ -1,5 +1,9 @@
 # Match Winner Override System - Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Override systems complete and documented in CLAUDE.md (Override Systems Design section).
+
 ## Problem Statement
 
 Tournament save files can have incorrect winner data for several reasons:

@@ -1,5 +1,9 @@
 # Law Progression Visualizations - Implementation Summary
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Charts implemented and working in app. See CLAUDE.md (Dashboard & Chart Conventions section).
+
 **Completed:** 2025-10-08
 
 ## What Was Built

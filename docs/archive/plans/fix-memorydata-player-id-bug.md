@@ -1,5 +1,10 @@
 # Fix MemoryData Player ID Mapping Bug - Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> MemoryData events are now documented in CLAUDE.md (Data Sources section).
+> See migrations/001_add_logdata_events.md for schema changes.
+
 > **Created: 2025-10-08**
 > **Priority: Medium** - Data integrity issue affecting existing MemoryData events
 > **Estimated Time: 3-5 hours**

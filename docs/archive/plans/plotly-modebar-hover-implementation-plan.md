@@ -1,5 +1,9 @@
 # Plotly Modebar Hover Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Charts implemented and working in app. See CLAUDE.md (Dashboard & Chart Conventions section).
+
 ## Overview
 
 Update all Plotly modebars across the application to:

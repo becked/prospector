@@ -1,5 +1,9 @@
 # Fix Application After Turn-by-Turn History Database Changes
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete. See migrations/002_add_history_tables.md.
+
 **Date:** October 9, 2025
 **Status:** Ready for Implementation
 **Estimated Time:** 4-6 hours

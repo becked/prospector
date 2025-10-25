@@ -1,5 +1,9 @@
 # Yield Display Fix - Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Fix implemented. See CLAUDE.md (Yield Value Display Scale section).
+
 ## Context
 
 ### The Problem

@@ -1,5 +1,9 @@
 # Ruler Tracking Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete. See migrations/003_add_rulers_table.md for schema changes.
+
 ## Overview
 
 Add a new `rulers` table to track all rulers (leaders) for each player throughout a match, including their archetype and starting trait chosen at game initialization. This enables analytics on ruler succession, archetype effectiveness, and trait correlations with performance.

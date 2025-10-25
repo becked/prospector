@@ -1,5 +1,10 @@
 # Participant Linking for Cross-Match Queries - Implementation Plan
 
+> **Status**: Completed and archived (2025-10-25)
+>
+> Feature complete and documented in CLAUDE.md (Participant Tracking section).
+> See migrations/004_add_tournament_participants.md for schema changes.
+
 ## Context
 
 This tournament visualizer tracks Old World game matches from a Challonge tournament. Players participate in multiple matches over time, but their in-game names can vary between matches. We've built a participant linking system that connects match-scoped `players` records to tournament-scoped `tournament_participants` records.
