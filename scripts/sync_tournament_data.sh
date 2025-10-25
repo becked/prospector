@@ -4,8 +4,11 @@
 #
 # Usage: ./scripts/sync_tournament_data_local.sh [options] [app-name]
 # Options:
-#   --force                Force reimport of all files (clears existing data)
+#   --force                Force full rebuild (clears database, re-imports all files,
+#                          and runs participant/pick order enrichment)
 #   --generate-narratives  Generate AI match narratives (requires ANTHROPIC_API_KEY)
+#
+# Without --force: Only imports new save files (skips participant/pick order sync)
 # Default app name: prospector
 
 set -e  # Exit on error
@@ -56,7 +59,9 @@ echo "Tournament Data Sync (Local Processing)"
 echo "======================================"
 echo -e "${BLUE}App: ${APP_NAME}${NC}"
 if [ -n "$FORCE_FLAG" ]; then
-    echo -e "${YELLOW}Mode: Force reimport (existing data will be cleared)${NC}"
+    echo -e "${YELLOW}Mode: Full rebuild (database cleared, all files reimported, enrichment enabled)${NC}"
+else
+    echo -e "${BLUE}Mode: Incremental (only new save files, skips participant/pick order sync)${NC}"
 fi
 if [ "$GENERATE_NARRATIVES" = true ]; then
     echo -e "${BLUE}Narrative generation: Enabled${NC}"
@@ -121,47 +126,56 @@ else
 fi
 echo ""
 
-# Step 2.3: Sync Challonge participants (if configured)
-if [ -n "${CHALLONGE_KEY}" ] && [ -n "${CHALLONGE_USER}" ] && [ -n "${challonge_tournament_id}" ]; then
-    echo -e "${YELLOW}[2.3/8] Syncing Challonge participants...${NC}"
-    if uv run python scripts/sync_challonge_participants.py; then
-        echo -e "${GREEN}✓ Participants synced${NC}"
+# Step 2.3-2.6: Participant and pick order enrichment (only with --force)
+if [ -n "$FORCE_FLAG" ]; then
+    # Step 2.3: Sync Challonge participants (if configured)
+    if [ -n "${CHALLONGE_KEY}" ] && [ -n "${CHALLONGE_USER}" ] && [ -n "${challonge_tournament_id}" ]; then
+        echo -e "${YELLOW}[2.3/8] Syncing Challonge participants...${NC}"
+        if uv run python scripts/sync_challonge_participants.py; then
+            echo -e "${GREEN}✓ Participants synced${NC}"
 
-        # Step 2.4: Link players to participants
-        echo -e "${YELLOW}[2.4/8] Linking players to participants...${NC}"
-        if uv run python scripts/link_players_to_participants.py; then
-            echo -e "${GREEN}✓ Players linked to participants${NC}"
+            # Step 2.4: Link players to participants
+            echo -e "${YELLOW}[2.4/8] Linking players to participants...${NC}"
+            if uv run python scripts/link_players_to_participants.py; then
+                echo -e "${GREEN}✓ Players linked to participants${NC}"
+            else
+                echo -e "${YELLOW}⚠ Player linking failed (pick order features may not work)${NC}"
+            fi
         else
-            echo -e "${YELLOW}⚠ Player linking failed (pick order features may not work)${NC}"
+            echo -e "${YELLOW}⚠ Participant sync failed (pick order features may not work)${NC}"
         fi
+        echo ""
     else
-        echo -e "${YELLOW}⚠ Participant sync failed (pick order features may not work)${NC}"
+        echo -e "${BLUE}[2.3/8] Skipping participant sync (Challonge credentials not configured)${NC}"
+        echo -e "${BLUE}[2.4/8] Skipping player linking (requires participants)${NC}"
+        echo ""
     fi
-    echo ""
-else
-    echo -e "${BLUE}[2.3/8] Skipping participant sync (Challonge credentials not configured)${NC}"
-    echo -e "${BLUE}[2.4/8] Skipping player linking (requires participants)${NC}"
-    echo ""
-fi
 
-# Step 2.5: Sync pick order data from Google Sheets (if configured)
-if [ -n "${GOOGLE_DRIVE_API_KEY}" ] && [ -n "${GOOGLE_SHEETS_SPREADSHEET_ID}" ]; then
-    echo -e "${YELLOW}[2.5/8] Syncing pick order data from Google Sheets...${NC}"
-    if uv run python scripts/sync_pick_order_data.py; then
-        echo -e "${GREEN}✓ Pick order data synced${NC}"
+    # Step 2.5: Sync pick order data from Google Sheets (if configured)
+    if [ -n "${GOOGLE_DRIVE_API_KEY}" ] && [ -n "${GOOGLE_SHEETS_SPREADSHEET_ID}" ]; then
+        echo -e "${YELLOW}[2.5/8] Syncing pick order data from Google Sheets...${NC}"
+        if uv run python scripts/sync_pick_order_data.py; then
+            echo -e "${GREEN}✓ Pick order data synced${NC}"
 
-        echo -e "${YELLOW}[2.6/8] Matching pick order games to matches...${NC}"
-        if uv run python scripts/match_pick_order_games.py; then
-            echo -e "${GREEN}✓ Pick order games matched${NC}"
+            echo -e "${YELLOW}[2.6/8] Matching pick order games to matches...${NC}"
+            if uv run python scripts/match_pick_order_games.py; then
+                echo -e "${GREEN}✓ Pick order games matched${NC}"
+            else
+                echo -e "${YELLOW}⚠ Pick order matching failed (non-critical)${NC}"
+            fi
         else
-            echo -e "${YELLOW}⚠ Pick order matching failed (non-critical)${NC}"
+            echo -e "${YELLOW}⚠ Pick order sync failed (will skip)${NC}"
         fi
+        echo ""
     else
-        echo -e "${YELLOW}⚠ Pick order sync failed (will skip)${NC}"
+        echo -e "${BLUE}[2.5/8] Skipping pick order sync (API key or spreadsheet ID not configured)${NC}"
+        echo ""
     fi
-    echo ""
 else
-    echo -e "${BLUE}[2.5/8] Skipping pick order sync (API key or spreadsheet ID not configured)${NC}"
+    echo -e "${BLUE}[2.3/8] Skipping participant sync (only runs with --force)${NC}"
+    echo -e "${BLUE}[2.4/8] Skipping player linking (only runs with --force)${NC}"
+    echo -e "${BLUE}[2.5/8] Skipping pick order sync (only runs with --force)${NC}"
+    echo -e "${BLUE}[2.6/8] Skipping pick order matching (only runs with --force)${NC}"
     echo ""
 fi
 
