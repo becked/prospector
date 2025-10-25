@@ -667,13 +667,22 @@ class TournamentQueries:
             DataFrame with territory control data
         """
         query = """
-        WITH territory_counts AS (
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
+            FROM players
+        ),
+        territory_counts AS (
             SELECT
                 t.turn_number,
                 p.player_name,
                 COUNT(*) as controlled_territories
             FROM territories t
-            LEFT JOIN players p ON t.owner_player_id = p.player_id
+            LEFT JOIN player_order p ON t.match_id = p.match_id
+                                     AND t.owner_player_id = p.match_player_order
             WHERE t.match_id = ?
             GROUP BY t.turn_number, p.player_name
         )

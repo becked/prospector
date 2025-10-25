@@ -626,10 +626,10 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Maps",
+                        "label": "Map",
                         "tab_id": "maps",
                         "content": [
-                            # Territory Hexagonal Map with Turn Slider
+                            # Turn Slider
                             dbc.Card(
                                 [
                                     dbc.CardBody(
@@ -672,6 +672,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
+                            # Hexagonal Map
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Territory Control Hexagonal Map",
+                                                chart_id="match-territory-heatmap",
+                                                height="700px",
+                                            )
+                                        ],
+                                        width=12,
+                                    )
+                                ],
+                                className="mb-3",
+                            ),
                             # Territory Control Charts
                             dbc.Row(
                                 [
@@ -695,22 +711,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         ],
                                         width=4,
                                     ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Hexagonal Map
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Territory Control Hexagonal Map",
-                                                chart_id="match-territory-heatmap",
-                                                height="700px",
-                                            )
-                                        ],
-                                        width=12,
-                                    )
                                 ],
                                 className="mb-3",
                             ),
@@ -1983,9 +1983,9 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
         if df.empty:
             return create_empty_chart_placeholder("No territory data available")
 
-        # Get final turn data
+        # Get final turn data, excluding unowned territories (NULL player names)
         final_turn = df["turn_number"].max()
-        final_data = df[df["turn_number"] == final_turn]
+        final_data = df[(df["turn_number"] == final_turn) & (df["player_name"].notna())]
 
         fig = create_base_figure(show_legend=False)
 
