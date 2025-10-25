@@ -643,13 +643,13 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
-                            # City Founding Scatter with Jitter
+                            # City Founding Timeline
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="City Founding Detail",
+                                                title="City Founding Timeline",
                                                 chart_id="match-city-founding-scatter",
                                                 height="400px",
                                             )

@@ -4501,6 +4501,16 @@ def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
             )
         )
 
+    # Add vertical lines every 10 turns
+    max_turn = df["turn_number"].max()
+    for turn in range(10, int(max_turn) + 1, 10):
+        fig.add_vline(
+            x=turn,
+            line_dash="dash",
+            line_color="rgba(128, 128, 128, 0.3)",
+            line_width=1,
+        )
+
     # Configure y-axis to show player names
     fig.update_layout(
         yaxis=dict(
