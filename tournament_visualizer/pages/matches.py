@@ -16,6 +16,7 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_ambition_summary_table,
     create_ambition_timeline_chart,
+    create_base_figure,
     create_city_founding_scatter_jitter_chart,
     create_cumulative_city_count_chart,
     create_cumulative_law_count_chart,
@@ -23,6 +24,7 @@ from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_law_adoption_timeline_chart,
     create_tech_completion_timeline_chart,
+    create_territory_control_chart,
     create_yield_chart,  # NEW: Generic yield chart function
 )
 from tournament_visualizer.components.layouts import (
@@ -34,7 +36,7 @@ from tournament_visualizer.components.layouts import (
     create_page_header,
     create_tab_layout,
 )
-from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG
+from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG, Config
 from tournament_visualizer.data.queries import get_queries
 from tournament_visualizer.utils.event_categories import (
     get_category_color_map,
@@ -667,6 +669,32 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             ),
                                         ]
                                     )
+                                ],
+                                className="mb-3",
+                            ),
+                            # Territory Control Charts
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Territory Control Over Time",
+                                                chart_id="match-territory-timeline-chart",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=8,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Final Territory Distribution",
+                                                chart_id="match-territory-distribution-chart",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=4,
+                                    ),
                                 ],
                                 className="mb-3",
                             ),
@@ -1893,4 +1921,87 @@ def update_match_territory_heatmap_turn(
         logger.error(f"Error updating territory map for turn: {e}")
         return create_empty_chart_placeholder(
             f"Error loading map: {str(e)}"
+        )
+
+
+@callback(
+    Output("match-territory-timeline-chart", "figure"),
+    Input("match-selector", "value"),
+)
+def update_match_territory_timeline_chart(match_id: Optional[int]):
+    """Update territory timeline chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure for territory timeline
+    """
+    if not match_id:
+        return create_empty_chart_placeholder(
+            "Select a match to view territory control"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_territory_control_summary(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No territory data available for this match"
+            )
+
+        return create_territory_control_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading territory timeline: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading territory timeline: {str(e)}"
+        )
+
+
+@callback(
+    Output("match-territory-distribution-chart", "figure"),
+    Input("match-selector", "value"),
+)
+def update_match_territory_distribution_chart(match_id: Optional[int]):
+    """Update territory distribution chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure for territory distribution
+    """
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match")
+
+    try:
+        queries = get_queries()
+        df = queries.get_territory_control_summary(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No territory data available")
+
+        # Get final turn data
+        final_turn = df["turn_number"].max()
+        final_data = df[df["turn_number"] == final_turn]
+
+        fig = create_base_figure(show_legend=False)
+
+        fig.add_trace(
+            go.Pie(
+                labels=final_data["player_name"],
+                values=final_data["controlled_territories"],
+                hole=0.3,
+                marker_colors=Config.PRIMARY_COLORS[: len(final_data)],
+            )
+        )
+
+        return fig
+
+    except Exception as e:
+        logger.error(f"Error loading territory distribution: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading territory distribution: {str(e)}"
         )
