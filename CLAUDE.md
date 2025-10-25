@@ -943,6 +943,104 @@ For complex features, create an implementation plan in `docs/plans/`:
 
 See `docs/plans/logdata-ingestion-implementation-plan.md` as an example.
 
+## Documentation Lifecycle
+
+We keep documentation current by archiving completed work. This helps new developers focus on what's active.
+
+### When to Archive Documentation
+
+**Archive immediately after completion:**
+
+1. **Implementation plans** (`docs/plans/*.md`)
+   - When feature is complete and tested
+   - After feature is documented in CLAUDE.md
+   - Add archive note pointing to CLAUDE.md section
+
+2. **Issue reports** (`docs/issues/*.md`)
+   - When issue is resolved
+   - After fix is committed and tested
+   - Add note explaining resolution
+
+3. **Analysis reports** (`docs/reports/*.md`)
+   - When analysis leads to implementation
+   - After decisions are made and documented
+   - Keep for historical context
+
+4. **Code reviews** (dated reports at root)
+   - Always archive (they're point-in-time snapshots)
+   - Move immediately after review
+
+### Archive Process
+
+1. **Add archive note** at top of document:
+   ```markdown
+   > **Status**: Completed and archived (YYYY-MM-DD)
+   >
+   > This feature is now documented in CLAUDE.md (section: <name>).
+   > See migrations/XXX.md for schema changes (if applicable).
+   ```
+
+2. **Move to appropriate archive location**:
+   ```bash
+   git mv docs/plans/<name>.md docs/archive/plans/
+   ```
+
+3. **Commit with clear message**:
+   ```bash
+   git commit -m "docs: Archive completed <feature> plan
+
+   Feature complete. See CLAUDE.md section '<section-name>'.
+   See migrations/XXX.md for schema details."
+   ```
+
+### What Stays Active
+
+**Never archive these:**
+
+- `developer-guide.md` - Living architecture doc
+- `deployment-guide.md` - Living deployment doc
+- `CLAUDE.md` - Living conventions doc
+- `migrations/*.md` - Historical record (all relevant)
+- `reference/*.md` - Technical specifications
+- Active implementation plans for ongoing work
+- Unresolved issues
+
+### Archive Structure
+
+```
+docs/archive/
+├── plans/          # Completed implementation plans
+├── reports/        # Historical analysis reports
+├── issues/         # Resolved issues
+├── code-reviews/   # Point-in-time reviews
+└── deployment/     # Old deployment docs
+```
+
+### Finding Archived Information
+
+New developers should read `docs/README.md` to understand the archive structure.
+
+**Common scenarios:**
+
+- "Why was this designed this way?" → Check `archive/plans/`
+- "How was this feature built?" → Check `archive/plans/`
+- "What was this bug?" → Check `archive/issues/`
+
+### Documentation for New Features
+
+When implementing a feature:
+
+1. **Create implementation plan** in `docs/plans/` (optional, for complex features)
+2. **Work on feature** following the plan
+3. **Create migration doc** if schema changes (required)
+4. **Document in CLAUDE.md** when feature is complete (required)
+5. **Update developer-guide.md** if architecture changes (if needed)
+6. **Archive implementation plan** to `docs/archive/plans/` (required)
+
+**Commit messages:**
+- Creating plan: `docs: Add implementation plan for <feature>`
+- Archiving plan: `docs: Archive completed <feature> plan`
+
 ## Dashboard & Chart Conventions
 
 ### Chart Titles
