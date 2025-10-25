@@ -211,10 +211,8 @@ class TournamentETL:
 
         # Process territories (requires match_id and final_turn)
         # Extract territories from save file now that we have match_id
-        game_states = parsed_data.get("game_states", [])
-        final_turn = 0
-        if game_states:
-            final_turn = max(gs["turn_number"] for gs in game_states)
+        # Get final turn from match metadata
+        final_turn = parsed_data["match_metadata"].get("total_turns", 0)
 
         # Only extract territories if we have turn data
         if final_turn > 0:
