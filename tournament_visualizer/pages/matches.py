@@ -19,7 +19,8 @@ from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
-    create_statistics_radar_chart,
+    create_law_adoption_timeline_chart,
+    create_tech_completion_timeline_chart,
     create_yield_chart,  # NEW: Generic yield chart function
 )
 from tournament_visualizer.components.layouts import (
@@ -471,12 +472,24 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Technology & Research",
+                        "label": "Laws & Technology",
                         "tab_id": "technology",
                         "content": [
-                            # Final Laws and Technologies by player
-                            html.Div(
-                                id="match-final-laws-techs-content", className="mb-3"
+                            # Law Tempo chart
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Law Tempo",
+                                                chart_id="match-law-cumulative",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
                             ),
                             # Technology Tempo chart
                             dbc.Row(
@@ -494,14 +507,14 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
-                            # Law Tempo chart
+                            # Law Adoption Timeline
                             dbc.Row(
                                 [
                                     dbc.Col(
                                         [
                                             create_chart_card(
-                                                title="Law Tempo",
-                                                chart_id="match-law-cumulative",
+                                                title="Law Adoption Timeline",
+                                                chart_id="match-law-timeline",
                                                 height="400px",
                                             )
                                         ],
@@ -509,6 +522,26 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     ),
                                 ],
                                 className="mb-3",
+                            ),
+                            # Technology Discovery Timeline
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Technology Discovery Timeline",
+                                                chart_id="match-tech-timeline",
+                                                height="1200px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Final Laws and Technologies by player
+                            html.Div(
+                                id="match-final-laws-techs-content", className="mb-3"
                             ),
                         ],
                     },
@@ -565,22 +598,12 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Player Statistics",
+                        "label": "Ambitions",
                         "tab_id": "statistics",
                         "content": [
-                            # Yields Radar Chart and Ambition Summary side-by-side
+                            # Ambition Summary
                             dbc.Row(
                                 [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Yields Comparison",
-                                                chart_id="match-stats-yields-radar",
-                                                height="500px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
                                     dbc.Col(
                                         [
                                             create_chart_card(
@@ -589,7 +612,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                 height="auto",
                                             )
                                         ],
-                                        width=6,
+                                        width=12,
                                     ),
                                 ],
                                 className="mb-3",
@@ -815,41 +838,70 @@ def update_technology_chart(match_id: Optional[int]) -> go.Figure:
         )
 
 
-@callback(
-    Output("match-stats-yields-radar", "figure"),
-    Input("match-selector", "value"),
-)
-def update_yields_radar(match_id: Optional[int]) -> go.Figure:
-    """Update yields radar chart.
+@callback(Output("match-tech-timeline", "figure"), Input("match-selector", "value"))
+def update_tech_timeline(match_id: Optional[int]) -> go.Figure:
+    """Update technology completion timeline chart.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Plotly figure for yields radar chart
+        Plotly figure showing when each player discovered each technology
     """
     if not match_id:
-        return create_empty_chart_placeholder("Select a match to view yield statistics")
+        return create_empty_chart_placeholder(
+            "Select a match to view technology timeline"
+        )
 
     try:
         queries = get_queries()
-        df = queries.get_player_statistics_by_category(
-            match_id, category="yield_stockpile"
-        )
+        df = queries.get_tech_timeline(match_id)
 
         if df.empty:
             return create_empty_chart_placeholder(
-                "No yield data available for this match"
+                "No technology timeline data available for this match"
             )
 
-        # Show all yields (no top_n filter)
-        return create_statistics_radar_chart(
-            df, category_filter="yield_stockpile", top_n=100
-        )
+        return create_tech_completion_timeline_chart(df)
 
     except Exception as e:
-        logger.error(f"Error loading yields radar: {e}")
-        return create_empty_chart_placeholder(f"Error loading yields: {str(e)}")
+        logger.error(f"Error loading tech completion timeline: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading technology timeline: {str(e)}"
+        )
+
+
+@callback(Output("match-law-timeline", "figure"), Input("match-selector", "value"))
+def update_law_timeline(match_id: Optional[int]) -> go.Figure:
+    """Update law adoption timeline chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure showing when each player adopted each law
+    """
+    if not match_id:
+        return create_empty_chart_placeholder(
+            "Select a match to view law timeline"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_law_timeline(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No law timeline data available for this match"
+            )
+
+        return create_law_adoption_timeline_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading law adoption timeline: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading law timeline: {str(e)}"
+        )
 
 
 @callback(

@@ -2366,6 +2366,359 @@ def create_cumulative_tech_count_chart(
     return fig
 
 
+def create_tech_comparison_bar_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a grouped bar chart comparing tech acquisition turns between players.
+
+    Displays side-by-side bars for each technology showing which turn each player
+    acquired it. Makes it easy to see who got each tech first and by how much.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, tech_name
+            (from get_tech_timeline())
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No technology comparison data available for this match"
+        )
+
+    # Format tech names: remove TECH_ prefix, quotes, replace underscores, title case
+    df = df.copy()
+    df["tech_display"] = (
+        df["tech_name"]
+        .str.replace('"', "", regex=False)  # Remove quotes from JSON extraction
+        .str.replace("TECH_", "", regex=False)
+        .str.replace("_", " ")
+        .str.title()
+    )
+
+    # Get unique technologies sorted alphabetically
+    all_techs = sorted(df["tech_display"].unique())
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Technology",
+        y_title="Turn Number",
+        height=500,
+    )
+
+    # Add a bar trace for each player
+    players = df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player]
+
+        # Create a mapping of tech to turn for this player
+        tech_to_turn = dict(
+            zip(player_data["tech_display"], player_data["turn_number"])
+        )
+
+        # Create lists aligned with all_techs
+        turns = [tech_to_turn.get(tech, None) for tech in all_techs]
+
+        # Create hover text
+        hover_texts = [
+            f"<b>{player}</b><br>{tech}<br>Turn {turn}" if turn is not None else ""
+            for tech, turn in zip(all_techs, turns)
+        ]
+
+        fig.add_trace(
+            go.Bar(
+                x=all_techs,
+                y=turns,
+                name=player,
+                marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_texts,
+            )
+        )
+
+    # Configure layout
+    fig.update_layout(
+        barmode="group",
+        xaxis=dict(
+            tickangle=-45,
+            showgrid=False,
+        ),
+        yaxis=dict(
+            showgrid=True,
+            dtick=5,  # Show tick marks every 5 turns
+        ),
+        hovermode="closest",
+    )
+
+    return fig
+
+
+def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a timeline chart showing when each player completed each technology.
+
+    Each technology gets its own row, with colored markers showing when
+    each player discovered it. Makes it easy to compare timing between players.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, tech_name
+            (from get_tech_timeline())
+
+    Returns:
+        Plotly figure with technology completion timeline
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No technology timeline data available for this match"
+        )
+
+    # Format tech names: remove TECH_ prefix, quotes, replace underscores, title case
+    df = df.copy()
+    df["tech_display"] = (
+        df["tech_name"]
+        .str.replace('"', "", regex=False)  # Remove quotes from JSON extraction
+        .str.replace("TECH_", "", regex=False)
+        .str.replace("_", " ")
+        .str.title()
+    )
+
+    # Get unique technologies, ordered by earliest discovery turn
+    tech_order = (
+        df.groupby("tech_display")["turn_number"].min().sort_values().index.tolist()
+    )
+
+    # Assign y-position (row) to each tech
+    tech_y_positions = {tech: idx for idx, tech in enumerate(tech_order)}
+
+    # Calculate figure height based on number of techs
+    num_techs = len(tech_order)
+    fig_height = max(400, num_techs * 60 + 100)  # 60px per tech for better spacing
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="",
+        height=fig_height,
+    )
+
+    # Get unique players for color assignment
+    players = df["player_name"].unique()
+
+    # Add traces for each technology
+    for tech in tech_order:
+        y_pos = tech_y_positions[tech]
+        tech_data = df[df["tech_display"] == tech].sort_values("turn_number")
+
+        # If multiple players discovered this tech, draw a connecting line
+        if len(tech_data) > 1:
+            turns = tech_data["turn_number"].tolist()
+            fig.add_trace(
+                go.Scatter(
+                    x=turns,
+                    y=[y_pos] * len(turns),
+                    mode="lines",
+                    line=dict(
+                        color="rgba(128, 128, 128, 0.3)",
+                        width=2,
+                    ),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+
+        # Add a marker for each discovery (sorted chronologically)
+        for idx, row in tech_data.iterrows():
+            player = row["player_name"]
+            turn = row["turn_number"]
+
+            # Get player color index
+            player_idx = list(players).index(player)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[turn],
+                    y=[y_pos],
+                    mode="markers",
+                    name=player,
+                    marker=dict(
+                        symbol="circle",
+                        color=Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)],
+                        size=14,
+                        line=dict(width=2, color="white"),
+                    ),
+                    showlegend=(tech == tech_order[0]),  # Only show legend for first tech
+                    legendgroup=player,
+                    hovertemplate=f"<b>{tech}</b><br>{player}<br>Turn {turn}<extra></extra>",
+                )
+            )
+
+    # Update layout
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=fig_height,
+    )
+
+    # Update x-axis - remove grid
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+    )
+
+    # Update y-axis - show tech names as labels
+    fig.update_yaxes(
+        showticklabels=True,
+        tickmode="array",
+        tickvals=list(range(len(tech_order))),
+        ticktext=tech_order,
+        showgrid=False,
+        zeroline=False,
+    )
+
+    return fig
+
+
+def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a timeline chart showing when each player adopted each law.
+
+    Each law gets its own row, with colored markers showing when
+    each player adopted it. Makes it easy to compare timing between players.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, law_name
+            (from get_law_timeline())
+
+    Returns:
+        Plotly figure with law adoption timeline
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No law timeline data available for this match"
+        )
+
+    # Format law names: remove LAW_ prefix, quotes, replace underscores, title case
+    df = df.copy()
+    df["law_display"] = (
+        df["law_name"]
+        .str.replace('"', "", regex=False)  # Remove quotes from JSON extraction
+        .str.replace("LAW_", "", regex=False)
+        .str.replace("_", " ")
+        .str.title()
+    )
+
+    # Get unique laws, ordered by earliest adoption turn
+    law_order = (
+        df.groupby("law_display")["turn_number"].min().sort_values().index.tolist()
+    )
+
+    # Assign y-position (row) to each law
+    law_y_positions = {law: idx for idx, law in enumerate(law_order)}
+
+    # Calculate figure height based on number of laws
+    num_laws = len(law_order)
+    fig_height = max(300, num_laws * 40 + 100)
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="",
+        height=fig_height,
+    )
+
+    # Get unique players for color assignment
+    players = df["player_name"].unique()
+
+    # Add traces for each law
+    for law in law_order:
+        y_pos = law_y_positions[law]
+        law_data = df[df["law_display"] == law].sort_values("turn_number")
+
+        # If multiple players adopted this law, draw a connecting line
+        if len(law_data) > 1:
+            turns = law_data["turn_number"].tolist()
+            fig.add_trace(
+                go.Scatter(
+                    x=turns,
+                    y=[y_pos] * len(turns),
+                    mode="lines",
+                    line=dict(
+                        color="rgba(128, 128, 128, 0.3)",
+                        width=2,
+                    ),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+
+        # Add a marker for each adoption (sorted chronologically)
+        for idx, row in law_data.iterrows():
+            player = row["player_name"]
+            turn = row["turn_number"]
+
+            # Get player color index
+            player_idx = list(players).index(player)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[turn],
+                    y=[y_pos],
+                    mode="markers",
+                    name=player,
+                    marker=dict(
+                        symbol="circle",
+                        color=Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)],
+                        size=14,
+                        line=dict(width=2, color="white"),
+                    ),
+                    showlegend=(law == law_order[0]),  # Only show legend for first law
+                    legendgroup=player,
+                    hovertemplate=f"<b>{law}</b><br>{player}<br>Turn {turn}<extra></extra>",
+                )
+            )
+
+    # Update layout
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=fig_height,
+    )
+
+    # Update x-axis - remove grid
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+    )
+
+    # Update y-axis - show law names as labels
+    fig.update_yaxes(
+        showticklabels=True,
+        tickmode="array",
+        tickvals=list(range(len(law_order))),
+        ticktext=law_order,
+        showgrid=False,
+        zeroline=False,
+    )
+
+    return fig
+
+
 def create_food_yields_chart(
     df: pd.DataFrame, total_turns: Optional[int] = None
 ) -> go.Figure:

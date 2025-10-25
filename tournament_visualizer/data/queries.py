@@ -1530,6 +1530,70 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_tech_timeline(self, match_id: int) -> pd.DataFrame:
+        """Get individual technology discoveries for timeline visualization.
+
+        Returns each technology discovery event with player and turn information,
+        formatted for timeline/gantt-style charts.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Database player ID
+                - player_name: Player's display name
+                - turn_number: Turn when tech was discovered
+                - tech_name: Technology name (formatted)
+        """
+        query = """
+        SELECT
+            e.player_id,
+            p.player_name,
+            e.turn_number,
+            json_extract(e.event_data, '$.tech') as tech_name
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.event_type = 'TECH_DISCOVERED'
+            AND e.match_id = ?
+        ORDER BY e.turn_number, e.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_law_timeline(self, match_id: int) -> pd.DataFrame:
+        """Get individual law adoptions for timeline visualization.
+
+        Returns each law adoption event with player and turn information,
+        formatted for timeline/gantt-style charts.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Database player ID
+                - player_name: Player's display name
+                - turn_number: Turn when law was adopted
+                - law_name: Law name (formatted)
+        """
+        query = """
+        SELECT
+            e.player_id,
+            p.player_name,
+            e.turn_number,
+            json_extract(e.event_data, '$.law') as law_name
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.event_type = 'LAW_ADOPTED'
+            AND e.match_id = ?
+        ORDER BY e.turn_number, e.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_points_history_by_match(self, match_id: int) -> pd.DataFrame:
         """Get victory points progression for all players in a match.
 
