@@ -627,6 +627,64 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Maps",
                         "tab_id": "maps",
                         "content": [
+                            # Territory Hexagonal Map with Turn Slider
+                            dbc.Card(
+                                [
+                                    dbc.CardBody(
+                                        [
+                                            html.H5(
+                                                "Territory Control Map", className="card-title"
+                                            ),
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        [
+                                                            html.Label(
+                                                                "Turn:",
+                                                                className="form-label",
+                                                            ),
+                                                            dcc.RangeSlider(
+                                                                id="match-territory-turn-range",
+                                                                min=0,
+                                                                max=100,
+                                                                value=[0, 100],
+                                                                marks={
+                                                                    i: str(i)
+                                                                    for i in range(
+                                                                        0, 101, 25
+                                                                    )
+                                                                },
+                                                                tooltip={
+                                                                    "placement": "bottom",
+                                                                    "always_visible": True,
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=12,
+                                                    ),
+                                                ]
+                                            ),
+                                        ]
+                                    )
+                                ],
+                                className="mb-3",
+                            ),
+                            # Hexagonal Map
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Territory Control Hexagonal Map",
+                                                chart_id="match-territory-heatmap",
+                                                height="700px",
+                                            )
+                                        ],
+                                        width=12,
+                                    )
+                                ],
+                                className="mb-3",
+                            ),
                             # Cumulative City Count
                             dbc.Row(
                                 [
@@ -1722,4 +1780,119 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
         logger.error(f"Error loading city founding scatter: {e}")
         return create_empty_chart_placeholder(
             f"Error loading city founding detail: {str(e)}"
+        )
+
+
+@callback(
+    [
+        Output("match-territory-heatmap", "figure"),
+        Output("match-territory-turn-range", "max"),
+        Output("match-territory-turn-range", "value"),
+        Output("match-territory-turn-range", "marks"),
+    ],
+    Input("match-selector", "value"),
+)
+def update_match_territory_controls(match_id: Optional[int]):
+    """Update territory heatmap and configure turn slider for selected match.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Tuple of (figure, slider_max, slider_value, slider_marks)
+    """
+    if not match_id:
+        empty_fig = create_empty_chart_placeholder(
+            "Select a match to view territory map"
+        )
+        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+
+    try:
+        queries = get_queries()
+
+        # Get turn range for this match
+        min_turn, max_turn = queries.get_territory_turn_range(match_id)
+
+        if max_turn == 0:
+            empty_fig = create_empty_chart_placeholder(
+                "No territory data available for this match"
+            )
+            return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+
+        # Get final turn map data (default view)
+        df = queries.get_territory_map(match_id, max_turn)
+
+        if df.empty:
+            empty_fig = create_empty_chart_placeholder(
+                "No territory data available"
+            )
+            return empty_fig, max_turn, [min_turn, max_turn], {}
+
+        # Create hexagonal map
+        from tournament_visualizer.components.charts import create_hexagonal_map
+        fig = create_hexagonal_map(df)
+
+        # Configure slider
+        # Create marks every ~10 turns, but ensure min and max are included
+        mark_step = max(1, max_turn // 10)
+        marks = {i: str(i) for i in range(min_turn, max_turn + 1, mark_step)}
+        marks[min_turn] = str(min_turn)  # Ensure min is marked
+        marks[max_turn] = str(max_turn)  # Ensure max is marked
+
+        return fig, max_turn, [min_turn, max_turn], marks
+
+    except Exception as e:
+        logger.error(f"Error updating match territory heatmap: {e}")
+        empty_fig = create_empty_chart_placeholder(
+            f"Error loading territory map: {str(e)}"
+        )
+        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+
+
+@callback(
+    Output("match-territory-heatmap", "figure", allow_duplicate=True),
+    [
+        Input("match-selector", "value"),
+        Input("match-territory-turn-range", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def update_match_territory_heatmap_turn(
+    match_id: Optional[int],
+    turn_range: List[int]
+) -> go.Figure:
+    """Update territory heatmap when turn slider changes.
+
+    Args:
+        match_id: Selected match ID
+        turn_range: [min_turn, max_turn] from slider
+
+    Returns:
+        Plotly figure for territory map at selected turn
+    """
+    if not match_id or not turn_range:
+        return create_empty_chart_placeholder("Select a match")
+
+    try:
+        queries = get_queries()
+
+        # Use the max value from range slider (right handle)
+        display_turn = turn_range[1]
+
+        # Get map data for selected turn
+        df = queries.get_territory_map(match_id, display_turn)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                f"No territory data for turn {display_turn}"
+            )
+
+        # Create hexagonal map
+        from tournament_visualizer.components.charts import create_hexagonal_map
+        return create_hexagonal_map(df)
+
+    except Exception as e:
+        logger.error(f"Error updating territory map for turn: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading map: {str(e)}"
         )
