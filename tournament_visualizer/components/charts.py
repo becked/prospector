@@ -2416,7 +2416,7 @@ def create_yield_chart(
 
         # Create hover text
         hover_texts = [
-            f"<b>{player}</b><br>Turn {turn}: {yield_val} {display_name.lower()}"
+            f"<b>{player}</b><br>Turn {turn}: {yield_val:.1f} {display_name.lower()}"
             for turn, yield_val in zip(turns, yields)
         ]
 
