@@ -537,6 +537,13 @@ class TournamentQueries:
     ) -> pd.DataFrame:
         """Get resource progression over time for a match.
 
+        WARNING: This query is currently unused. If you activate it in the future,
+        remember to apply the yield scale transformation (/ 10.0) to any yield
+        values returned from player_yield_history table.
+
+        See: docs/reports/yield-fix-implementation-summary.md
+        TODO: Apply /10.0 transformation if this query is activated
+
         Args:
             match_id: ID of the match
             player_name: Optional player name to filter by
