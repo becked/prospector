@@ -647,6 +647,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                                 id="match-territory-turn-range",
                                                                 min=0,
                                                                 max=100,
+                                                                step=1,
                                                                 value=[0, 100],
                                                                 marks={
                                                                     i: str(i)
