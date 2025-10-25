@@ -185,6 +185,57 @@ fly volumes extend <volume-id> --size 2 -a prospector
 
 Get volume ID with `fly volumes list -a prospector`.
 
+## Data Synchronization
+
+### Overview
+
+**IMPORTANT:** The server MUST be restarted after database updates!
+- The app uses a persistent DuckDB connection that caches data
+- Changes to the database file won't be visible until the connection is closed/reopened
+- Always restart the server after importing new data
+
+### Production Sync (Fly.io)
+
+Use the sync script from your local machine to update production:
+```bash
+./scripts/sync_tournament_data.sh [app-name]
+# Default app-name is "prospector"
+```
+
+This script processes data **locally** (much faster!) and then uploads to Fly.io:
+
+1. Download all attachments from Challonge (to local `saves/` directory)
+2. Import save files into DuckDB locally (~10x faster than on Fly.io)
+3. Upload database directly to Fly.io (overwrites existing file)
+4. Upload match winner overrides file (if exists)
+5. Fix file permissions (664, owned by appuser) and restart app
+
+**Note**: The app stays running during upload. Restart ensures the app picks up the new database cleanly.
+
+**Why local processing?** Fly.io's shared CPUs and network-attached storage make XML parsing and database writes very slow. Processing locally on your machine is significantly faster.
+
+**Requirements:**
+- `flyctl` installed locally
+- `uv` installed locally (for running Python scripts)
+- Environment variables set locally: `CHALLONGE_KEY`, `CHALLONGE_USER`, `challonge_tournament_id`
+
+### Local Development Sync
+
+For local development/testing, run the same workflow manually:
+
+```bash
+# Download attachments
+uv run python scripts/download_attachments.py
+
+# Import to database (processes locally)
+uv run python scripts/import_attachments.py --directory saves --verbose
+
+# Restart local server to pick up changes
+uv run python manage.py restart
+```
+
+This is the same fast local processing that the production sync script uses!
+
 ## Troubleshooting
 
 ### Check Application Logs
