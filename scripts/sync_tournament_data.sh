@@ -121,6 +121,29 @@ else
 fi
 echo ""
 
+# Step 2.3: Sync Challonge participants (if configured)
+if [ -n "${CHALLONGE_KEY}" ] && [ -n "${CHALLONGE_USER}" ] && [ -n "${challonge_tournament_id}" ]; then
+    echo -e "${YELLOW}[2.3/8] Syncing Challonge participants...${NC}"
+    if uv run python scripts/sync_challonge_participants.py; then
+        echo -e "${GREEN}✓ Participants synced${NC}"
+
+        # Step 2.4: Link players to participants
+        echo -e "${YELLOW}[2.4/8] Linking players to participants...${NC}"
+        if uv run python scripts/link_players_to_participants.py; then
+            echo -e "${GREEN}✓ Players linked to participants${NC}"
+        else
+            echo -e "${YELLOW}⚠ Player linking failed (pick order features may not work)${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ Participant sync failed (pick order features may not work)${NC}"
+    fi
+    echo ""
+else
+    echo -e "${BLUE}[2.3/8] Skipping participant sync (Challonge credentials not configured)${NC}"
+    echo -e "${BLUE}[2.4/8] Skipping player linking (requires participants)${NC}"
+    echo ""
+fi
+
 # Step 2.5: Sync pick order data from Google Sheets (if configured)
 if [ -n "${GOOGLE_DRIVE_API_KEY}" ] && [ -n "${GOOGLE_SHEETS_SPREADSHEET_ID}" ]; then
     echo -e "${YELLOW}[2.5/8] Syncing pick order data from Google Sheets...${NC}"
