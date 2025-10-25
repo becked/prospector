@@ -2147,6 +2147,36 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_city_founding_timeline(self, match_id: int) -> pd.DataFrame:
+        """Get city founding timeline for a specific match.
+
+        Returns CITY_FOUNDED events with player names and turn numbers.
+
+        Args:
+            match_id: Match ID to analyze
+
+        Returns:
+            DataFrame with columns: player_id, player_name, civilization,
+                                    turn_number, city_name, description
+        """
+        query = """
+        SELECT
+            e.player_id,
+            p.player_name,
+            p.civilization,
+            e.turn_number,
+            TRIM(REPLACE(e.description, 'Founded', '')) as city_name,
+            e.description
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.match_id = ?
+            AND e.event_type = 'CITY_FOUNDED'
+        ORDER BY e.turn_number, e.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_ruler_archetype_win_rates(self) -> pd.DataFrame:
         """Get win rates by starting ruler archetype.
 

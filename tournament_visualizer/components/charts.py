@@ -4261,3 +4261,84 @@ def create_legitimacy_progression_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(height=400)
 
     return fig
+
+
+def create_city_founding_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a timeline chart showing city founding events.
+
+    Shows when each player founded cities, with markers on a timeline
+    for easy comparison of expansion timing.
+
+    Args:
+        df: DataFrame with columns: player_name, civilization, turn_number, city_name
+            (from get_city_founding_timeline())
+
+    Returns:
+        Plotly figure with scatter plot timeline
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No city founding data available for this match"
+        )
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Player",
+        height=400,
+    )
+
+    # Get unique players for y-axis positioning
+    players = df["player_name"].unique()
+    player_y_positions = {player: idx for idx, player in enumerate(players)}
+
+    # Add trace for each player
+    for player in players:
+        player_data = df[df["player_name"] == player]
+        y_pos = player_y_positions[player]
+
+        # Get color based on civilization
+        civ = player_data["civilization"].iloc[0] if not player_data.empty else None
+        color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[y_pos]
+
+        fig.add_trace(
+            go.Scatter(
+                x=player_data["turn_number"],
+                y=[y_pos] * len(player_data),
+                mode="markers",
+                name=player,
+                marker=dict(
+                    symbol="circle",
+                    color=color,
+                    size=12,
+                    line=dict(width=1, color="white"),
+                ),
+                text=player_data["city_name"],
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Turn %{x}<br>"
+                    "City: %{text}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Configure y-axis to show player names
+    fig.update_layout(
+        yaxis=dict(
+            tickmode="array",
+            tickvals=list(player_y_positions.values()),
+            ticktext=list(player_y_positions.keys()),
+        ),
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+        ),
+    )
+
+    return fig
