@@ -713,20 +713,120 @@ class OldWorldSaveParser:
 
         return formatted
 
-    def extract_territories(self) -> List[Dict[str, Any]]:
-        """Extract territory control information over time.
+    def extract_territories(
+        self, match_id: int, final_turn: int
+    ) -> List[Dict[str, Any]]:
+        """Extract territory control information for all tiles across all turns.
 
-        Note: Old World save files only contain final state, not turn-by-turn history.
-        This method returns an empty list as historical territory data is unavailable.
+        Creates a full snapshot of the map for each turn, storing ownership,
+        terrain, and coordinates for every tile. This enables turn-by-turn
+        map visualization.
+
+        Args:
+            match_id: Database match ID for foreign key reference
+            final_turn: Last turn of the game (from game state data)
 
         Returns:
-            Empty list (no historical territory data available)
+            List of territory records, each containing:
+            - match_id: Foreign key to matches table
+            - tile_id: Original tile ID from XML (for debugging)
+            - x_coordinate: Tile X position on map grid
+            - y_coordinate: Tile Y position on map grid
+            - turn_number: Game turn (1 to final_turn)
+            - terrain_type: Terrain constant (e.g., "TERRAIN_GRASSLAND")
+            - owner_player_id: Database player ID (1-based), or None if unowned
+
+        Raises:
+            ValueError: If XML not parsed or MapWidth attribute missing
         """
         if self.root is None:
             raise ValueError("XML not parsed. Call extract_and_parse() first.")
 
-        # No turn-by-turn territory data available in save files
-        return []
+        # Get map dimensions
+        map_width = self.root.get("MapWidth")
+        if not map_width:
+            raise ValueError("MapWidth attribute missing from Root element")
+
+        map_width = int(map_width)
+
+        # Get all tiles from XML
+        tiles = self.root.findall(".//Tile[@ID]")
+
+        if not tiles:
+            return []
+
+        # Build tile data structures
+        tile_data = {}
+        for tile_elem in tiles:
+            tile_id = int(tile_elem.get("ID"))
+
+            # Calculate coordinates from tile ID
+            # Old World uses row-major layout: x = id % width, y = id // width
+            x_coord = tile_id % map_width
+            y_coord = tile_id // map_width
+
+            # Extract terrain (required)
+            terrain_elem = tile_elem.find("Terrain")
+            terrain = terrain_elem.text if terrain_elem is not None else None
+
+            # Extract ownership history
+            # OwnerHistory contains turn-by-turn ownership changes
+            # Example: <OwnerHistory><T45>1</T45><T64>-1</T64></OwnerHistory>
+            ownership_by_turn = {}
+            owner_hist_elem = tile_elem.find("OwnerHistory")
+            if owner_hist_elem is not None:
+                for turn_elem in owner_hist_elem:
+                    # Tag format: "T45" -> turn 45
+                    turn_num = int(turn_elem.tag[1:])  # Strip 'T' prefix
+                    owner_xml_id = int(turn_elem.text)
+
+                    # Convert XML player ID to database player ID
+                    # XML uses 0-based, DB uses 1-based
+                    # XML -1 = unowned/neutral -> None in DB
+                    if owner_xml_id == -1:
+                        owner_db_id = None
+                    else:
+                        owner_db_id = owner_xml_id + 1
+
+                    ownership_by_turn[turn_num] = owner_db_id
+
+            tile_data[tile_id] = {
+                "x_coord": x_coord,
+                "y_coord": y_coord,
+                "terrain": terrain,
+                "ownership_by_turn": ownership_by_turn,
+            }
+
+        # Generate full snapshots for all turns
+        # For each turn, create a record for every tile
+        territories = []
+
+        for turn in range(1, final_turn + 1):
+            for tile_id, data in tile_data.items():
+                # Determine owner at this turn
+                # Ownership persists until changed
+                current_owner = None
+
+                # Find the most recent ownership change <= current turn
+                for hist_turn in sorted(data["ownership_by_turn"].keys()):
+                    if hist_turn <= turn:
+                        current_owner = data["ownership_by_turn"][hist_turn]
+                    else:
+                        break  # Future ownership change, stop
+
+                territories.append(
+                    {
+                        "match_id": match_id,
+                        "tile_id": tile_id,
+                        "x_coordinate": data["x_coord"],
+                        "y_coordinate": data["y_coord"],
+                        "turn_number": turn,
+                        "terrain_type": data["terrain"],
+                        "owner_player_id": current_owner,
+                    }
+                )
+
+        return territories
 
     def extract_resources(self) -> List[Dict[str, Any]]:
         """Extract player resource information over time.
