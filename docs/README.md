@@ -25,8 +25,10 @@ Welcome! This guide helps you navigate the tournament visualizer documentation.
   - `save-file-format.md` - Old World save file XML structure
 
 ### Unresolved Items
-- **[issues/](issues/)** - Active issues requiring attention
+- **[issues/](issues/)** - Active issues requiring attention (currently empty)
 - **[bugs/](bugs/)** - Known bugs under investigation
+- **[reports/](reports/)** - Active analysis reports
+- **[plans/](plans/)** - Active implementation plans (2 files)
 
 ## Historical Context (Archive)
 
@@ -38,11 +40,11 @@ The `archive/` directory contains **completed** work and **historical** snapshot
 - Historical context for current architecture
 
 **What's archived:**
-- **[archive/plans/](archive/plans/)** - Completed implementation plans
-- **[archive/reports/](archive/reports/)** - Analysis and investigation reports
-- **[archive/issues/](archive/issues/)** - Resolved issues
-- **[archive/code-reviews/](archive/code-reviews/)** - Point-in-time code reviews
-- **[archive/deployment/](archive/deployment/)** - Old deployment docs
+- **[archive/plans/](archive/plans/)** - Completed implementation plans (29 files)
+- **[archive/reports/](archive/reports/)** - Analysis and investigation reports (5 files)
+- **[archive/issues/](archive/issues/)** - Resolved issues (5 files)
+- **[archive/code-reviews/](archive/code-reviews/)** - Point-in-time code reviews (3 files)
+- **[archive/deployment/](archive/deployment/)** - Old deployment docs (3 files)
 
 **Note:** If a feature is working and documented in CLAUDE.md, its implementation plan is likely archived.
 
