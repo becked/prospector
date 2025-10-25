@@ -4,7 +4,8 @@
 #
 # Usage: ./scripts/sync_tournament_data_local.sh [options] [app-name]
 # Options:
-#   --force    Force reimport of all files (clears existing data)
+#   --force                Force reimport of all files (clears existing data)
+#   --generate-narratives  Generate AI match narratives (requires ANTHROPIC_API_KEY)
 # Default app name: prospector
 
 set -e  # Exit on error
@@ -25,6 +26,7 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 FORCE_FLAG=""
+GENERATE_NARRATIVES=false
 APP_NAME="prospector"
 
 while [[ $# -gt 0 ]]; do
@@ -33,9 +35,13 @@ while [[ $# -gt 0 ]]; do
             FORCE_FLAG="--force"
             shift
             ;;
+        --generate-narratives)
+            GENERATE_NARRATIVES=true
+            shift
+            ;;
         -*)
             echo -e "${RED}Error: Unknown option $1${NC}"
-            echo "Usage: ./scripts/sync_tournament_data_local.sh [--force] [app-name]"
+            echo "Usage: ./scripts/sync_tournament_data_local.sh [--force] [--generate-narratives] [app-name]"
             exit 1
             ;;
         *)
@@ -51,6 +57,9 @@ echo "======================================"
 echo -e "${BLUE}App: ${APP_NAME}${NC}"
 if [ -n "$FORCE_FLAG" ]; then
     echo -e "${YELLOW}Mode: Force reimport (existing data will be cleared)${NC}"
+fi
+if [ "$GENERATE_NARRATIVES" = true ]; then
+    echo -e "${BLUE}Narrative generation: Enabled${NC}"
 fi
 echo ""
 
@@ -133,17 +142,22 @@ else
     echo ""
 fi
 
-# Step 2.7: Generate match narratives (if API key configured)
-if [ -n "${ANTHROPIC_API_KEY}" ]; then
-    echo -e "${YELLOW}[2.7/8] Generating match narratives...${NC}"
-    if uv run python scripts/generate_match_narratives.py; then
-        echo -e "${GREEN}✓ Match narratives generated${NC}"
+# Step 2.7: Generate match narratives (if requested via flag)
+if [ "$GENERATE_NARRATIVES" = true ]; then
+    if [ -n "${ANTHROPIC_API_KEY}" ]; then
+        echo -e "${YELLOW}[2.7/8] Generating match narratives...${NC}"
+        if uv run python scripts/generate_match_narratives.py; then
+            echo -e "${GREEN}✓ Match narratives generated${NC}"
+        else
+            echo -e "${YELLOW}⚠ Narrative generation failed (non-critical, continuing...)${NC}"
+        fi
+        echo ""
     else
-        echo -e "${YELLOW}⚠ Narrative generation failed (non-critical, continuing...)${NC}"
+        echo -e "${YELLOW}[2.7/8] Cannot generate narratives: ANTHROPIC_API_KEY not configured${NC}"
+        echo ""
     fi
-    echo ""
 else
-    echo -e "${BLUE}[2.7/8] Skipping narrative generation (ANTHROPIC_API_KEY not configured)${NC}"
+    echo -e "${BLUE}[2.7/8] Skipping narrative generation (use --generate-narratives to enable)${NC}"
     echo ""
 fi
 
