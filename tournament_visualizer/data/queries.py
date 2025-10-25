@@ -2421,6 +2421,86 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_metric_progression_stats(self) -> Dict[str, pd.DataFrame]:
+        """Get metric progression statistics across all matches.
+
+        Calculates median and percentile bands (25th, 75th) for:
+        - Science per turn
+        - Orders per turn
+        - Military score per turn
+        - Legitimacy per turn
+
+        Returns:
+            Dictionary with keys 'science', 'orders', 'military', 'legitimacy',
+            each containing a DataFrame with columns:
+            - turn_number: Game turn
+            - median: Median value at this turn
+            - percentile_25: 25th percentile
+            - percentile_75: 75th percentile
+            - sample_size: Number of games contributing data at this turn
+        """
+        # Science per turn (YIELD_SCIENCE)
+        science_query = """
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
+            COUNT(*) as sample_size
+        FROM player_yield_history
+        WHERE resource_type = 'YIELD_SCIENCE'
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        # Orders per turn (YIELD_ORDERS)
+        orders_query = """
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
+            COUNT(*) as sample_size
+        FROM player_yield_history
+        WHERE resource_type = 'YIELD_ORDERS'
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        # Military score per turn
+        military_query = """
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY military_power) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY military_power) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY military_power) as percentile_75,
+            COUNT(*) as sample_size
+        FROM player_military_history
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        # Legitimacy per turn
+        legitimacy_query = """
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY legitimacy) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY legitimacy) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY legitimacy) as percentile_75,
+            COUNT(*) as sample_size
+        FROM player_legitimacy_history
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return {
+                "science": conn.execute(science_query).df(),
+                "orders": conn.execute(orders_query).df(),
+                "military": conn.execute(military_query).df(),
+                "legitimacy": conn.execute(legitimacy_query).df(),
+            }
+
 
 # Global queries instance
 queries = TournamentQueries()

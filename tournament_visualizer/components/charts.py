@@ -3640,3 +3640,271 @@ def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figu
     fig.update_layout(height=400)
 
     return fig
+
+
+def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing average science per turn across all matches.
+
+    Shows median with shaded 25th-75th percentile band.
+
+    Args:
+        df: DataFrame with columns: turn_number, median, percentile_25, percentile_75
+
+    Returns:
+        Plotly figure with line chart and percentile band
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No science data available")
+
+    fig = create_base_figure(
+        x_title="Turn Number",
+        y_title="Science Per Turn",
+        show_legend=False,
+    )
+
+    # Add shaded band (75th percentile upper bound)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_75"],
+            mode="lines",
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add shaded band (25th percentile lower bound with fill)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_25"],
+            mode="lines",
+            line=dict(width=0),
+            fill="tonexty",
+            fillcolor="rgba(31, 119, 180, 0.2)",
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add median line
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["median"],
+            mode="lines",
+            line=dict(color="#1f77b4", width=2),
+            name="Median",
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Median: %{y:.1f}<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(height=400)
+
+    return fig
+
+
+def create_orders_progression_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing average orders per turn across all matches.
+
+    Shows median with shaded 25th-75th percentile band.
+
+    Args:
+        df: DataFrame with columns: turn_number, median, percentile_25, percentile_75
+
+    Returns:
+        Plotly figure with line chart and percentile band
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No orders data available")
+
+    fig = create_base_figure(
+        x_title="Turn Number",
+        y_title="Orders Per Turn",
+        show_legend=False,
+    )
+
+    # Add shaded band (75th percentile upper bound)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_75"],
+            mode="lines",
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add shaded band (25th percentile lower bound with fill)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_25"],
+            mode="lines",
+            line=dict(width=0),
+            fill="tonexty",
+            fillcolor="rgba(255, 127, 14, 0.2)",
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add median line
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["median"],
+            mode="lines",
+            line=dict(color="#ff7f0e", width=2),
+            name="Median",
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Median: %{y:.1f}<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(height=400)
+
+    return fig
+
+
+def create_military_progression_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing average military score per turn across all matches.
+
+    Shows median with shaded 25th-75th percentile band.
+
+    Args:
+        df: DataFrame with columns: turn_number, median, percentile_25, percentile_75
+
+    Returns:
+        Plotly figure with line chart and percentile band
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No military data available")
+
+    fig = create_base_figure(
+        x_title="Turn Number",
+        y_title="Military Score Per Turn",
+        show_legend=False,
+    )
+
+    # Add shaded band (75th percentile upper bound)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_75"],
+            mode="lines",
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add shaded band (25th percentile lower bound with fill)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_25"],
+            mode="lines",
+            line=dict(width=0),
+            fill="tonexty",
+            fillcolor="rgba(44, 160, 44, 0.2)",
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add median line
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["median"],
+            mode="lines",
+            line=dict(color="#2ca02c", width=2),
+            name="Median",
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Median: %{y:.0f}<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(height=400)
+
+    return fig
+
+
+def create_legitimacy_progression_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing average legitimacy per turn across all matches.
+
+    Shows median with shaded 25th-75th percentile band.
+
+    Args:
+        df: DataFrame with columns: turn_number, median, percentile_25, percentile_75
+
+    Returns:
+        Plotly figure with line chart and percentile band
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No legitimacy data available")
+
+    fig = create_base_figure(
+        x_title="Turn Number",
+        y_title="Legitimacy Per Turn",
+        show_legend=False,
+    )
+
+    # Add shaded band (75th percentile upper bound)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_75"],
+            mode="lines",
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add shaded band (25th percentile lower bound with fill)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["percentile_25"],
+            mode="lines",
+            line=dict(width=0),
+            fill="tonexty",
+            fillcolor="rgba(214, 39, 40, 0.2)",
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    # Add median line
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["median"],
+            mode="lines",
+            line=dict(color="#d62728", width=2),
+            name="Median",
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Median: %{y:.0f}<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(height=400)
+
+    return fig

@@ -17,16 +17,20 @@ from tournament_visualizer.components.charts import (
     create_empty_chart_placeholder,
     create_law_efficiency_scatter,
     create_law_milestone_distribution_chart,
+    create_legitimacy_progression_chart,
     create_map_breakdown_actual_sunburst_chart,
+    create_military_progression_chart,
     create_nation_counter_pick_heatmap,
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
     create_nation_win_percentage_chart,
+    create_orders_progression_chart,
     create_pick_order_win_rate_chart,
     create_ruler_archetype_matchup_matrix,
     create_ruler_archetype_trait_combinations_chart,
     create_ruler_archetype_win_rates_chart,
     create_ruler_trait_performance_chart,
+    create_science_progression_chart,
     create_summary_metrics_cards,
     create_unit_popularity_sunburst_chart,
 )
@@ -132,6 +136,57 @@ layout = html.Div(
                         )
                     ],
                     width=12,
+                ),
+            ],
+            className="mb-4",
+        ),
+        # Economic & Military Progression - 2x2 grid
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Average Science Per Turn",
+                            chart_id="overview-science-progression",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Average Orders Per Turn",
+                            chart_id="overview-orders-progression",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Average Military Score Per Turn",
+                            chart_id="overview-military-progression",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
+                ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Average Legitimacy Per Turn",
+                            chart_id="overview-legitimacy-progression",
+                            height="400px",
+                        )
+                    ],
+                    width=6,
                 ),
             ],
             className="mb-4",
@@ -808,4 +863,120 @@ def update_pick_order_win_rate(n_intervals: int):
 
     except Exception as e:
         logger.error(f"Error loading pick order win rate data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-science-progression", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_science_progression(n_intervals: int):
+    """Update science progression chart.
+
+    Shows median science per turn with 25th-75th percentile band across all matches.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with line chart
+    """
+    try:
+        queries = get_queries()
+        stats = queries.get_metric_progression_stats()
+
+        if stats["science"].empty:
+            return create_empty_chart_placeholder("No science data available")
+
+        return create_science_progression_chart(stats["science"])
+
+    except Exception as e:
+        logger.error(f"Error loading science progression data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-orders-progression", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_orders_progression(n_intervals: int):
+    """Update orders progression chart.
+
+    Shows median orders per turn with 25th-75th percentile band across all matches.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with line chart
+    """
+    try:
+        queries = get_queries()
+        stats = queries.get_metric_progression_stats()
+
+        if stats["orders"].empty:
+            return create_empty_chart_placeholder("No orders data available")
+
+        return create_orders_progression_chart(stats["orders"])
+
+    except Exception as e:
+        logger.error(f"Error loading orders progression data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-military-progression", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_military_progression(n_intervals: int):
+    """Update military progression chart.
+
+    Shows median military score per turn with 25th-75th percentile band across all matches.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with line chart
+    """
+    try:
+        queries = get_queries()
+        stats = queries.get_metric_progression_stats()
+
+        if stats["military"].empty:
+            return create_empty_chart_placeholder("No military data available")
+
+        return create_military_progression_chart(stats["military"])
+
+    except Exception as e:
+        logger.error(f"Error loading military progression data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-legitimacy-progression", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_legitimacy_progression(n_intervals: int):
+    """Update legitimacy progression chart.
+
+    Shows median legitimacy per turn with 25th-75th percentile band across all matches.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure with line chart
+    """
+    try:
+        queries = get_queries()
+        stats = queries.get_metric_progression_stats()
+
+        if stats["legitimacy"].empty:
+            return create_empty_chart_placeholder("No legitimacy data available")
+
+        return create_legitimacy_progression_chart(stats["legitimacy"])
+
+    except Exception as e:
+        logger.error(f"Error loading legitimacy progression data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")

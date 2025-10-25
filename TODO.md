@@ -7,7 +7,6 @@ Rincewind:
 
 Siontific
 * Actual time played of matches: https://github.com/becked/prospector/blob/main/docs/plans/youtube-playtime-tracking-implementation-plan.md 
-* Average science/turn, military score/turn, legitimacy/turn, orders/turn across all games in graph
 
 Alcaras
 * Law and tech turn side-by-side (we have a similar viz, law/tech tempo, so this should be next to this on page and use the same underlying data probably)
