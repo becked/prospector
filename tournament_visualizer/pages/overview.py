@@ -272,7 +272,9 @@ layout = html.Div(
 )
 
 
-@callback(Output("overview-metrics", "children"), Input("refresh-interval", "n_intervals"))
+@callback(
+    Output("overview-metrics", "children"), Input("refresh-interval", "n_intervals")
+)
 def update_overview_metrics(n_intervals: int) -> html.Div:
     """Update the overview metrics cards.
 

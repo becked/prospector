@@ -412,6 +412,55 @@ database_player_id = int(xml_id) + 1
 
 **Important:** Player ID="0" is valid and should NOT be skipped!
 
+### Yield Value Display Scale (Critical!)
+
+**Old World stores all yield values in units of 0.1 internally.**
+
+**Current Implementation:**
+- Parser stores **raw XML values** (215, not 21.5)
+- Database stores **raw values** as-is from parser
+- Queries **must divide by 10** to get display-ready values
+- Examples:
+  - XML: `<YIELD_SCIENCE>215</YIELD_SCIENCE>`
+  - Database: `player_yield_history.amount = 215` (raw)
+  - Query: `SELECT amount / 10.0 AS amount` → Display: `21.5 science/turn`
+
+**Affected Data:**
+- `YieldRateHistory` - Turn-by-turn yield production rates (all turns, all yields)
+- `YieldStockpile` - Current resource stockpiles (end-of-game balances)
+- All 14 yield types: SCIENCE, CIVICS, TRAINING, CULTURE, MONEY, FOOD, GROWTH, etc.
+
+**Parser Implementation:**
+```python
+# In parser.py extract_yield_history()
+amount = self._safe_int(turn_elem.text)  # Stores raw value (215)
+```
+
+**Query Implementation:**
+```python
+# In queries.py get_yield_history_by_match()
+SELECT
+    yh.amount / 10.0 AS amount  -- Divide by 10 for display
+FROM player_yield_history yh
+```
+
+**Database Storage:**
+- `player_yield_history.amount` - INT storing raw values (215, not 21.5)
+- `player_statistics.value` - DECIMAL(10,1) for yield_stockpile category
+
+**Important:** Only queries that return data for display should divide by 10.
+
+**Why this approach?**
+- Preserves exact XML values in database
+- No data loss from premature conversion
+- Flexible for future changes (raw data available)
+- Simple parser logic
+
+**Reference:** Old World developer documentation on internal yield storage format
+**See Also:**
+- `docs/reports/yield-display-scale-issue.md` - Full investigation
+- `docs/reports/yield-fix-implementation-summary.md` - Implementation guide
+
 ### Data Sources
 
 **MemoryData Events** (limited historical data):

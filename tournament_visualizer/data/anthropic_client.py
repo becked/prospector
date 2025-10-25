@@ -16,7 +16,6 @@ Example:
 
 import logging
 import time
-from typing import Any
 
 import anthropic
 from anthropic.types import MessageParam, ToolParam
@@ -112,25 +111,21 @@ class AnthropicClient:
             except anthropic.RateLimitError as e:
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Rate limit hit, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Rate limit hit, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(f"Rate limit exceeded after {self.max_retries} retries")
+                    logger.error(
+                        f"Rate limit exceeded after {self.max_retries} retries"
+                    )
                     raise
 
             except anthropic.APIConnectionError as e:
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Connection error, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Connection error, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(
-                        f"Connection failed after {self.max_retries} retries"
-                    )
+                    logger.error(f"Connection failed after {self.max_retries} retries")
                     raise
 
             except anthropic.APIError as e:
@@ -141,14 +136,10 @@ class AnthropicClient:
                 # Retry on server errors (5xx)
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Server error, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Server error, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(
-                        f"Server error after {self.max_retries} retries"
-                    )
+                    logger.error(f"Server error after {self.max_retries} retries")
                     raise
 
         # Should never reach here due to raises above
@@ -190,34 +181,28 @@ class AnthropicClient:
 
                 # Extract text from content blocks
                 text_blocks = [
-                    block.text
-                    for block in response.content
-                    if hasattr(block, "text")
+                    block.text for block in response.content if hasattr(block, "text")
                 ]
                 return "\n".join(text_blocks)
 
             except anthropic.RateLimitError as e:
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Rate limit hit, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Rate limit hit, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(f"Rate limit exceeded after {self.max_retries} retries")
+                    logger.error(
+                        f"Rate limit exceeded after {self.max_retries} retries"
+                    )
                     raise
 
             except anthropic.APIConnectionError as e:
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Connection error, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Connection error, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(
-                        f"Connection failed after {self.max_retries} retries"
-                    )
+                    logger.error(f"Connection failed after {self.max_retries} retries")
                     raise
 
             except anthropic.APIError as e:
@@ -228,14 +213,10 @@ class AnthropicClient:
                 # Retry on server errors (5xx)
                 if attempt < self.max_retries - 1:
                     delay = self.initial_retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Server error, retrying in {delay}s: {e}"
-                    )
+                    logger.warning(f"Server error, retrying in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(
-                        f"Server error after {self.max_retries} retries"
-                    )
+                    logger.error(f"Server error after {self.max_retries} retries")
                     raise
 
         # Should never reach here due to raises above

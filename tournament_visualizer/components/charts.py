@@ -1347,8 +1347,7 @@ def create_nation_popularity_chart(df: pd.DataFrame) -> go.Figure:
 
     # Create hover text with detailed stats
     hover_text = [
-        f"<b>{row['nation']}</b><br>"
-        f"Games Played: {row['total_matches']}"
+        f"<b>{row['nation']}</b><br>" f"Games Played: {row['total_matches']}"
         for _, row in df_sorted.iterrows()
     ]
 
@@ -1565,11 +1564,11 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
 
     # Define base colors for each military role
     role_colors = {
-        "cavalry": "#8B4513",    # Brown - horses/chariots
-        "infantry": "#DC143C",   # Crimson - foot soldiers
-        "ranged": "#4169E1",     # Royal Blue - archers
-        "siege": "#696969",      # Dim Gray - siege engines
-        "naval": "#1E90FF",      # Dodger Blue - water
+        "cavalry": "#8B4513",  # Brown - horses/chariots
+        "infantry": "#DC143C",  # Crimson - foot soldiers
+        "ranged": "#4169E1",  # Royal Blue - archers
+        "siege": "#696969",  # Dim Gray - siege engines
+        "naval": "#1E90FF",  # Dodger Blue - water
     }
 
     # Level 1: Add roles (cavalry, infantry, ranged, siege, naval)
@@ -1581,7 +1580,9 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         labels.append(role)
         parents.append(f"{total_units} units")
         values.append(role_totals[role])
-        colors.append(role_colors.get(role, "#808080"))  # Default to gray if role not found
+        colors.append(
+            role_colors.get(role, "#808080")
+        )  # Default to gray if role not found
 
     # Level 2: Add individual unit types with shaded colors
     # Group units by role to calculate shades
@@ -1865,7 +1866,6 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
             )
         )
 
-
     return fig
 
 
@@ -2116,25 +2116,37 @@ def create_cumulative_law_count_chart(
 
         # Create custom hover text - only show new laws added this turn
         hover_texts = []
-        for turn, law_count, law_list, new_laws in zip(turns, laws, law_lists, new_law_lists):
+        for turn, law_count, law_list, new_laws in zip(
+            turns, laws, law_lists, new_law_lists
+        ):
             if law_count == 0:
                 hover_texts.append(f"<b>{player}</b><br>Turn {turn}: 0 laws")
             else:
                 # Only show new laws added this turn
                 if new_laws:
                     new_laws_array = [
-                        law.strip().replace('"', '').replace('LAW_', '').replace('_', ' ').title()
-                        for law in new_laws.split(',')
+                        law.strip()
+                        .replace('"', "")
+                        .replace("LAW_", "")
+                        .replace("_", " ")
+                        .title()
+                        for law in new_laws.split(",")
                     ]
                     new_laws_array.sort()
 
-                    hover_parts = [f"<b>{player}</b><br>Turn {turn}: {law_count} laws total"]
+                    hover_parts = [
+                        f"<b>{player}</b><br>Turn {turn}: {law_count} laws total"
+                    ]
                     hover_parts.append("<br><br>")
-                    hover_parts.append('<br>'.join([f'• {law}' for law in new_laws_array]))
-                    hover_texts.append(''.join(hover_parts))
+                    hover_parts.append(
+                        "<br>".join([f"• {law}" for law in new_laws_array])
+                    )
+                    hover_texts.append("".join(hover_parts))
                 else:
                     # No new laws this turn
-                    hover_texts.append(f"<b>{player}</b><br>Turn {turn}: {law_count} laws total")
+                    hover_texts.append(
+                        f"<b>{player}</b><br>Turn {turn}: {law_count} laws total"
+                    )
 
         # Extend line to match end if total_turns provided
         if total_turns and turns[-1] < total_turns:
@@ -2156,7 +2168,7 @@ def create_cumulative_law_count_chart(
                     width=4,
                 ),
                 marker=dict(size=10),
-                hoveron='points',  # Only trigger hover on marker points, not lines
+                hoveron="points",  # Only trigger hover on marker points, not lines
                 hovertemplate="%{hovertext}<extra></extra>",
                 hovertext=hover_texts,
                 yaxis=yaxis_ref,
@@ -2204,7 +2216,7 @@ def create_cumulative_law_count_chart(
             showgrid=False,
             tickmode="linear",
         ),
-        hovermode='closest',  # Explicitly set hover mode
+        hovermode="closest",  # Explicitly set hover mode
         hoverdistance=100,  # Increase hover detection distance (default is 20)
     )
 
@@ -2255,25 +2267,37 @@ def create_cumulative_tech_count_chart(
 
         # Create custom hover text - only show new techs added this turn
         hover_texts = []
-        for turn, tech_count, tech_list, new_techs in zip(turns, techs, tech_lists, new_tech_lists):
+        for turn, tech_count, tech_list, new_techs in zip(
+            turns, techs, tech_lists, new_tech_lists
+        ):
             if tech_count == 0:
                 hover_texts.append(f"<b>{player}</b><br>Turn {turn}: 0 techs")
             else:
                 # Only show new techs added this turn
                 if new_techs:
                     new_techs_array = [
-                        tech.strip().replace('"', '').replace('TECH_', '').replace('_', ' ').title()
-                        for tech in new_techs.split(',')
+                        tech.strip()
+                        .replace('"', "")
+                        .replace("TECH_", "")
+                        .replace("_", " ")
+                        .title()
+                        for tech in new_techs.split(",")
                     ]
                     new_techs_array.sort()
 
-                    hover_parts = [f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total"]
+                    hover_parts = [
+                        f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total"
+                    ]
                     hover_parts.append("<br><br>")
-                    hover_parts.append('<br>'.join([f'• {tech}' for tech in new_techs_array]))
-                    hover_texts.append(''.join(hover_parts))
+                    hover_parts.append(
+                        "<br>".join([f"• {tech}" for tech in new_techs_array])
+                    )
+                    hover_texts.append("".join(hover_parts))
                 else:
                     # No new techs this turn
-                    hover_texts.append(f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total")
+                    hover_texts.append(
+                        f"<b>{player}</b><br>Turn {turn}: {tech_count} techs total"
+                    )
 
         # Extend line to match end if total_turns provided
         if total_turns and turns[-1] < total_turns:
@@ -2295,7 +2319,7 @@ def create_cumulative_tech_count_chart(
                     width=4,
                 ),
                 marker=dict(size=10),
-                hoveron='points',  # Only trigger hover on marker points, not lines
+                hoveron="points",  # Only trigger hover on marker points, not lines
                 hovertemplate="%{hovertext}<extra></extra>",
                 hovertext=hover_texts,
                 yaxis=yaxis_ref,
@@ -2335,7 +2359,7 @@ def create_cumulative_tech_count_chart(
             showgrid=False,
             tickmode="linear",
         ),
-        hovermode='closest',  # Explicitly set hover mode
+        hovermode="closest",  # Explicitly set hover mode
         hoverdistance=100,  # Increase hover detection distance (default is 20)
     )
 
@@ -2357,14 +2381,16 @@ def create_food_yields_chart(
     Returns:
         Plotly figure with line chart
     """
-    return create_yield_chart(df, total_turns, yield_type="YIELD_FOOD", display_name="Food")
+    return create_yield_chart(
+        df, total_turns, yield_type="YIELD_FOOD", display_name="Food"
+    )
 
 
 def create_yield_chart(
     df: pd.DataFrame,
     total_turns: Optional[int] = None,
     yield_type: str = "YIELD_FOOD",
-    display_name: Optional[str] = None
+    display_name: Optional[str] = None,
 ) -> go.Figure:
     """Create a line chart showing yield production over time.
 
@@ -2440,7 +2466,7 @@ def create_yield_chart(
                     width=4,
                 ),
                 marker=dict(size=8),
-                hoveron='points',  # Only trigger hover on marker points, not lines
+                hoveron="points",  # Only trigger hover on marker points, not lines
                 hovertemplate="%{hovertext}<extra></extra>",
                 hovertext=hover_texts,
                 yaxis=yaxis_ref,
@@ -2466,7 +2492,7 @@ def create_yield_chart(
             ticks="outside",
             showgrid=False,
         ),
-        hovermode='closest',  # Explicitly set hover mode
+        hovermode="closest",  # Explicitly set hover mode
         hoverdistance=100,  # Increase hover detection distance (default is 20)
     )
 
@@ -2590,7 +2616,9 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         parents.append(parent_label)
         values.append(count)
         colors.append(color_map.get(full_label, "#808080"))
-        hover_texts.append(f"<b>{aspect}</b><br>Class: {map_class}<br>Size: {size}<br>Count: {count}")
+        hover_texts.append(
+            f"<b>{aspect}</b><br>Class: {map_class}<br>Size: {size}<br>Count: {count}"
+        )
 
     # Create display labels (only the last part of each label)
     display_labels = [label.split(" - ")[-1] for label in labels]
@@ -2686,7 +2714,7 @@ def create_aggregated_event_category_timeline_chart(df: pd.DataFrame) -> go.Figu
     Returns:
         Plotly figure with stacked area chart
     """
-    from ..utils.event_categories import get_event_category, get_category_color_map
+    from ..utils.event_categories import get_category_color_map, get_event_category
 
     if df.empty:
         return create_empty_chart_placeholder("No event timeline data available")
@@ -2774,8 +2802,16 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
 
     # Define marker properties for each status
     status_markers = {
-        "Started": {"symbol": "circle-open", "color": Config.PRIMARY_COLORS[2], "size": 10},
-        "Completed": {"symbol": "circle", "color": Config.PRIMARY_COLORS[1], "size": 12},
+        "Started": {
+            "symbol": "circle-open",
+            "color": Config.PRIMARY_COLORS[2],
+            "size": 10,
+        },
+        "Completed": {
+            "symbol": "circle",
+            "color": Config.PRIMARY_COLORS[1],
+            "size": 12,
+        },
         "Failed": {"symbol": "x", "color": Config.PRIMARY_COLORS[0], "size": 12},
     }
 
@@ -2795,11 +2831,15 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
     df_copy["ambition_name"] = df_copy["description"].apply(extract_ambition_name)
 
     # Get unique ambitions (ordered by first appearance)
-    started_ambitions = df_copy[df_copy["status"] == "Started"].sort_values("turn_number")
+    started_ambitions = df_copy[df_copy["status"] == "Started"].sort_values(
+        "turn_number"
+    )
     unique_ambitions = started_ambitions["ambition_name"].unique()
 
     # Assign y-position (row) to each ambition
-    ambition_y_positions = {ambition: idx for idx, ambition in enumerate(unique_ambitions)}
+    ambition_y_positions = {
+        ambition: idx for idx, ambition in enumerate(unique_ambitions)
+    }
 
     # Calculate figure height based on number of ambitions (more space per row)
     num_ambitions = len(unique_ambitions)
@@ -2858,8 +2898,8 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
             start_turn = started.iloc[0]["turn_number"]
 
             ended = ambition_data[
-                ambition_data["status"].isin(["Completed", "Failed"]) &
-                (ambition_data["turn_number"] > start_turn)
+                ambition_data["status"].isin(["Completed", "Failed"])
+                & (ambition_data["turn_number"] > start_turn)
             ]
 
             if not ended.empty:
@@ -2915,11 +2955,15 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
         Plotly figure with table visualization
     """
     if df.empty:
-        return create_empty_chart_placeholder("No ambition data available for this match")
+        return create_empty_chart_placeholder(
+            "No ambition data available for this match"
+        )
 
     # Format completion rate with % symbol
     df_display = df.copy()
-    df_display["completion_rate"] = df_display["completion_rate"].apply(lambda x: f"{x}%")
+    df_display["completion_rate"] = df_display["completion_rate"].apply(
+        lambda x: f"{x}%"
+    )
 
     fig = go.Figure(
         data=[
@@ -3108,15 +3152,12 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
         index="archetype",
         columns="opponent_archetype",
         values="win_rate",
-        aggfunc="first"
+        aggfunc="first",
     )
 
     # Get games count for hover text
     games_pivot = df.pivot_table(
-        index="archetype",
-        columns="opponent_archetype",
-        values="games",
-        aggfunc="first"
+        index="archetype", columns="opponent_archetype", values="games", aggfunc="first"
     )
 
     # Create hover text with win rates and game counts
@@ -3133,7 +3174,9 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
                     f"Games: {int(games)}"
                 )
             else:
-                hover_row.append(f"<b>{row_archetype} vs {col_archetype}</b><br>No data")
+                hover_row.append(
+                    f"<b>{row_archetype} vs {col_archetype}</b><br>No data"
+                )
         hover_text.append(hover_row)
 
     fig = create_base_figure(
@@ -3143,9 +3186,9 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
 
     # Create color scale: red (0%) -> yellow (50%) -> green (100%)
     colorscale = [
-        [0.0, "#EF5350"],    # Red (0% win rate)
-        [0.5, "#FFF59D"],    # Yellow (50% win rate)
-        [1.0, "#66BB6A"],    # Green (100% win rate)
+        [0.0, "#EF5350"],  # Red (0% win rate)
+        [0.5, "#FFF59D"],  # Yellow (50% win rate)
+        [1.0, "#66BB6A"],  # Green (100% win rate)
     ]
 
     fig.add_trace(
@@ -3163,9 +3206,10 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
                 title="Win Rate (%)",
                 ticksuffix="%",
             ),
-            text=[[f"{val:.0f}%" if pd.notna(val) else "N/A"
-                   for val in row]
-                  for row in pivot_data.values],
+            text=[
+                [f"{val:.0f}%" if pd.notna(val) else "N/A" for val in row]
+                for row in pivot_data.values
+            ],
             texttemplate="%{text}",
             textfont={"size": 10},
         )
@@ -3177,7 +3221,9 @@ def create_ruler_archetype_matchup_matrix(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> go.Figure:
+def create_nation_counter_pick_heatmap(
+    df: pd.DataFrame, min_games: int = 1
+) -> go.Figure:
     """Create a heatmap showing nation counter-pick effectiveness.
 
     Displays win rates for second picker by matchup (first_pick vs second_pick),
@@ -3201,7 +3247,7 @@ def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> 
         index="first_pick_nation",
         columns="second_pick_nation",
         values="second_picker_win_rate",
-        aggfunc="first"
+        aggfunc="first",
     )
 
     # Get games count for hover text
@@ -3209,7 +3255,7 @@ def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> 
         index="first_pick_nation",
         columns="second_pick_nation",
         values="games",
-        aggfunc="first"
+        aggfunc="first",
     )
 
     # Create hover text with win rates and game counts
@@ -3239,9 +3285,9 @@ def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> 
     # Create color scale: red (bad counter, low WR) -> yellow (even) -> green (good counter, high WR)
     # Red = second picker loses often, Green = second picker wins often
     colorscale = [
-        [0.0, "#EF5350"],    # Red (0% - terrible counter)
-        [0.5, "#FFF59D"],    # Yellow (50% - even matchup)
-        [1.0, "#66BB6A"],    # Green (100% - perfect counter)
+        [0.0, "#EF5350"],  # Red (0% - terrible counter)
+        [0.5, "#FFF59D"],  # Yellow (50% - even matchup)
+        [1.0, "#66BB6A"],  # Green (100% - perfect counter)
     ]
 
     fig.add_trace(
@@ -3262,14 +3308,21 @@ def create_nation_counter_pick_heatmap(df: pd.DataFrame, min_games: int = 1) -> 
                 ),
                 ticksuffix="%",
                 tickvals=[0, 25, 50, 75, 100],
-                ticktext=["0%<br>(Bad)", "25%", "50%<br>(Even)", "75%", "100%<br>(Good)"],
+                ticktext=[
+                    "0%<br>(Bad)",
+                    "25%",
+                    "50%<br>(Even)",
+                    "75%",
+                    "100%<br>(Good)",
+                ],
                 len=0.75,
                 thickness=15,
                 x=1.02,
             ),
-            text=[[f"{val:.0f}%" if pd.notna(val) else "-"
-                   for val in row]
-                  for row in pivot_data.values],
+            text=[
+                [f"{val:.0f}%" if pd.notna(val) else "-" for val in row]
+                for row in pivot_data.values
+            ],
             texttemplate="%{text}",
             textfont={"size": 10},
         )
@@ -3377,7 +3430,11 @@ def create_pick_order_win_rate_chart(df: pd.DataFrame) -> go.Figure:
 
         if no_overlap:
             # Add significance annotation
-            higher = first_pick if first_pick["win_rate"] > second_pick["win_rate"] else second_pick
+            higher = (
+                first_pick
+                if first_pick["win_rate"] > second_pick["win_rate"]
+                else second_pick
+            )
             fig.add_annotation(
                 text="★ Statistically significant difference (p < 0.05)",
                 xref="paper",
@@ -3412,7 +3469,9 @@ def create_ruler_succession_impact_chart(df: pd.DataFrame) -> go.Figure:
 
     # Define order for categories
     category_order = ["1 ruler", "2 rulers", "3 rulers", "4+ rulers"]
-    df_sorted = df.set_index("succession_category").reindex(category_order).reset_index()
+    df_sorted = (
+        df.set_index("succession_category").reindex(category_order).reset_index()
+    )
 
     fig = create_base_figure(
         title="Succession Impact on Victory",
@@ -3424,7 +3483,7 @@ def create_ruler_succession_impact_chart(df: pd.DataFrame) -> go.Figure:
     # Create hover text
     hover_text = []
     for _, row in df_sorted.iterrows():
-        if pd.isna(row['games']):
+        if pd.isna(row["games"]):
             hover_text.append(f"<b>{row['succession_category']}</b><br>No data")
         else:
             hover_text.append(
@@ -3554,12 +3613,14 @@ def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figu
         "Judge": "#8c564b",
         "Zealot": "#e377c2",
     }
-    colors = [archetype_colors.get(row["archetype"], "#7f7f7f") for _, row in df_sorted.iterrows()]
+    colors = [
+        archetype_colors.get(row["archetype"], "#7f7f7f")
+        for _, row in df_sorted.iterrows()
+    ]
 
     # Create hover text
     hover_text = [
-        f"<b>{row['combo']}</b><br>"
-        f"Times Chosen: {int(row['count'])}"
+        f"<b>{row['combo']}</b><br>" f"Times Chosen: {int(row['count'])}"
         for _, row in df_sorted.iterrows()
     ]
 

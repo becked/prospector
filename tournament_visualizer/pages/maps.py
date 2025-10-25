@@ -425,7 +425,8 @@ def update_map_length_chart(n_intervals: int):
 
 
 @callback(
-    Output("territory-match-selector", "options"), Input("refresh-interval", "n_intervals")
+    Output("territory-match-selector", "options"),
+    Input("refresh-interval", "n_intervals"),
 )
 def update_territory_match_options(n_intervals: int) -> List[Dict[str, Any]]:
     """Update territory match selector options.
@@ -678,7 +679,8 @@ def update_map_stats_table(n_intervals: int) -> List[Dict[str, Any]]:
 
 # Additional charts for strategic analysis tab
 @callback(
-    Output("starting-position-chart", "figure"), Input("refresh-interval", "n_intervals")
+    Output("starting-position-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
 )
 def update_starting_position_chart(n_intervals: int):
     """Update starting position impact chart.
@@ -746,7 +748,8 @@ def update_map_class_performance_chart(n_intervals: int):
 
 
 @callback(
-    Output("expansion-patterns-chart", "figure"), Input("refresh-interval", "n_intervals")
+    Output("expansion-patterns-chart", "figure"),
+    Input("refresh-interval", "n_intervals"),
 )
 def update_expansion_patterns_chart(n_intervals: int):
     """Update expansion patterns chart.

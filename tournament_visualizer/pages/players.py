@@ -13,21 +13,13 @@ import pandas as pd
 from dash import Input, Output, callback, dcc, html
 
 from tournament_visualizer.components.charts import (
-    create_base_figure,
-    create_civilization_performance_chart,
     create_empty_chart_placeholder,
     create_head_to_head_chart,
-    create_player_performance_chart,
-)
-from tournament_visualizer.components.filters import (
-    create_civilization_filter,
-    create_date_range_filter,
 )
 from tournament_visualizer.components.layouts import (
     create_chart_card,
     create_data_table_card,
     create_empty_state,
-    create_filter_card,
     create_metric_grid,
     create_page_header,
     create_tab_layout,

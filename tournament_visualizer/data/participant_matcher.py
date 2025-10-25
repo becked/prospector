@@ -95,7 +95,7 @@ class ParticipantMatcher:
             return
 
         try:
-            with open(overrides_path, "r") as f:
+            with open(overrides_path) as f:
                 data = json.load(f)
 
             # Build lookup with challonge_match_id keys (kept as strings)
@@ -144,15 +144,13 @@ class ParticipantMatcher:
             FROM matches
             WHERE match_id = ?
             """,
-            {"1": match_id}
+            {"1": match_id},
         )
 
         if result and result[0]:
             return result[0]
 
-        logger.warning(
-            f"No challonge_match_id found for database match_id {match_id}"
-        )
+        logger.warning(f"No challonge_match_id found for database match_id {match_id}")
         return None
 
     def match_player(
@@ -321,7 +319,9 @@ class ParticipantMatcher:
 
         try:
             # Get all match IDs
-            match_ids = self.db.fetch_all("SELECT match_id FROM matches ORDER BY match_id")
+            match_ids = self.db.fetch_all(
+                "SELECT match_id FROM matches ORDER BY match_id"
+            )
 
             total_players = 0
             matched_players = 0

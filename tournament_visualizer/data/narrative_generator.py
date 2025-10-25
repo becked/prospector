@@ -82,9 +82,7 @@ class NarrativeGenerator:
         Raises:
             anthropic.APIError: On API call failures
         """
-        logger.info(
-            f"Generating narrative for match {match_metadata.get('match_id')}"
-        )
+        logger.info(f"Generating narrative for match {match_metadata.get('match_id')}")
 
         # Pass 1: Extract timeline
         timeline = self._extract_timeline(formatted_events, match_metadata)

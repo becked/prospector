@@ -39,17 +39,16 @@ class Config:
     GOOGLE_DRIVE_API_KEY = os.getenv("GOOGLE_DRIVE_API_KEY", "")
     GOOGLE_DRIVE_FOLDER_ID = os.getenv(
         "GOOGLE_DRIVE_FOLDER_ID",
-        "1ss8ToApXPY7o2syLV76i_CJdoS-lnHQk"  # Default: completed-game-save-files folder
+        "1ss8ToApXPY7o2syLV76i_CJdoS-lnHQk",  # Default: completed-game-save-files folder
     )
 
     # Google Sheets configuration (for pick order data)
     GOOGLE_SHEETS_SPREADSHEET_ID = os.getenv(
         "GOOGLE_SHEETS_SPREADSHEET_ID",
-        "19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc"  # Default: OWT 25 Stats sheet
+        "19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc",  # Default: OWT 25 Stats sheet
     )
     GOOGLE_SHEETS_GAMEDATA_GID = os.getenv(
-        "GOOGLE_SHEETS_GAMEDATA_GID",
-        "1663493966"  # Default: GAMEDATA tab
+        "GOOGLE_SHEETS_GAMEDATA_GID", "1663493966"  # Default: GAMEDATA tab
     )
 
     # Anthropic API configuration (for match narrative generation)
@@ -141,7 +140,9 @@ class ProductionConfig(Config):
         # Use PORT environment variable (Fly.io sets this to 8080)
         self.APP_PORT = int(os.getenv("PORT", "8080"))
         # Database path from environment (volume mount on Fly.io)
-        self.DATABASE_PATH = os.getenv("TOURNAMENT_DB_PATH", "data/tournament_data.duckdb")
+        self.DATABASE_PATH = os.getenv(
+            "TOURNAMENT_DB_PATH", "data/tournament_data.duckdb"
+        )
         # Saves directory from environment (volume mount on Fly.io)
         self.SAVES_DIRECTORY = os.getenv("SAVES_DIRECTORY", "saves")
 

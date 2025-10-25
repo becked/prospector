@@ -39,13 +39,11 @@ class MatchWinnerOverrides:
             return
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Filter out comment/instruction fields
-            self.overrides = {
-                k: v for k, v in data.items() if not k.startswith("_")
-            }
+            self.overrides = {k: v for k, v in data.items() if not k.startswith("_")}
 
             logger.info(
                 f"Loaded {len(self.overrides)} match winner overrides from {self.config_path}"
@@ -62,9 +60,7 @@ class MatchWinnerOverrides:
             logger.error(f"Error loading overrides from {self.config_path}: {e}")
             self.overrides = {}
 
-    def _validate_override(
-        self, match_id: str, override_data: Dict[str, Any]
-    ) -> bool:
+    def _validate_override(self, match_id: str, override_data: Dict[str, Any]) -> bool:
         """Validate a single override entry.
 
         Args:
@@ -96,9 +92,7 @@ class MatchWinnerOverrides:
 
         return True
 
-    def get_override_winner(
-        self, challonge_match_id: Optional[int]
-    ) -> Optional[str]:
+    def get_override_winner(self, challonge_match_id: Optional[int]) -> Optional[str]:
         """Get override winner player name for a match.
 
         Args:

@@ -945,13 +945,17 @@ class OldWorldSaveParser:
         succession_gender = self.root.get("SuccessionGender")
         if succession_gender:
             metadata["succession_gender"] = (
-                succession_gender.replace("SUCCESSIONGENDER_", "").replace("_", " ").title()
+                succession_gender.replace("SUCCESSIONGENDER_", "")
+                .replace("_", " ")
+                .title()
             )
 
         succession_order = self.root.get("SuccessionOrder")
         if succession_order:
             metadata["succession_order"] = (
-                succession_order.replace("SUCCESSIONORDER_", "").replace("_", " ").title()
+                succession_order.replace("SUCCESSIONORDER_", "")
+                .replace("_", " ")
+                .title()
             )
 
         mortality = self.root.get("Mortality")
@@ -963,7 +967,9 @@ class OldWorldSaveParser:
         victory_point_modifier = self.root.get("VictoryPointModifier")
         if victory_point_modifier:
             metadata["victory_point_modifier"] = (
-                victory_point_modifier.replace("VICTORYPOINT_", "").replace("_", " ").title()
+                victory_point_modifier.replace("VICTORYPOINT_", "")
+                .replace("_", " ")
+                .title()
             )
 
         # Extract victory information
@@ -1317,7 +1323,11 @@ class OldWorldSaveParser:
                     continue
 
                 points_data.append(
-                    {"player_id": player_id, "turn_number": turn_number, "points": points}
+                    {
+                        "player_id": player_id,
+                        "turn_number": turn_number,
+                        "points": points,
+                    }
                 )
 
         return points_data
@@ -1664,7 +1674,9 @@ class OldWorldSaveParser:
 
                 # Extract ruler name
                 first_name = char_elem.get("FirstName")
-                ruler_name = self._format_context_value(first_name) if first_name else None
+                ruler_name = (
+                    self._format_context_value(first_name) if first_name else None
+                )
 
                 # Extract archetype and starting trait from TraitTurn
                 archetype = None
@@ -1697,7 +1709,10 @@ class OldWorldSaveParser:
                         # - Take the FIRST non-archetype trait from turn 1
                         # - This avoids random inherited traits (e.g., Gay, Bisexual)
                         if succession_order == 0 and turn_acquired == 1:
-                            if starting_trait is None and "_ARCHETYPE" not in trait_name:
+                            if (
+                                starting_trait is None
+                                and "_ARCHETYPE" not in trait_name
+                            ):
                                 starting_trait = (
                                     trait_name.replace("TRAIT_", "")
                                     .replace("_", " ")

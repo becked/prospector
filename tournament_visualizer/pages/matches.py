@@ -19,13 +19,8 @@ from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
-    create_food_yields_chart,  # Keep for backward compat (currently unused)
-    create_yield_chart,  # NEW: Generic yield chart function
     create_statistics_radar_chart,
-)
-from tournament_visualizer.utils.event_categories import (
-    get_category_color_map,
-    get_event_category,
+    create_yield_chart,  # NEW: Generic yield chart function
 )
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
@@ -36,8 +31,12 @@ from tournament_visualizer.components.layouts import (
     create_page_header,
     create_tab_layout,
 )
-from tournament_visualizer.config import PAGE_CONFIG, MODEBAR_CONFIG
+from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG
 from tournament_visualizer.data.queries import get_queries
+from tournament_visualizer.utils.event_categories import (
+    get_category_color_map,
+    get_event_category,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -309,7 +308,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
 
         # Get first picker info
         first_picker_name = match_data.get("first_picker_name", "Unknown")
-        first_picker_display = first_picker_name if first_picker_name != "Unknown" else "No data"
+        first_picker_display = (
+            first_picker_name if first_picker_name != "Unknown" else "No data"
+        )
 
         # Create match details layout
         details_content = [
@@ -340,23 +341,33 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                 [
                                                     html.Div(
                                                         [
-                                                            html.I(className="bi bi-clock me-2 text-info"),
+                                                            html.I(
+                                                                className="bi bi-clock me-2 text-info"
+                                                            ),
                                                             html.Span(
                                                                 f"{match_data.get('total_turns', 0)} ",
                                                                 className="fw-bold",
                                                             ),
-                                                            html.Span("Turns", className="text-muted"),
+                                                            html.Span(
+                                                                "Turns",
+                                                                className="text-muted",
+                                                            ),
                                                         ],
                                                         className="d-inline-block me-4",
                                                     ),
                                                     html.Div(
                                                         [
-                                                            html.I(className="bi bi-people me-2 text-success"),
+                                                            html.I(
+                                                                className="bi bi-people me-2 text-success"
+                                                            ),
                                                             html.Span(
                                                                 f"{match_data.get('player_count', 0)} ",
                                                                 className="fw-bold",
                                                             ),
-                                                            html.Span("Players", className="text-muted"),
+                                                            html.Span(
+                                                                "Players",
+                                                                className="text-muted",
+                                                            ),
                                                         ],
                                                         className="d-inline-block",
                                                     ),
@@ -366,9 +377,16 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             # Second line: first pick
                                             html.Div(
                                                 [
-                                                    html.I(className="bi bi-1-circle me-2 text-primary"),
+                                                    html.I(
+                                                        className="bi bi-1-circle me-2 text-primary"
+                                                    ),
                                                     html.Span(
-                                                        f"{first_picker_display} had first pick" if first_picker_name != "Unknown" else "First pick data not available",
+                                                        (
+                                                            f"{first_picker_display} had first pick"
+                                                            if first_picker_name
+                                                            != "Unknown"
+                                                            else "First pick data not available"
+                                                        ),
                                                         className="mb-0",
                                                     ),
                                                 ],
@@ -506,27 +524,43 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         dbc.Col(
                                             [
                                                 create_chart_card(
-                                                    title=YIELD_TYPES[i][1],  # Display name
+                                                    title=YIELD_TYPES[i][
+                                                        1
+                                                    ],  # Display name
                                                     chart_id=f"match-{YIELD_TYPES[i][0].lower().replace('_', '-')}-chart",
                                                     height="400px",
                                                 )
                                             ],
                                             width=6,
                                         ),
-                                        dbc.Col(
-                                            [
-                                                create_chart_card(
-                                                    title=YIELD_TYPES[i + 1][1] if i + 1 < len(YIELD_TYPES) else "",
-                                                    chart_id=f"match-{YIELD_TYPES[i + 1][0].lower().replace('_', '-')}-chart" if i + 1 < len(YIELD_TYPES) else "match-empty-chart",
-                                                    height="400px",
-                                                )
-                                            ],
-                                            width=6,
-                                        ) if i + 1 < len(YIELD_TYPES) else dbc.Col(width=6),  # Empty column if odd number
+                                        (
+                                            dbc.Col(
+                                                [
+                                                    create_chart_card(
+                                                        title=(
+                                                            YIELD_TYPES[i + 1][1]
+                                                            if i + 1 < len(YIELD_TYPES)
+                                                            else ""
+                                                        ),
+                                                        chart_id=(
+                                                            f"match-{YIELD_TYPES[i + 1][0].lower().replace('_', '-')}-chart"
+                                                            if i + 1 < len(YIELD_TYPES)
+                                                            else "match-empty-chart"
+                                                        ),
+                                                        height="400px",
+                                                    )
+                                                ],
+                                                width=6,
+                                            )
+                                            if i + 1 < len(YIELD_TYPES)
+                                            else dbc.Col(width=6)
+                                        ),  # Empty column if odd number
                                     ],
                                     className="mb-3",
                                 )
-                                for i in range(0, len(YIELD_TYPES), 2)  # Step by 2 to create pairs
+                                for i in range(
+                                    0, len(YIELD_TYPES), 2
+                                )  # Step by 2 to create pairs
                             ],
                         ],
                     },
@@ -658,7 +692,10 @@ def update_progression_chart(match_id: Optional[int]):
             )
 
         # Set barmode to stack
-        fig.update_layout(barmode="stack", legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02))
+        fig.update_layout(
+            barmode="stack",
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+        )
 
         return fig
 
@@ -796,7 +833,9 @@ def update_yields_radar(match_id: Optional[int]) -> go.Figure:
 
     try:
         queries = get_queries()
-        df = queries.get_player_statistics_by_category(match_id, category="yield_stockpile")
+        df = queries.get_player_statistics_by_category(
+            match_id, category="yield_stockpile"
+        )
 
         if df.empty:
             return create_empty_chart_placeholder(
@@ -804,7 +843,9 @@ def update_yields_radar(match_id: Optional[int]) -> go.Figure:
             )
 
         # Show all yields (no top_n filter)
-        return create_statistics_radar_chart(df, category_filter="yield_stockpile", top_n=100)
+        return create_statistics_radar_chart(
+            df, category_filter="yield_stockpile", top_n=100
+        )
 
     except Exception as e:
         logger.error(f"Error loading yields radar: {e}")
@@ -870,13 +911,25 @@ def update_settings_content(match_id: Optional[int]):
                                         html.Dl(
                                             [
                                                 html.Dt("Difficulty"),
-                                                html.Dd(metadata.get("difficulty", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("difficulty", "N/A")
+                                                ),
                                                 html.Dt("Event Level"),
-                                                html.Dd(metadata.get("event_level", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("event_level", "N/A")
+                                                ),
                                                 html.Dt("Victory Type"),
-                                                html.Dd(metadata.get("victory_type", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("victory_type", "N/A")
+                                                ),
                                                 html.Dt("Victory Turn"),
-                                                html.Dd(str(metadata.get("victory_turn", "None"))),
+                                                html.Dd(
+                                                    str(
+                                                        metadata.get(
+                                                            "victory_turn", "None"
+                                                        )
+                                                    )
+                                                ),
                                             ]
                                         )
                                     ]
@@ -952,11 +1005,19 @@ def update_settings_content(match_id: Optional[int]):
                                         html.Dl(
                                             [
                                                 html.Dt("Opponent Level"),
-                                                html.Dd(metadata.get("opponent_level", "N/A")),
+                                                html.Dd(
+                                                    metadata.get(
+                                                        "opponent_level", "N/A"
+                                                    )
+                                                ),
                                                 html.Dt("Tribe Level"),
-                                                html.Dd(metadata.get("tribe_level", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("tribe_level", "N/A")
+                                                ),
                                                 html.Dt("Development"),
-                                                html.Dd(metadata.get("development", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("development", "N/A")
+                                                ),
                                             ]
                                         )
                                     ]
@@ -984,15 +1045,31 @@ def update_settings_content(match_id: Optional[int]):
                                         html.Dl(
                                             [
                                                 html.Dt("Advantage"),
-                                                html.Dd(metadata.get("advantage", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("advantage", "N/A")
+                                                ),
                                                 html.Dt("Succession Gender"),
-                                                html.Dd(metadata.get("succession_gender", "N/A")),
+                                                html.Dd(
+                                                    metadata.get(
+                                                        "succession_gender", "N/A"
+                                                    )
+                                                ),
                                                 html.Dt("Succession Order"),
-                                                html.Dd(metadata.get("succession_order", "N/A")),
+                                                html.Dd(
+                                                    metadata.get(
+                                                        "succession_order", "N/A"
+                                                    )
+                                                ),
                                                 html.Dt("Mortality"),
-                                                html.Dd(metadata.get("mortality", "N/A")),
+                                                html.Dd(
+                                                    metadata.get("mortality", "N/A")
+                                                ),
                                                 html.Dt("Victory Point Modifier"),
-                                                html.Dd(metadata.get("victory_point_modifier", "N/A")),
+                                                html.Dd(
+                                                    metadata.get(
+                                                        "victory_point_modifier", "N/A"
+                                                    )
+                                                ),
                                             ]
                                         )
                                     ]
@@ -1021,9 +1098,7 @@ def update_settings_content(match_id: Optional[int]):
                     for opt_key, opt_value in options.items():
                         # Clean up the option name
                         clean_name = (
-                            opt_key.replace("GAMEOPTION_", "")
-                            .replace("_", " ")
-                            .title()
+                            opt_key.replace("GAMEOPTION_", "").replace("_", " ").title()
                         )
                         # If value exists, show it; otherwise just show the option name
                         if opt_value and opt_value != "":
@@ -1063,9 +1138,7 @@ def update_settings_content(match_id: Optional[int]):
                     for dlc_key in dlc.keys():
                         # Clean up the DLC name
                         clean_name = (
-                            dlc_key.replace("DLC_", "")
-                            .replace("_", " ")
-                            .title()
+                            dlc_key.replace("DLC_", "").replace("_", " ").title()
                         )
                         dlc_items.append(clean_name)
 
@@ -1322,7 +1395,9 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
     # If no match selected, return empty placeholders for all charts
     if not match_id:
         return [
-            create_empty_chart_placeholder(f"Select a match to view {display_name} yields")
+            create_empty_chart_placeholder(
+                f"Select a match to view {display_name} yields"
+            )
             for _, display_name in YIELD_TYPES
         ]
 
@@ -1334,7 +1409,9 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
 
         if all_yields_df.empty:
             return [
-                create_empty_chart_placeholder(f"No {display_name} yield data available")
+                create_empty_chart_placeholder(
+                    f"No {display_name} yield data available"
+                )
                 for _, display_name in YIELD_TYPES
             ]
 
@@ -1356,7 +1433,7 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
                 df_yield,
                 total_turns=total_turns,
                 yield_type=yield_type,
-                display_name=display_name
+                display_name=display_name,
             )
             charts.append(chart)
 
@@ -1366,7 +1443,9 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
         logger.error(f"Error loading yield charts: {e}")
         # Return error charts for all yields
         return [
-            create_empty_chart_placeholder(f"Error loading {display_name} yields: {str(e)}")
+            create_empty_chart_placeholder(
+                f"Error loading {display_name} yields: {str(e)}"
+            )
             for _, display_name in YIELD_TYPES
         ]
 
@@ -1385,14 +1464,18 @@ def update_ambition_timelines(match_id: Optional[int]):
         HTML Div containing separate chart cards for each player
     """
     if not match_id:
-        return html.Div("Select a match to view ambition timelines", className="text-muted")
+        return html.Div(
+            "Select a match to view ambition timelines", className="text-muted"
+        )
 
     try:
         queries = get_queries()
         df = queries.get_ambition_timeline(match_id)
 
         if df.empty:
-            return html.Div("No ambition data available for this match", className="text-muted")
+            return html.Div(
+                "No ambition data available for this match", className="text-muted"
+            )
 
         # Get unique players
         players = df["player_name"].unique()
@@ -1409,10 +1492,16 @@ def update_ambition_timelines(match_id: Optional[int]):
                         [
                             dbc.Card(
                                 [
-                                    dbc.CardHeader(html.H5(f"{player} - Ambitions", className="mb-0")),
-                                    dbc.CardBody([dcc.Graph(figure=fig, config=MODEBAR_CONFIG)]),
+                                    dbc.CardHeader(
+                                        html.H5(
+                                            f"{player} - Ambitions", className="mb-0"
+                                        )
+                                    ),
+                                    dbc.CardBody(
+                                        [dcc.Graph(figure=fig, config=MODEBAR_CONFIG)]
+                                    ),
                                 ],
-                                className="mb-3"
+                                className="mb-3",
                             )
                         ],
                         width=12,
@@ -1426,7 +1515,9 @@ def update_ambition_timelines(match_id: Optional[int]):
 
     except Exception as e:
         logger.error(f"Error loading ambition timelines: {e}")
-        return html.Div(f"Error loading ambition timelines: {str(e)}", className="text-danger")
+        return html.Div(
+            f"Error loading ambition timelines: {str(e)}", className="text-danger"
+        )
 
 
 @callback(
@@ -1458,4 +1549,6 @@ def update_ambition_summary(match_id: Optional[int]) -> go.Figure:
 
     except Exception as e:
         logger.error(f"Error loading ambition summary: {e}")
-        return create_empty_chart_placeholder(f"Error loading ambition summary: {str(e)}")
+        return create_empty_chart_placeholder(
+            f"Error loading ambition summary: {str(e)}"
+        )

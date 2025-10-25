@@ -57,7 +57,7 @@ class GoogleSheetsClient:
             Google Sheets API service instance
         """
         if self._service is None:
-            self._service = build('sheets', 'v4', developerKey=self.api_key)
+            self._service = build("sheets", "v4", developerKey=self.api_key)
         return self._service
 
     def get_sheet_values(
@@ -89,23 +89,25 @@ class GoogleSheetsClient:
         try:
             service = self._get_service()
 
-            result = service.spreadsheets().values().get(
-                spreadsheetId=spreadsheet_id,
-                range=range_name,
-            ).execute()
+            result = (
+                service.spreadsheets()
+                .values()
+                .get(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name,
+                )
+                .execute()
+            )
 
-            values = result.get('values', [])
+            values = result.get("values", [])
             logger.info(
-                f"Fetched {len(values)} rows from sheet "
-                f"(range: {range_name})"
+                f"Fetched {len(values)} rows from sheet " f"(range: {range_name})"
             )
 
             return values
 
         except HttpError as e:
-            logger.error(
-                f"Failed to fetch sheet data: {e.status_code} {e.reason}"
-            )
+            logger.error(f"Failed to fetch sheet data: {e.status_code} {e.reason}")
             raise
 
     def get_sheet_metadata(self, spreadsheet_id: str) -> dict[str, Any]:
@@ -125,9 +127,7 @@ class GoogleSheetsClient:
         try:
             service = self._get_service()
 
-            result = service.spreadsheets().get(
-                spreadsheetId=spreadsheet_id
-            ).execute()
+            result = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
 
             logger.info(
                 f"Fetched metadata for spreadsheet: {result.get('properties', {}).get('title')}"
@@ -136,7 +136,5 @@ class GoogleSheetsClient:
             return result
 
         except HttpError as e:
-            logger.error(
-                f"Failed to fetch sheet metadata: {e.status_code} {e.reason}"
-            )
+            logger.error(f"Failed to fetch sheet metadata: {e.status_code} {e.reason}")
             raise

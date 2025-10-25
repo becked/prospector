@@ -589,11 +589,26 @@ class TournamentDatabase:
                 ),
                 ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
                 ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
-                ("UNIT_SWORDSMAN", "military", "infantry", "Melee infantry unit with sword"),
+                (
+                    "UNIT_SWORDSMAN",
+                    "military",
+                    "infantry",
+                    "Melee infantry unit with sword",
+                ),
                 ("UNIT_DMT_WARRIOR", "military", "infantry", "Special infantry unit"),
                 ("UNIT_HOPLITE", "military", "infantry", "Greek heavy infantry unit"),
-                ("UNIT_PHALANGITE", "military", "infantry", "Macedonian heavy infantry unit"),
-                ("UNIT_PIKEMAN", "military", "infantry", "Anti-cavalry pike infantry unit"),
+                (
+                    "UNIT_PHALANGITE",
+                    "military",
+                    "infantry",
+                    "Macedonian heavy infantry unit",
+                ),
+                (
+                    "UNIT_PIKEMAN",
+                    "military",
+                    "infantry",
+                    "Anti-cavalry pike infantry unit",
+                ),
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
@@ -617,7 +632,12 @@ class TournamentDatabase:
                 ("UNIT_HORSEMAN", "military", "cavalry", "Mounted cavalry unit"),
                 ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
                 ("UNIT_HORSE_ARCHER", "military", "cavalry", "Mounted archer unit"),
-                ("UNIT_CAMEL_ARCHER", "military", "cavalry", "Mounted camel archer unit"),
+                (
+                    "UNIT_CAMEL_ARCHER",
+                    "military",
+                    "cavalry",
+                    "Mounted camel archer unit",
+                ),
                 (
                     "UNIT_CATAPHRACT_ARCHER",
                     "military",
@@ -645,7 +665,12 @@ class TournamentDatabase:
                 # Military - Siege
                 ("UNIT_ONAGER", "military", "siege", "Stone-throwing siege weapon"),
                 ("UNIT_BALLISTA", "military", "siege", "Bolt-throwing siege weapon"),
-                ("UNIT_MANGONEL", "military", "siege", "Advanced stone-throwing siege weapon"),
+                (
+                    "UNIT_MANGONEL",
+                    "military",
+                    "siege",
+                    "Advanced stone-throwing siege weapon",
+                ),
                 (
                     "UNIT_BATTERING_RAM",
                     "military",

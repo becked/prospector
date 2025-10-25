@@ -54,7 +54,7 @@ class GoogleDriveClient:
             Google Drive API service instance
         """
         if self._service is None:
-            self._service = build('drive', 'v3', developerKey=self.api_key)
+            self._service = build("drive", "v3", developerKey=self.api_key)
         return self._service
 
     def list_files(self) -> list[dict[str, Any]]:
@@ -74,14 +74,18 @@ class GoogleDriveClient:
             service = self._get_service()
 
             # Query for files in the specified folder
-            results = service.files().list(
-                q=f"'{self.folder_id}' in parents and trashed=false",
-                fields="files(id, name, size, modifiedTime)",
-                orderBy="name",
-                supportsAllDrives=True
-            ).execute()
+            results = (
+                service.files()
+                .list(
+                    q=f"'{self.folder_id}' in parents and trashed=false",
+                    fields="files(id, name, size, modifiedTime)",
+                    orderBy="name",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
 
-            files = results.get('files', [])
+            files = results.get("files", [])
             logger.info(f"Found {len(files)} files in Google Drive folder")
 
             return files
@@ -114,13 +118,11 @@ class GoogleDriveClient:
             while not done:
                 status, done = downloader.next_chunk()
                 if status:
-                    logger.debug(
-                        f"Download progress: {int(status.progress() * 100)}%"
-                    )
+                    logger.debug(f"Download progress: {int(status.progress() * 100)}%")
 
             # Write to disk
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(fh.getvalue())
 
             logger.info(f"Downloaded file to {output_path}")
@@ -142,10 +144,11 @@ class GoogleDriveClient:
         try:
             service = self._get_service()
 
-            file_metadata = service.files().get(
-                fileId=file_id,
-                fields="id, name, size, modifiedTime"
-            ).execute()
+            file_metadata = (
+                service.files()
+                .get(fileId=file_id, fields="id, name, size, modifiedTime")
+                .execute()
+            )
 
             return file_metadata
 

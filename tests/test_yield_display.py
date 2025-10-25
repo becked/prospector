@@ -1,6 +1,7 @@
 """Tests for yield value display scale (divide by 10 for display)."""
 
 import pytest
+
 from tournament_visualizer.data.queries import get_queries
 
 
@@ -23,8 +24,7 @@ class TestYieldDisplayScale:
         """
         # Get science yield data for match 1
         df = queries.get_yield_history_by_match(
-            match_id=1,
-            yield_types=["YIELD_SCIENCE"]
+            match_id=1, yield_types=["YIELD_SCIENCE"]
         )
 
         # Should have data
@@ -52,8 +52,7 @@ class TestYieldDisplayScale:
         For example: 215 / 10.0 = 21.5 (not 21).
         """
         df = queries.get_yield_history_by_match(
-            match_id=1,
-            yield_types=["YIELD_SCIENCE"]
+            match_id=1, yield_types=["YIELD_SCIENCE"]
         )
 
         # Check if any values have decimal places
@@ -81,11 +80,11 @@ class TestYieldDisplayScale:
             yield_data = df[df["resource_type"] == yield_type]
             max_value = yield_data["amount"].max()
 
-            # Most yields stay under 200 (except maybe late-game money)
-            # But raw values would be 2000+
-            assert max_value < 500, (
+            # Late-game yields can reach 700+ (money, maintenance)
+            # But raw values would be 7000+
+            assert max_value < 1000, (
                 f"{yield_type} max value {max_value:.1f} suggests raw values "
-                f"(expected <500 for display values)"
+                f"(expected <1000 for display values)"
             )
 
     def test_database_still_has_raw_values(self):
@@ -98,14 +97,16 @@ class TestYieldDisplayScale:
 
         # Query database directly (bypass our query layer)
         conn = duckdb.connect("data/tournament_data.duckdb", read_only=True)
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT amount
             FROM player_yield_history
             WHERE resource_type = 'YIELD_SCIENCE'
               AND match_id = 1
               AND player_id = 1
             LIMIT 1
-        """).fetchone()
+        """
+        ).fetchone()
         conn.close()
 
         raw_value = result[0]

@@ -124,6 +124,7 @@ class TournamentETL:
 
         # Check for manual override BEFORE processing players
         from .winner_overrides import get_overrides
+
         overrides = get_overrides()
         override_winner_name = overrides.get_override_winner(challonge_match_id)
 
@@ -360,7 +361,9 @@ class TournamentETL:
 
         if legitimacy_history:
             self.db.bulk_insert_legitimacy_history(legitimacy_history)
-            logger.info(f"Inserted {len(legitimacy_history)} legitimacy history records")
+            logger.info(
+                f"Inserted {len(legitimacy_history)} legitimacy history records"
+            )
 
         # Process family opinion history
         family_opinion_history = parsed_data.get("family_opinion_history", [])
@@ -371,9 +374,7 @@ class TournamentETL:
                 opinion_data.get("player_id")
                 and opinion_data["player_id"] in player_id_mapping
             ):
-                opinion_data["player_id"] = player_id_mapping[
-                    opinion_data["player_id"]
-                ]
+                opinion_data["player_id"] = player_id_mapping[opinion_data["player_id"]]
 
         if family_opinion_history:
             self.db.bulk_insert_family_opinion_history(family_opinion_history)
@@ -390,9 +391,7 @@ class TournamentETL:
                 opinion_data.get("player_id")
                 and opinion_data["player_id"] in player_id_mapping
             ):
-                opinion_data["player_id"] = player_id_mapping[
-                    opinion_data["player_id"]
-                ]
+                opinion_data["player_id"] = player_id_mapping[opinion_data["player_id"]]
 
         if religion_opinion_history:
             self.db.bulk_insert_religion_opinion_history(religion_opinion_history)
@@ -531,14 +530,16 @@ class TournamentETL:
                             reason_parts.append("missing victory data")
                         if file_metadata["is_autosave"]:
                             reason_parts.append("autosave")
-                        if (
-                            file_metadata["file_size"] < best_file["file_size"]
-                        ):
+                        if file_metadata["file_size"] < best_file["file_size"]:
                             reason_parts.append(
                                 f"smaller ({file_metadata['file_size']} < {best_file['file_size']} bytes)"
                             )
 
-                        reason = ", ".join(reason_parts) if reason_parts else "lower priority"
+                        reason = (
+                            ", ".join(reason_parts)
+                            if reason_parts
+                            else "lower priority"
+                        )
 
                         skipped_files.append(
                             {
@@ -851,17 +852,21 @@ def process_tournament_directory(
             )
 
             # Warn if there are unmatched players
-            if participant_linking_stats['unmatched_players'] > 0:
+            if participant_linking_stats["unmatched_players"] > 0:
                 logger.warning(
                     f"{participant_linking_stats['unmatched_players']} players could not be matched to participants. "
                     "Run scripts/link_players_to_participants.py for details."
                 )
         else:
-            logger.info("No participants in database, skipping player-participant linking")
+            logger.info(
+                "No participants in database, skipping player-participant linking"
+            )
 
     except Exception as e:
         logger.warning(f"Error linking players to participants: {e}")
-        logger.warning("Player-participant linking skipped. You can run scripts/link_players_to_participants.py manually.")
+        logger.warning(
+            "Player-participant linking skipped. You can run scripts/link_players_to_participants.py manually."
+        )
 
     # Get final summary
     summary = etl.get_processing_summary()

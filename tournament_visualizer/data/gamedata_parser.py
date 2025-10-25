@@ -60,13 +60,9 @@ def parse_gamedata_sheet(rows: list[list[str]]) -> list[dict[str, Any]]:
         try:
             round_games = parse_round_section(rows, round_info)
             games.extend(round_games)
-            logger.info(
-                f"Parsed {len(round_games)} games from {round_info['label']}"
-            )
+            logger.info(f"Parsed {len(round_games)} games from {round_info['label']}")
         except Exception as e:
-            logger.error(
-                f"Failed to parse round {round_info['label']}: {e}"
-            )
+            logger.error(f"Failed to parse round {round_info['label']}: {e}")
             # Continue with other rounds
 
     logger.info(f"Parsed total of {len(games)} games from sheet")
@@ -89,7 +85,7 @@ def find_round_sections(rows: list[list[str]]) -> list[dict[str, Any]]:
         - start_row: Row index where round starts
     """
     rounds = []
-    round_pattern = re.compile(r'ROUND\s+(\d+)', re.IGNORECASE)
+    round_pattern = re.compile(r"ROUND\s+(\d+)", re.IGNORECASE)
 
     for row_idx, row in enumerate(rows):
         if not row:
@@ -101,18 +97,19 @@ def find_round_sections(rows: list[list[str]]) -> list[dict[str, Any]]:
         match = round_pattern.search(col_a)
         if match:
             round_num = int(match.group(1))
-            rounds.append({
-                "round_number": round_num,
-                "label": col_a.strip(),
-                "start_row": row_idx,
-            })
+            rounds.append(
+                {
+                    "round_number": round_num,
+                    "label": col_a.strip(),
+                    "start_row": row_idx,
+                }
+            )
 
     return rounds
 
 
 def parse_round_section(
-    rows: list[list[str]],
-    round_info: dict[str, Any]
+    rows: list[list[str]], round_info: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """Parse games from a single round section.
 
@@ -126,13 +123,13 @@ def parse_round_section(
     Raises:
         ValueError: If critical rows not found
     """
-    start_row = round_info['start_row']
-    round_number = round_info['round_number']
-    round_label = round_info['label']
+    start_row = round_info["start_row"]
+    round_number = round_info["round_number"]
+    round_label = round_info["label"]
 
     # Find the key rows within this round section
     # Scan the next ~30 rows after round header
-    search_range = rows[start_row:start_row + 30]
+    search_range = rows[start_row : start_row + 30]
 
     game_number_row_idx = find_row_by_label(search_range, "Game Number")
     players_row_idx = find_row_by_label(search_range, "Players")
@@ -143,7 +140,9 @@ def parse_round_section(
         raise ValueError(f"Could not find 'Game Number' row in round {round_number}")
 
     if first_pick_row_idx is None:
-        raise ValueError(f"Could not find 'Nation; First Pick' row in round {round_number}")
+        raise ValueError(
+            f"Could not find 'Nation; First Pick' row in round {round_number}"
+        )
 
     if second_pick_row_idx is None:
         raise ValueError(f"Could not find 'Second Pick' row in round {round_number}")
@@ -180,8 +179,8 @@ def parse_round_section(
                 players_row=players_row,
                 first_pick_row=first_pick_row,
                 second_pick_row=second_pick_row,
-                game_col_start=col_info['col_start'],
-                game_col_end=col_info['col_end'],
+                game_col_start=col_info["col_start"],
+                game_col_end=col_info["col_end"],
                 round_number=round_number,
                 round_label=round_label,
             )
@@ -197,10 +196,7 @@ def parse_round_section(
     return games
 
 
-def find_row_by_label(
-    rows: list[list[str]],
-    label: str
-) -> int | None:
+def find_row_by_label(rows: list[list[str]], label: str) -> int | None:
     """Find row index by searching for label in column A.
 
     Args:
@@ -247,7 +243,7 @@ def find_game_columns(game_number_row: list[str]) -> list[dict[str, int]]:
         ]
     """
     games = []
-    game_pattern = re.compile(r'Game\s+(\d+)', re.IGNORECASE)
+    game_pattern = re.compile(r"Game\s+(\d+)", re.IGNORECASE)
 
     # Find all columns with "Game N"
     game_starts = []
@@ -259,20 +255,22 @@ def find_game_columns(game_number_row: list[str]) -> list[dict[str, int]]:
         match = game_pattern.search(cell)
         if match:
             game_num = int(match.group(1))
-            game_starts.append({
-                "game_number": game_num,
-                "col_start": col_idx,
-            })
+            game_starts.append(
+                {
+                    "game_number": game_num,
+                    "col_start": col_idx,
+                }
+            )
 
     # Determine column end for each game
     # Typically 2-3 columns per game (player columns + possible gap)
     for i, game in enumerate(game_starts):
         if i < len(game_starts) - 1:
             # End is just before next game starts
-            game['col_end'] = game_starts[i + 1]['col_start'] - 1
+            game["col_end"] = game_starts[i + 1]["col_start"] - 1
         else:
             # Last game - extend a reasonable amount (3 columns)
-            game['col_end'] = game['col_start'] + 3
+            game["col_end"] = game["col_start"] + 3
 
         games.append(game)
 
@@ -306,7 +304,7 @@ def parse_game_columns(
     """
     # Extract game number from header
     game_number = None
-    game_pattern = re.compile(r'Game\s+(\d+)', re.IGNORECASE)
+    game_pattern = re.compile(r"Game\s+(\d+)", re.IGNORECASE)
 
     for col in range(game_col_start, min(game_col_end + 1, len(game_number_row))):
         cell = game_number_row[col] if col < len(game_number_row) else ""

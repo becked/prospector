@@ -16,7 +16,6 @@ Example:
       - Becked (Assyria) discovered Ironworking
 """
 
-import json
 import logging
 from typing import Any
 
