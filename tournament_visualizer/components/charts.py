@@ -4342,3 +4342,181 @@ def create_city_founding_timeline_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_cumulative_city_count_chart(
+    df: pd.DataFrame, total_turns: Optional[int] = None
+) -> go.Figure:
+    """Create a cumulative city count line chart.
+
+    Shows two lines comparing cumulative city count over time,
+    making it easy to see who's ahead at any point.
+
+    Args:
+        df: DataFrame with columns: player_name, civilization, turn_number, city_name
+            (from get_city_founding_timeline())
+        total_turns: Total turns in the match (to extend lines to end)
+
+    Returns:
+        Plotly figure with cumulative line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No city founding data available for this match"
+        )
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Cumulative Cities",
+        height=400,
+    )
+
+    # Calculate cumulative counts for each player
+    players = df["player_name"].unique()
+
+    for player in players:
+        player_data = df[df["player_name"] == player].copy()
+        player_data = player_data.sort_values("turn_number")
+
+        # Create cumulative count
+        player_data["cumulative_count"] = range(1, len(player_data) + 1)
+
+        # Get color based on civilization
+        civ = player_data["civilization"].iloc[0] if not player_data.empty else None
+        color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[0]
+
+        # Extend line to total_turns if provided
+        if total_turns and player_data["turn_number"].iloc[-1] < total_turns:
+            # Add a point at the end of the game with the same count
+            final_count = player_data["cumulative_count"].iloc[-1]
+            extension_df = pd.DataFrame(
+                {
+                    "turn_number": [total_turns],
+                    "cumulative_count": [final_count],
+                }
+            )
+            player_data = pd.concat([player_data, extension_df], ignore_index=True)
+
+        fig.add_trace(
+            go.Scatter(
+                x=player_data["turn_number"],
+                y=player_data["cumulative_count"],
+                mode="lines+markers",
+                name=player,
+                line=dict(color=color, width=2),
+                marker=dict(size=8, color=color),
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Turn %{x}<br>"
+                    "Cities: %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Configure layout
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+        ),
+    )
+
+    return fig
+
+
+def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a scatter plot with jitter showing city founding events.
+
+    Shows individual cities as points with slight vertical offset (jitter)
+    to prevent overlapping. Includes city names on hover.
+
+    Args:
+        df: DataFrame with columns: player_name, civilization, turn_number, city_name
+            (from get_city_founding_timeline())
+
+    Returns:
+        Plotly figure with scatter plot
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No city founding data available for this match"
+        )
+
+    # Create base figure
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Player",
+        height=400,
+    )
+
+    # Get unique players for y-axis positioning
+    players = df["player_name"].unique()
+    player_y_positions = {player: idx for idx, player in enumerate(players)}
+
+    # Add trace for each player
+    for player in players:
+        player_data = df[df["player_name"] == player].copy()
+        y_pos = player_y_positions[player]
+
+        # Get color based on civilization
+        civ = player_data["civilization"].iloc[0] if not player_data.empty else None
+        color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[y_pos]
+
+        # Add jitter: small random offset to prevent exact overlap
+        import numpy as np
+
+        np.random.seed(42)  # For consistent jitter
+        jitter = np.random.uniform(-0.15, 0.15, len(player_data))
+        y_values = [y_pos + j for j in jitter]
+
+        fig.add_trace(
+            go.Scatter(
+                x=player_data["turn_number"],
+                y=y_values,
+                mode="markers+text",
+                name=player,
+                marker=dict(
+                    symbol="circle",
+                    color=color,
+                    size=10,
+                    line=dict(width=1, color="white"),
+                ),
+                text=player_data["city_name"],
+                textposition="middle right",
+                textfont=dict(size=9),
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>"
+                    "Turn %{x}<br>"
+                    "City: %{text}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Configure y-axis to show player names
+    fig.update_layout(
+        yaxis=dict(
+            tickmode="array",
+            tickvals=list(player_y_positions.values()),
+            ticktext=list(player_y_positions.keys()),
+            range=[-0.5, len(players) - 0.5],  # Add padding
+        ),
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+        ),
+    )
+
+    return fig

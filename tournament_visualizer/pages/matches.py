@@ -16,7 +16,9 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_ambition_summary_table,
     create_ambition_timeline_chart,
+    create_city_founding_scatter_jitter_chart,
     create_city_founding_timeline_chart,
+    create_cumulative_city_count_chart,
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
@@ -626,6 +628,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Maps",
                         "tab_id": "maps",
                         "content": [
+                            # Cumulative City Count
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Cumulative City Count",
+                                                chart_id="match-cumulative-city-count",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
                             # City Founding Timeline
                             dbc.Row(
                                 [
@@ -634,6 +652,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             create_chart_card(
                                                 title="City Founding Timeline",
                                                 chart_id="match-city-founding-timeline",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # City Founding Scatter with Jitter
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="City Founding Detail",
+                                                chart_id="match-city-founding-scatter",
                                                 height="400px",
                                             )
                                         ],
@@ -1662,4 +1696,83 @@ def update_city_founding_timeline(match_id: Optional[int]) -> go.Figure:
         logger.error(f"Error loading city founding timeline: {e}")
         return create_empty_chart_placeholder(
             f"Error loading city founding timeline: {str(e)}"
+        )
+
+
+@callback(
+    Output("match-cumulative-city-count", "figure"),
+    Input("match-selector", "value"),
+)
+def update_cumulative_city_count(match_id: Optional[int]) -> go.Figure:
+    """Update cumulative city count chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with cumulative city count
+    """
+    if not match_id:
+        return create_empty_chart_placeholder(
+            "Select a match to view cumulative city count"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_city_founding_timeline(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No city founding data available for this match"
+            )
+
+        # Get total turns for the match to extend lines to the end
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+        total_turns = (
+            match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        )
+
+        return create_cumulative_city_count_chart(df, total_turns)
+
+    except Exception as e:
+        logger.error(f"Error loading cumulative city count: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading cumulative city count: {str(e)}"
+        )
+
+
+@callback(
+    Output("match-city-founding-scatter", "figure"),
+    Input("match-selector", "value"),
+)
+def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
+    """Update city founding scatter plot with jitter.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with city founding scatter plot
+    """
+    if not match_id:
+        return create_empty_chart_placeholder(
+            "Select a match to view city founding detail"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_city_founding_timeline(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No city founding data available for this match"
+            )
+
+        return create_city_founding_scatter_jitter_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading city founding scatter: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading city founding detail: {str(e)}"
         )
