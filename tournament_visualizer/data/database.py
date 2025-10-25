@@ -352,8 +352,8 @@ class TournamentDatabase:
             terrain_type VARCHAR(50),
             owner_player_id BIGINT REFERENCES players(player_id),
 
-            CONSTRAINT check_x_coordinate CHECK(x_coordinate >= 0 AND x_coordinate <= 45),
-            CONSTRAINT check_y_coordinate CHECK(y_coordinate >= 0 AND y_coordinate <= 45),
+            CONSTRAINT check_x_coordinate CHECK(x_coordinate >= 0),
+            CONSTRAINT check_y_coordinate CHECK(y_coordinate >= 0),
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
             CONSTRAINT unique_territory_turn UNIQUE(match_id, x_coordinate, y_coordinate, turn_number)
         );
@@ -381,8 +381,8 @@ class TournamentDatabase:
             event_data JSON,
 
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
-            CONSTRAINT check_x_coordinate CHECK(x_coordinate IS NULL OR (x_coordinate >= 0 AND x_coordinate <= 45)),
-            CONSTRAINT check_y_coordinate CHECK(y_coordinate IS NULL OR (y_coordinate >= 0 AND y_coordinate <= 45))
+            CONSTRAINT check_x_coordinate CHECK(x_coordinate IS NULL OR x_coordinate >= 0),
+            CONSTRAINT check_y_coordinate CHECK(y_coordinate IS NULL OR y_coordinate >= 0)
         );
         
         CREATE INDEX IF NOT EXISTS idx_events_match_turn ON events(match_id, turn_number);
