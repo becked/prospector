@@ -2,6 +2,32 @@
 
 This file tracks major archival events for the documentation.
 
+## 2025-10-25: README Overhaul Work Documents
+
+**Context**: README.md overhaul implementation completed
+
+**Archived**:
+- `reports/readme-accuracy-audit.md` - Documented 27 inaccuracies in old README
+- `reports/readme-feature-inventory.md` - Inventoried actual features from code (21 tables, 56 queries, 30+ charts)
+- `reports/readme-doc-mapping.md` - Mapped README topics to detailed docs
+- `reports/readme-new-structure.md` - Designed new README structure (9 sections, ~171 lines target)
+- `reports/readme-fix-verification.md` - Verified all issues resolved (100% fixed)
+
+**Why archived**: Implementation artifacts for README refactor. Useful as process template for future documentation refactors.
+
+**Related**: README overhaul completed, new README focuses on quick start (<5 min) with links to detailed docs. Size reduced 41% (394 → 233 lines). All script names, paths, and commands fixed and tested.
+
+**Commits**:
+- `ea8cd16` - Accuracy audit
+- `b67eeb0` - Feature inventory
+- `8699816` - Documentation mapping
+- `1f2ab0d` - Structure design
+- `8a7bbff` - Draft part 1
+- `c455fc2` - Draft part 2
+- `f87e3ce` - README replacement
+
+---
+
 ## 2025-10-25: Initial Archive Organization
 
 **Context**: Organized docs/ to help new developers distinguish active from completed documentation.
