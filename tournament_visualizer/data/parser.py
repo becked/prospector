@@ -14,6 +14,18 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+class TerrainType:
+    """Old World terrain type constants from XML."""
+
+    WATER = "TERRAIN_WATER"
+    GRASSLAND = "TERRAIN_GRASSLAND"
+    DESERT = "TERRAIN_DESERT"
+    ARID = "TERRAIN_ARID"
+    SCRUB = "TERRAIN_SCRUB"
+    TUNDRA = "TERRAIN_TUNDRA"
+    SNOW = "TERRAIN_SNOW"
+
+
 class OldWorldSaveParser:
     """Parser for Old World game save XML files."""
 
