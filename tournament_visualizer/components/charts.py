@@ -4530,3 +4530,143 @@ def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     return fig
+
+
+def create_hexagonal_map(
+    df: pd.DataFrame,
+    map_width: int = 46,
+) -> go.Figure:
+    """Create hexagonal map visualization.
+
+    Displays tiles as hexagons colored by owner, with terrain shown
+    for unowned tiles.
+
+    Args:
+        df: DataFrame with columns [x_coordinate, y_coordinate, terrain_type,
+            owner_player_id, player_name, civilization]
+        map_width: Map width for calculating hex positions
+
+    Returns:
+        Plotly figure with hexagonal map
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No map data available")
+
+    # Hex grid constants
+    HEX_WIDTH = 1.0
+    HEX_HEIGHT = 0.866  # sqrt(3)/2 for regular hexagon
+
+    # Calculate hex positions
+    # Offset rows (even rows shifted right by 0.5 hex width)
+    df = df.copy()
+    df["hex_x"] = df["x_coordinate"] * HEX_WIDTH + (df["y_coordinate"] % 2) * (HEX_WIDTH / 2)
+    df["hex_y"] = df["y_coordinate"] * HEX_HEIGHT
+
+    # Create figure
+    fig = go.Figure()
+
+    # Define color scheme
+    # Owned tiles: use player colors
+    # Unowned tiles: use terrain colors
+    terrain_colors = {
+        "TERRAIN_WATER": "#4A90E2",       # Blue
+        "TERRAIN_GRASSLAND": "#7CB342",   # Green
+        "TERRAIN_DESERT": "#F4E04D",      # Yellow
+        "TERRAIN_ARID": "#D4A574",        # Tan
+        "TERRAIN_SCRUB": "#9CCC65",       # Light green
+        "TERRAIN_TUNDRA": "#B0BEC5",      # Grey-blue
+        "TERRAIN_SNOW": "#ECEFF1",        # White-grey
+    }
+
+    # Get unique owners (excluding NULL/unowned)
+    owned_tiles = df[df["owner_player_id"].notna()]
+    unowned_tiles = df[df["owner_player_id"].isna()]
+
+    # Plot owned tiles by player
+    if not owned_tiles.empty:
+        for i, (player_id, player_data) in enumerate(owned_tiles.groupby("owner_player_id")):
+            player_name = player_data["player_name"].iloc[0]
+            color = Config.PRIMARY_COLORS[int(i) % len(Config.PRIMARY_COLORS)]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=player_data["hex_x"],
+                    y=player_data["hex_y"],
+                    mode="markers",
+                    name=player_name,
+                    marker=dict(
+                        color=color,
+                        size=20,
+                        symbol="hexagon",
+                        line=dict(color="white", width=1),
+                    ),
+                    hovertemplate=(
+                        f"<b>{player_name}</b><br>"
+                        "Position: (%{customdata[0]}, %{customdata[1]})<br>"
+                        "Terrain: %{customdata[2]}<br>"
+                        "<extra></extra>"
+                    ),
+                    customdata=player_data[["x_coordinate", "y_coordinate", "terrain_type"]].values,
+                )
+            )
+
+    # Plot unowned tiles by terrain
+    if not unowned_tiles.empty:
+        for terrain, terrain_data in unowned_tiles.groupby("terrain_type"):
+            color = terrain_colors.get(terrain, "#CCCCCC")  # Default grey
+
+            # Clean up terrain name for display
+            terrain_display = terrain.replace("TERRAIN_", "").title() if terrain else "Unknown"
+
+            fig.add_trace(
+                go.Scatter(
+                    x=terrain_data["hex_x"],
+                    y=terrain_data["hex_y"],
+                    mode="markers",
+                    name=f"Unowned - {terrain_display}",
+                    marker=dict(
+                        color=color,
+                        size=20,
+                        symbol="hexagon",
+                        opacity=0.5,
+                        line=dict(color="white", width=1),
+                    ),
+                    hovertemplate=(
+                        f"<b>Unowned</b><br>"
+                        f"Terrain: {terrain_display}<br>"
+                        "Position: (%{customdata[0]}, %{customdata[1]})<br>"
+                        "<extra></extra>"
+                    ),
+                    customdata=terrain_data[["x_coordinate", "y_coordinate"]].values,
+                )
+            )
+
+    # Update layout for hex grid
+    fig.update_layout(
+        xaxis=dict(
+            showgrid=False,
+            showticklabels=False,
+            zeroline=False,
+            scaleanchor="y",
+            scaleratio=1,
+        ),
+        yaxis=dict(
+            showgrid=False,
+            showticklabels=False,
+            zeroline=False,
+        ),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        hovermode="closest",
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+        ),
+        height=700,
+    )
+
+    return fig

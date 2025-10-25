@@ -566,87 +566,117 @@ def update_territory_distribution_chart(match_id: Optional[int]):
 
 
 @callback(
-    Output("territory-heatmap", "figure"), Input("territory-match-selector", "value")
+    [
+        Output("territory-heatmap", "figure"),
+        Output("territory-turn-range", "max"),
+        Output("territory-turn-range", "value"),
+        Output("territory-turn-range", "marks"),
+    ],
+    Input("territory-match-selector", "value"),
 )
-def update_territory_heatmap(match_id: Optional[int]):
-    """Update territory heatmap visualization.
+def update_territory_controls(match_id: Optional[int]):
+    """Update territory heatmap and configure turn slider for selected match.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        Plotly figure for territory heatmap
+        Tuple of (figure, slider_max, slider_value, slider_marks)
     """
     if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view territory heatmap"
+        empty_fig = create_empty_chart_placeholder(
+            "Select a match to view territory map"
         )
+        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
 
     try:
-        from tournament_visualizer.data.database import get_database
+        queries = get_queries()
 
-        db = get_database()
+        # Get turn range for this match
+        min_turn, max_turn = queries.get_territory_turn_range(match_id)
 
-        # Get territory data for the match
-        query = """
-        SELECT x_coordinate, y_coordinate, turn_number, 
-               p.player_name, p.civilization
-        FROM territories t
-        LEFT JOIN players p ON t.owner_player_id = p.player_id
-        WHERE t.match_id = ?
-        ORDER BY turn_number DESC
-        LIMIT 1000
-        """
-
-        result = db.fetch_all(query, {"1": match_id})
-
-        if not result:
-            return create_empty_chart_placeholder(
+        if max_turn == 0:
+            empty_fig = create_empty_chart_placeholder(
                 "No territory data available for this match"
             )
+            return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
 
-        # Convert to DataFrame
-        df = pd.DataFrame(result, columns=["x", "y", "turn", "player", "civilization"])
+        # Get final turn map data (default view)
+        df = queries.get_territory_map(match_id, max_turn)
 
-        # Create a simple scatter plot showing territory control
-        fig = create_base_figure(
-            title="Territory Control Map",
-            x_title="X Coordinate",
-            y_title="Y Coordinate",
-        )
-
-        # Get latest turn for each territory
-        latest_territories = df.groupby(["x", "y"]).last().reset_index()
-
-        # Color by player
-        unique_players = latest_territories["player"].dropna().unique()
-        color_map = {
-            player: Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
-            for i, player in enumerate(unique_players)
-        }
-
-        for player in unique_players:
-            player_data = latest_territories[latest_territories["player"] == player]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=player_data["x"],
-                    y=player_data["y"],
-                    mode="markers",
-                    name=player,
-                    marker=dict(color=color_map[player], size=8, opacity=0.7),
-                )
+        if df.empty:
+            empty_fig = create_empty_chart_placeholder(
+                "No territory data available"
             )
+            return empty_fig, max_turn, [min_turn, max_turn], {}
 
-        fig.update_layout(
-            xaxis=dict(constrain="domain"), yaxis=dict(scaleanchor="x", scaleratio=1)
-        )
+        # Create hexagonal map
+        from tournament_visualizer.components.charts import create_hexagonal_map
+        fig = create_hexagonal_map(df)
 
-        return fig
+        # Configure slider
+        # Create marks every ~10 turns, but ensure min and max are included
+        mark_step = max(1, max_turn // 10)
+        marks = {i: str(i) for i in range(min_turn, max_turn + 1, mark_step)}
+        marks[min_turn] = str(min_turn)  # Ensure min is marked
+        marks[max_turn] = str(max_turn)  # Ensure max is marked
+
+        return fig, max_turn, [min_turn, max_turn], marks
 
     except Exception as e:
+        logger.error(f"Error updating territory heatmap: {e}")
+        empty_fig = create_empty_chart_placeholder(
+            f"Error loading territory map: {str(e)}"
+        )
+        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+
+
+@callback(
+    Output("territory-heatmap", "figure", allow_duplicate=True),
+    [
+        Input("territory-match-selector", "value"),
+        Input("territory-turn-range", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def update_territory_heatmap_turn(
+    match_id: Optional[int],
+    turn_range: List[int]
+) -> go.Figure:
+    """Update territory heatmap when turn slider changes.
+
+    Args:
+        match_id: Selected match ID
+        turn_range: [min_turn, max_turn] from slider
+
+    Returns:
+        Plotly figure for territory map at selected turn
+    """
+    if not match_id or not turn_range:
+        return create_empty_chart_placeholder("Select a match")
+
+    try:
+        queries = get_queries()
+
+        # Use the max value from range slider (right handle)
+        display_turn = turn_range[1]
+
+        # Get map data for selected turn
+        df = queries.get_territory_map(match_id, display_turn)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                f"No territory data for turn {display_turn}"
+            )
+
+        # Create hexagonal map
+        from tournament_visualizer.components.charts import create_hexagonal_map
+        return create_hexagonal_map(df)
+
+    except Exception as e:
+        logger.error(f"Error updating territory map for turn: {e}")
         return create_empty_chart_placeholder(
-            f"Error creating territory heatmap: {str(e)}"
+            f"Error loading map: {str(e)}"
         )
 
 
