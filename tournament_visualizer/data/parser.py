@@ -1934,7 +1934,8 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     # They capture different types of historical information and can be safely concatenated.
     events = memory_events + logdata_events
 
-    territories = parser.extract_territories()
+    # Note: territories are now extracted in ETL pipeline after match_id is known
+    # territories = parser.extract_territories()
     resources = parser.extract_resources()
 
     # Extract new statistics data
@@ -1962,7 +1963,7 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
         "players": players,
         "game_states": game_states,
         "events": events,
-        "territories": territories,
+        # territories: now extracted in ETL pipeline after match_id is known
         "resources": resources,
         "technology_progress": technology_progress,
         "player_statistics": player_statistics,

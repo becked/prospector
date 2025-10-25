@@ -93,7 +93,7 @@ class TournamentETL:
                 match_metadata["challonge_match_id"] = challonge_match_id
 
             # Transform and load data
-            self._load_tournament_data(parsed_data)
+            self._load_tournament_data(parsed_data, file_path)
 
             logger.info(f"Successfully processed: {file_path}")
             return True
@@ -103,7 +103,7 @@ class TournamentETL:
             logger.error(traceback.format_exc())
             return False
 
-    def _load_tournament_data(self, parsed_data: Dict[str, Any]) -> None:
+    def _load_tournament_data(self, parsed_data: Dict[str, Any], file_path: str) -> None:
         """Load parsed tournament data into the database.
 
         Winner determination priority:
@@ -113,6 +113,7 @@ class TournamentETL:
 
         Args:
             parsed_data: Dictionary containing all parsed data
+            file_path: Path to the tournament file (for re-parsing territories)
         """
         # Start with match data (without winner_player_id for now)
         match_metadata = parsed_data["match_metadata"].copy()
@@ -208,22 +209,31 @@ class TournamentETL:
             self.db.bulk_insert_events(events)
             logger.info(f"Inserted {len(events)} events")
 
-        # Process territories
-        territories = parsed_data["territories"]
-        for territory_data in territories:
-            territory_data["match_id"] = match_id
-            # Map owner_player_id if present
-            if (
-                territory_data.get("owner_player_id")
-                and territory_data["owner_player_id"] in player_id_mapping
-            ):
-                territory_data["owner_player_id"] = player_id_mapping[
-                    territory_data["owner_player_id"]
-                ]
+        # Process territories (requires match_id and final_turn)
+        # Extract territories from save file now that we have match_id
+        game_states = parsed_data.get("game_states", [])
+        final_turn = 0
+        if game_states:
+            final_turn = max(gs["turn_number"] for gs in game_states)
 
-        if territories:
-            self.db.bulk_insert_territories(territories)
-            logger.info(f"Inserted {len(territories)} territory records")
+        # Only extract territories if we have turn data
+        if final_turn > 0:
+            parser = OldWorldSaveParser(file_path)
+            parser.extract_and_parse()
+            territories = parser.extract_territories(
+                match_id=match_id, final_turn=final_turn
+            )
+
+            # Note: owner_player_id is already in database format (1-based) from parser
+            # No need to remap player IDs as parser handles the conversion
+
+            if territories:
+                self.db.bulk_insert_territories(territories)
+                logger.info(f"Inserted {len(territories)} territory records")
+        else:
+            logger.warning(
+                f"No game states found for match {match_id}, skipping territory extraction"
+            )
 
         # Process resources
         resources = parsed_data["resources"]
