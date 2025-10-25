@@ -1,23 +1,39 @@
 # Old World Tournament Visualizer
 
-A comprehensive Plotly Dash web application that transforms Old World game save files into interactive tournament analytics and visualizations.
+Interactive Plotly Dash application for analyzing Old World tournament save files with turn-by-turn progression tracking, law/tech analytics, and player performance insights.
 
-## 🏆 Features
+## Features
 
-- **Tournament Overview**: High-level statistics, match timeline, and key performance indicators
-- **Match Analysis**: Detailed turn-by-turn progression, resource development, and event timelines
-- **Player Performance**: Rankings, win rates, civilization preferences, and head-to-head comparisons
-- **Map & Territory**: Territory control visualization, map performance analysis, and strategic insights
-- **Interactive Filters**: Date ranges, players, civilizations, maps, and match duration
-- **Data Export**: Exportable tables and charts for further analysis
+### Analytics Dashboard
+- **Tournament Overview**: Nation win rates, ruler archetypes, unit popularity, pick order analysis
+- **Match Analysis**: Turn-by-turn progression, law/tech timelines, yield tracking (14 types)
+- **Player Performance**: Win rates, civilization preferences, head-to-head comparisons
+- **Map Analytics**: Territory control, strategic position impact, map-specific performance
 
-## 📋 Prerequisites
+### Data Tracking
+- **Turn-by-Turn History**: 6 tracked metrics (points, yields, military, legitimacy, orders, opinions)
+- **Law Progression**: 6 visualization types analyzing milestone timing and efficiency
+- **Tech Research**: Complete tech tree progression and timing analysis
+- **Ruler Archetypes**: Character traits, combinations, and matchup analysis
+- **Pick Order**: Pick/ban tracking and win rate correlation
 
-- Python 3.9 or higher
-- [uv](https://docs.astral.sh/uv/) package manager
-- Old World tournament save files (`.zip` format)
+### Data Integration
+- **Local Import**: Process Old World save files (.zip format)
+- **Challonge API**: Sync tournament structure and participants
+- **Google Drive**: Alternative save file storage
+- **Data Quality**: 4 override systems for manual corrections
 
-## 🚀 Quick Start
+## Prerequisites
+
+- **Python 3.9+** - Required by DuckDB and type hints
+- **[uv](https://docs.astral.sh/uv/)** - Modern Python package manager
+- **Old World save files** - Tournament matches in `.zip` format
+
+Optional for full features:
+- **Challonge API key** - For tournament sync ([get key](https://challonge.com/settings/developer))
+- **Google Drive API** - For alternative file storage
+
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -25,370 +41,193 @@ A comprehensive Plotly Dash web application that transforms Old World game save 
 uv sync
 ```
 
-This will install all required dependencies including Dash, Plotly, DuckDB, and data processing libraries.
+This installs Dash, Plotly, DuckDB, and all required packages.
 
 ### 2. Import Tournament Data
 
-Place your Old World tournament save files (`.zip` format) in a directory (default: `saves/`) and run:
+Place your Old World save files (`.zip` format) in the `saves/` directory, then:
 
 ```bash
-uv run python scripts/import_tournaments.py --directory saves/
+uv run python scripts/import_attachments.py --directory saves/
 ```
 
-**Import Options:**
+**Import options:**
 ```bash
-# Import from default saves/ directory
-uv run python scripts/import_tournaments.py
-
-# Import from custom directory
-uv run python scripts/import_tournaments.py --directory /path/to/tournament/files
-
-# Verbose logging
-uv run python scripts/import_tournaments.py --verbose
+# Verbose output (see what's being processed)
+uv run python scripts/import_attachments.py --verbose
 
 # Force reimport (removes existing database)
-uv run python scripts/import_tournaments.py --force
+uv run python scripts/import_attachments.py --force
 
-# Dry run (see what would be imported)
-uv run python scripts/import_tournaments.py --dry-run
+# Dry run (preview without importing)
+uv run python scripts/import_attachments.py --dry-run
 ```
 
 ### 3. Launch the Dashboard
 
 ```bash
-uv run python tournament_visualizer/app.py
+uv run python manage.py start
 ```
 
-The application will start and be available at: **http://localhost:8050**
+Open your browser to: **http://localhost:8050**
 
-## 📊 Dashboard Pages
-
-### Overview
-- Tournament statistics and key metrics
-- Match timeline visualization
-- Recent activity summary
-- Player and civilization performance highlights
-
-### Matches
-- Individual match selection and analysis
-- Turn progression tracking
-- Technology research comparison
-- **Law Progression Analysis** - 6 interactive visualizations:
-  1. **Law Milestone Timing** - Compare when each player reached 4 and 7 law milestones
-  2. **Law Milestone Timeline** - Horizontal timeline showing progression race
-  3. **Milestone Timing Distribution** - Box plots showing typical timing across all matches
-  4. **Player Performance Heatmap** - Color-coded matrix showing performance by player and match
-  5. **Law Progression Efficiency** - Scatter plot analyzing speed to milestones
-  6. **Cumulative Law Count Race** - Line chart showing turn-by-turn progression
-- Event timeline visualization
-- Territory control over time
-
-**Law Progression Key Insights:**
-- Only ~64% of players reach 4 laws
-- Only ~29% of players reach 7 laws
-- Average turn to 4 laws: ~45 turns
-- Average turn to 7 laws: ~71 turns
-
-### Players
-- Player performance rankings
-- Win rate analysis by civilization
-- Head-to-head comparisons
-- Activity and engagement metrics
-
-### Maps
-- Map performance analysis
-- Territory control heatmaps
-- Strategic position impact
-- Game length by map characteristics
-
-## 🗂️ Project Structure
-
-```
-tournament_visualizer/
-├── data/                   # Database and data processing
-│   ├── database.py        # DuckDB schema and connections
-│   ├── parser.py          # XML save file parser
-│   ├── etl.py            # Extract, Transform, Load pipeline
-│   └── queries.py        # Reusable SQL queries
-├── components/            # Reusable UI components
-│   ├── filters.py        # Interactive filter components
-│   ├── charts.py         # Chart generation functions
-│   └── layouts.py        # Page layout components
-├── pages/                 # Dashboard pages
-│   ├── overview.py       # Tournament overview
-│   ├── matches.py        # Match analysis
-│   ├── players.py        # Player performance
-│   └── maps.py          # Map visualizations
-├── assets/               # Static assets
-│   └── style.css        # Custom CSS styling
-├── config.py            # Configuration settings
-└── app.py              # Main Dash application
-```
-
-## ⚙️ Configuration
-
-The application can be configured via environment variables:
-
+**Server management:**
 ```bash
-# Database path
-export TOURNAMENT_DB_PATH="data/custom_tournament_data.duckdb"
-
-# Application host and port
-export DASH_HOST="0.0.0.0"
-export DASH_PORT="8080"
-
-# Debug mode
-export DASH_DEBUG="False"
-
-# Tournament saves directory
-export SAVES_DIRECTORY="path/to/saves"
+uv run python manage.py stop      # Stop server
+uv run python manage.py restart   # Restart (useful after code changes)
+uv run python manage.py status    # Check if running
+uv run python manage.py logs      # View logs
+uv run python manage.py logs -f   # Follow logs (tail -f)
 ```
 
-## 🚢 Deployment
+See [CLAUDE.md § Application Management](CLAUDE.md#application-management) for details.
 
-### Deploy to Fly.io
+## Documentation
 
-The application is production-ready and can be deployed to Fly.io with persistent storage for the database and tournament files.
+### Start Here
 
-**Quick Deployment:**
-```bash
-# Automated deployment script (recommended)
-./scripts/deploy_to_flyio.sh
-```
+**New to the project?**
+- [Developer Guide](docs/developer-guide.md) - Architecture, database schema, ETL pipeline, testing
+- [Deployment Guide](docs/deployment-guide.md) - Deploy to Fly.io with persistent storage
+- [CLAUDE.md](CLAUDE.md) - Development conventions, workflows, domain knowledge
 
-The deployment script will:
-- ✓ Check prerequisites (flyctl, authentication)
-- ✓ Validate git status and run tests
-- ✓ Verify volume and secrets configuration
-- ✓ Deploy to Fly.io
-- ✓ Perform post-deployment health checks
+### Quick Reference
 
-**Manual Deployment:**
+| I want to... | See this |
+|-------------|----------|
+| Understand database schema | [Developer Guide § Turn-by-Turn History](docs/developer-guide.md#turn-by-turn-history) |
+| Run tests | [CLAUDE.md § Testing](CLAUDE.md#testing--code-quality) |
+| Deploy to production | [Deployment Guide](docs/deployment-guide.md) |
+| Use query functions | [Developer Guide § Testing Architecture](docs/developer-guide.md#testing-architecture) |
+| Understand schema changes | [docs/migrations/](docs/migrations/) |
+| Configure the app | [Developer Guide § Architecture](docs/developer-guide.md#architecture-overview) |
+| Manage the database | [CLAUDE.md § Database Management](CLAUDE.md#database-management) |
+| Learn project conventions | [CLAUDE.md](CLAUDE.md) |
+| Use override systems | [Developer Guide § Override Systems](docs/developer-guide.md#override-systems) |
+| Sync external data | [Developer Guide § Data Integration](docs/developer-guide.md#data-integration) |
 
-1. **First-Time Setup:**
-   ```bash
-   # Install and authenticate with Fly.io
-   brew install flyctl  # macOS
-   flyctl auth login
+### Additional Resources
+- [Documentation Guide](docs/README.md) - How documentation is organized
+- [Save File Format](docs/reference/save-file-format.md) - Old World XML structure
+- [Active Reports](docs/reports/) - Current analysis and investigations
+- [Schema Migrations](docs/migrations/) - Database change history
 
-   # Launch app (creates but doesn't deploy yet)
-   flyctl launch --no-deploy
+## Example Usage
 
-   # Create persistent volume
-   flyctl volumes create tournament_data --size 1 --region sjc
+### Analyzing Law Progression
 
-   # Set environment secrets
-   flyctl secrets set CHALLONGE_KEY="your_api_key"
-   flyctl secrets set CHALLONGE_USER="your_username"
-   flyctl secrets set challonge_tournament_id="your_tournament_id"
-   ```
-
-2. **Deploy:**
-   ```bash
-   flyctl deploy
-   ```
-
-3. **Verify:**
-   ```bash
-   flyctl status
-   flyctl open
-   ```
-
-**Deployment Documentation:**
-- 📚 [Comprehensive Deployment Guide](docs/deployment/flyio-deployment-guide.md)
-- ✅ [Pre-Deployment Checklist](docs/deployment/pre-deployment-checklist.md)
-- 📋 [Implementation Plan](docs/plans/flyio-deployment-implementation-plan.md)
-
-**Cost Estimate:** ~$4-8/month
-- Shared CPU with 512MB-1GB RAM
-- 1GB persistent volume
-- Free SSL/TLS certificates
-
-**Production Features:**
-- ✓ Gunicorn WSGI server with 2-4 workers
-- ✓ Persistent volume for database storage
-- ✓ Automatic data import on deployment
-- ✓ Health check endpoint (`/health`)
-- ✓ Docker multi-stage builds
-- ✓ Environment-based configuration
-- ✓ SSL/TLS termination
-
-## 🔧 Development
-
-### Install Development Dependencies
-
-```bash
-uv sync --group dev
-```
-
-### Code Quality Tools
-
-```bash
-# Format code
-uv run black tournament_visualizer/
-
-# Lint code
-uv run ruff check tournament_visualizer/
-
-# Type checking
-uv run mypy tournament_visualizer/
-
-# Run tests
-uv run pytest
-```
-
-### Development Mode
-
-Run the application in development mode with auto-reload:
-
-```bash
-export DASH_DEBUG="True"
-uv run python tournament_visualizer/app.py
-```
-
-## 📊 Data Sources
-
-The tournament analyzer extracts data from Old World save files (`.zip` archives containing XML). Two types of historical data are captured:
-
-### MemoryData Events
-Character and diplomatic memories stored by the game AI (limited historical data):
-- Character events (promotions, marriages, deaths)
-- Tribal interactions
-- Family events
-- ~145 event types
-
-### LogData Events
-Comprehensive turn-by-turn gameplay logs:
-- **Law Adoptions**: Which laws were adopted and when (`LAW_ADOPTED`)
-- **Tech Discoveries**: Complete tech tree progression (`TECH_DISCOVERED`)
-- **Goal Tracking**: Ambition start/completion events
-- **City Events**: Founding, production, breaches
-- ~79 event types
-
-This enables analysis of:
-- Time to reach 4 laws / 7 laws
-- Tech progression paths
-- Tech availability at law milestones
-- Comparative player progression
-
-## 📄 Database Schema
-
-The application uses DuckDB with the following core tables:
-
-- **matches**: Tournament match metadata and results
-- **players**: Player information and performance stats
-- **game_state**: Turn-by-turn game progression
-- **territories**: Territory control over time
-- **events**: Game events and timeline data (MemoryData + LogData)
-- **resources**: Player resource progression
-
-## 📈 Analytics Queries
-
-### Law Progression
 ```python
-from tournament_visualizer.data.database import get_database
 from tournament_visualizer.data.queries import get_queries
 
-db = get_database()
+# Initialize query interface
 queries = get_queries()
+
+# Get law progression for a specific match
 progression = queries.get_law_progression_by_match(match_id=10)
-# Returns: player_name, turn_to_4_laws, turn_to_7_laws, total_laws
+print(progression)
+# Output: DataFrame with columns: player_name, turn_to_4_laws, turn_to_7_laws, total_laws
+
+# Get tech timeline
+tech_timeline = queries.get_tech_timeline_by_match(match_id=10)
+print(tech_timeline)
+# Output: DataFrame with columns: player_name, turn_number, tech_name, tech_sequence
 ```
 
-### Tech Timeline
-```python
-from tournament_visualizer.data.queries import get_queries
+**See also:**
+- [Developer Guide § Testing Architecture](docs/developer-guide.md#testing-architecture) - All 56 query functions
+- [Developer Guide § Turn-by-Turn History](docs/developer-guide.md#turn-by-turn-history) - Database schema details
 
-queries = get_queries()
-timeline = queries.get_tech_timeline_by_match(match_id=10)
-# Returns: player_name, turn_number, tech_name, tech_sequence
-```
+## Common Issues
 
-### Techs at Law Milestone
-```python
-from tournament_visualizer.data.queries import get_queries
+### Port Already in Use
 
-queries = get_queries()
-techs = queries.get_techs_at_law_milestone(match_id=10, milestone=4)
-# Returns: player_name, milestone_turn, tech_count, tech_list
-```
-
-## 🔍 Troubleshooting
-
-### Import Issues
-
-**No tournament files found:**
 ```bash
-# Check directory exists and contains .zip files
-ls saves/*.zip
+# Stop existing server
+uv run python manage.py stop
+
+# Or kill manually
+lsof -ti:8050 | xargs kill
 ```
 
-**Database errors:**
+### No Data Showing in Dashboard
+
 ```bash
-# Remove existing database to start fresh
-rm data/tournament_data.duckdb
-uv run python scripts/import_tournaments.py --force
+# Verify data was imported
+uv run duckdb data/tournament_data.duckdb -readonly -c "SELECT COUNT(*) FROM matches"
+
+# Should show count > 0
+# If 0, reimport your data:
+uv run python scripts/import_attachments.py --directory saves/ --verbose
 ```
 
-**Parsing errors:**
+### Import Errors or Parsing Failures
+
 ```bash
-# Run with verbose logging to see detailed errors
-uv run python scripts/import_tournaments.py --verbose
+# Run with verbose logging
+uv run python scripts/import_attachments.py --directory saves/ --verbose
+
+# Check logs (if they exist)
+tail -f logs/tournament_import.log
+
+# Validate specific save file
+unzip -t saves/your_match.zip
 ```
 
-### Application Issues
+### Module Import Errors
 
-**Port already in use:**
 ```bash
-# Use a different port
-export DASH_PORT="8051"
-uv run python tournament_visualizer/app.py
-```
+# Ensure all dependencies installed
+uv sync
 
-**Module import errors:**
-```bash
-# Ensure dependencies are installed
+# If still failing, try clean install
+rm -rf .venv
 uv sync
 ```
 
-**No data showing:**
-```bash
-# Verify data was imported successfully
-uv run python -c "
-from tournament_visualizer.data.queries import get_queries
-q = get_queries()
-stats = q.get_database_statistics()
-print(f'Matches: {stats.get(\"matches_count\", 0)}')
-"
-```
+**More troubleshooting:** [Developer Guide § Common Issues](docs/developer-guide.md#common-issues--solutions)
 
-## 📈 Performance Tips
+## Contributing
 
-1. **Large Datasets**: For tournaments with many matches, consider using date filters to improve performance
-2. **Database Size**: The DuckDB file grows with data - monitor disk space for large tournaments
-3. **Memory Usage**: Close unused browser tabs when running resource-intensive visualizations
-4. **Network**: For remote deployment, ensure adequate bandwidth for chart rendering
+We welcome contributions! Please follow these guidelines:
 
-## 🤝 Contributing
+### Development Workflow
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make changes and add tests
-4. Run quality checks: `uv run black . && uv run ruff check . && uv run pytest`
-5. Commit changes: `git commit -m "Add feature"`
-6. Push to branch: `git push origin feature-name`
-7. Create a Pull Request
+1. **Install dev dependencies:**
+   ```bash
+   uv sync --group dev
+   ```
 
-## 📝 License
+2. **Make changes following our conventions:**
+   - [CLAUDE.md § Development Principles](CLAUDE.md#development-principles) - YAGNI, DRY, Atomic Commits
+   - [CLAUDE.md § Commit Messages](CLAUDE.md#commit-messages) - Conventional commits format
+   - [CLAUDE.md § Code Comments](CLAUDE.md#code-comments) - Explain WHY, not WHAT
+
+3. **Run quality checks:**
+   ```bash
+   uv run black tournament_visualizer/
+   uv run ruff check tournament_visualizer/
+   uv run pytest
+   ```
+
+4. **Commit and push:**
+   ```bash
+   git add .
+   git commit -m "feat: Add new visualization for X"
+   git push origin your-branch
+   ```
+
+See [CLAUDE.md](CLAUDE.md) for detailed conventions and [Developer Guide](docs/developer-guide.md) for architecture.
+
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🎮 About Old World
+## About Old World
 
-Old World is a historical turn-based strategy game. This visualizer supports tournament save files in the standard `.zip` format exported from the game.
+Old World is a historical turn-based strategy game by Mohawk Games. This visualizer analyzes tournament save files in the standard `.zip` format exported from the game.
 
-For more information about Old World: https://www.mohawkgames.com/oldworld/
+**More about Old World:** https://www.mohawkgames.com/oldworld/
 
 ---
 
-**Note**: This application is not affiliated with or endorsed by Mohawk Games or the Old World development team.
+**Note:** This application is not affiliated with or endorsed by Mohawk Games or the Old World development team.
