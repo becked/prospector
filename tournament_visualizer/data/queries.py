@@ -4,7 +4,7 @@ This module contains predefined SQL queries for common data analysis tasks
 in the tournament visualization application.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -2594,6 +2594,82 @@ class TournamentQueries:
                 "military": conn.execute(military_query).df(),
                 "legitimacy": conn.execute(legitimacy_query).df(),
             }
+
+    def get_territory_map(
+        self, match_id: int, turn_number: int
+    ) -> pd.DataFrame:
+        """Get territory map snapshot for a specific match and turn.
+
+        Returns all tiles with their ownership and terrain for visualization.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn number to retrieve
+
+        Returns:
+            DataFrame with columns:
+            - x_coordinate: Tile X position
+            - y_coordinate: Tile Y position
+            - terrain_type: Terrain constant
+            - owner_player_id: Player ID or NULL
+            - player_name: Player name (NULL if unowned)
+            - civilization: Player civilization (NULL if unowned)
+        """
+        query = """
+        SELECT
+            t.x_coordinate,
+            t.y_coordinate,
+            t.terrain_type,
+            t.owner_player_id,
+            p.player_name,
+            p.civilization
+        FROM territories t
+        LEFT JOIN players p ON t.owner_player_id = p.player_id
+        WHERE t.match_id = ?
+          AND t.turn_number = ?
+        ORDER BY t.y_coordinate, t.x_coordinate
+        """
+
+        result = self.db.fetch_all(query, {"1": match_id, "2": turn_number})
+
+        if not result:
+            return pd.DataFrame()
+
+        return pd.DataFrame(
+            result,
+            columns=[
+                "x_coordinate",
+                "y_coordinate",
+                "terrain_type",
+                "owner_player_id",
+                "player_name",
+                "civilization",
+            ],
+        )
+
+    def get_territory_turn_range(self, match_id: int) -> Tuple[int, int]:
+        """Get the turn range (min, max) for a match's territory data.
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            Tuple of (min_turn, max_turn), or (0, 0) if no data
+        """
+        query = """
+        SELECT
+            MIN(turn_number) as min_turn,
+            MAX(turn_number) as max_turn
+        FROM territories
+        WHERE match_id = ?
+        """
+
+        result = self.db.fetch_one(query, {"1": match_id})
+
+        if not result or result[0] is None:
+            return (0, 0)
+
+        return (result[0], result[1])
 
 
 # Global queries instance
