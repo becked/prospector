@@ -1604,6 +1604,15 @@ class TournamentQueries:
             - turn_number
             - resource_type: The yield type (YIELD_GROWTH, etc.)
             - amount: Production rate for that yield on that turn
+
+        Note:
+            Old World stores yields in units of 0.1 internally (for fixed-point
+            arithmetic in multiplayer). This query divides by 10 to return
+            display-ready values.
+
+            Example: XML value of 215 returns as 21.5 science/turn
+
+            See: docs/reports/yield-display-scale-issue.md
         """
         base_query = """
         SELECT
@@ -1612,7 +1621,7 @@ class TournamentQueries:
             p.civilization,
             yh.turn_number,
             yh.resource_type,
-            yh.amount
+            yh.amount / 10.0 AS amount  -- Old World stores in 0.1 units
         FROM player_yield_history yh
         JOIN players p ON yh.player_id = p.player_id AND yh.match_id = p.match_id
         WHERE yh.match_id = ?
