@@ -2616,6 +2616,15 @@ class TournamentQueries:
             - civilization: Player civilization (NULL if unowned)
         """
         query = """
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                civilization,
+                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
+            FROM players
+        )
         SELECT
             t.x_coordinate,
             t.y_coordinate,
@@ -2624,7 +2633,8 @@ class TournamentQueries:
             p.player_name,
             p.civilization
         FROM territories t
-        LEFT JOIN players p ON t.owner_player_id = p.player_id
+        LEFT JOIN player_order p ON t.match_id = p.match_id
+                                 AND t.owner_player_id = p.match_player_order
         WHERE t.match_id = ?
           AND t.turn_number = ?
         ORDER BY t.y_coordinate, t.x_coordinate
