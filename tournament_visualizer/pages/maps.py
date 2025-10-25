@@ -1,22 +1,20 @@
-"""Map and territory visualization page.
+"""Map performance analysis page.
 
-This page provides territorial control analysis, map-based visualizations,
-and strategic position analytics.
+This page provides analysis of map characteristics and their impact on game length.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, callback, html
 
 from tournament_visualizer.components.charts import (
     create_base_figure,
     create_empty_chart_placeholder,
-    create_territory_control_chart,
 )
 from tournament_visualizer.components.layouts import (
     create_chart_card,
@@ -24,7 +22,6 @@ from tournament_visualizer.components.layouts import (
     create_empty_state,
     create_metric_grid,
     create_page_header,
-    create_tab_layout,
 )
 from tournament_visualizer.config import PAGE_CONFIG, Config
 from tournament_visualizer.data.queries import get_queries
@@ -43,201 +40,74 @@ layout = html.Div(
             description=PAGE_CONFIG["maps"]["description"],
             icon="bi-map-fill",
         ),
-        # Tabbed analysis sections
-        create_tab_layout(
+        # Summary metrics
+        html.Div(id="map-summary-metrics", className="mb-4"),
+        # Performance charts
+        dbc.Row(
             [
-                {
-                    "label": "Map Performance",
-                    "tab_id": "map-performance",
-                    "content": [
-                        # Summary metrics
-                        html.Div(id="map-summary-metrics", className="mb-4"),
-                        # Performance charts
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Average Game Length by Map Settings",
-                                            chart_id="map-length-chart",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=12,
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        # Map statistics table
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_data_table_card(
-                                            title="Map Statistics",
-                                            table_id="map-stats-table",
-                                            columns=[
-                                                {"name": "Map Size", "id": "map_size"},
-                                                {
-                                                    "name": "Map Class",
-                                                    "id": "map_class",
-                                                },
-                                                {
-                                                    "name": "Aspect Ratio",
-                                                    "id": "map_aspect_ratio",
-                                                },
-                                                {
-                                                    "name": "Matches",
-                                                    "id": "total_matches",
-                                                    "type": "numeric",
-                                                },
-                                                {
-                                                    "name": "Avg Turns",
-                                                    "id": "avg_turns",
-                                                    "type": "numeric",
-                                                    "format": {"specifier": ".1f"},
-                                                },
-                                                {
-                                                    "name": "Min Turns",
-                                                    "id": "min_turns",
-                                                    "type": "numeric",
-                                                },
-                                                {
-                                                    "name": "Max Turns",
-                                                    "id": "max_turns",
-                                                    "type": "numeric",
-                                                },
-                                                {
-                                                    "name": "Players",
-                                                    "id": "unique_players",
-                                                    "type": "numeric",
-                                                },
-                                            ],
-                                        )
-                                    ],
-                                    width=12,
-                                )
-                            ]
-                        ),
+                dbc.Col(
+                    [
+                        create_chart_card(
+                            title="Average Game Length by Map Settings",
+                            chart_id="map-length-chart",
+                            height="400px",
+                        )
                     ],
-                },
-                {
-                    "label": "Territory Analysis",
-                    "tab_id": "territory-analysis",
-                    "content": [
-                        # Match selection for territory analysis
-                        dbc.Card(
-                            [
-                                dbc.CardBody(
-                                    [
-                                        html.H5(
-                                            "Territory Analysis", className="card-title"
-                                        ),
-                                        html.P(
-                                            "Select a match from the dropdown to view territory control trends.",
-                                            className="text-muted",
-                                        ),
-                                        dcc.Dropdown(
-                                            id="territory-match-selector",
-                                            placeholder="Choose a match to analyze territories...",
-                                            options=[],
-                                        ),
-                                    ]
-                                )
-                            ],
-                            className="mb-4",
-                        ),
-                        # Territory visualizations
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Territory Control Over Time",
-                                            chart_id="territory-timeline-chart",
-                                            height="500px",
-                                        )
-                                    ],
-                                    width=8,
-                                ),
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Final Territory Distribution",
-                                            chart_id="territory-distribution-chart",
-                                            height="500px",
-                                        )
-                                    ],
-                                    width=4,
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        html.Div(
-                            [
-                                html.P(
-                                    [
-                                        "For interactive turn-by-turn hexagonal map visualization, ",
-                                        html.A(
-                                            "view individual matches",
-                                            href="/matches",
-                                            className="alert-link",
-                                        ),
-                                        " and navigate to the Maps tab.",
-                                    ],
-                                    className="alert alert-info",
-                                )
-                            ]
-                        ),
-                    ],
-                },
-                {
-                    "label": "Strategic Analysis",
-                    "tab_id": "strategic-analysis",
-                    "content": [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Starting Position Impact",
-                                            chart_id="starting-position-chart",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=6,
-                                ),
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Map Class Performance",
-                                            chart_id="map-class-performance-chart",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=6,
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Territory Expansion Patterns",
-                                            chart_id="expansion-patterns-chart",
-                                            height="500px",
-                                        )
-                                    ],
-                                    width=12,
-                                )
-                            ]
-                        ),
-                    ],
-                },
+                    width=12,
+                ),
             ],
-            active_tab="map-performance",
+            className="mb-4",
+        ),
+        # Map statistics table
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        create_data_table_card(
+                            title="Map Statistics",
+                            table_id="map-stats-table",
+                            columns=[
+                                {"name": "Map Size", "id": "map_size"},
+                                {
+                                    "name": "Map Class",
+                                    "id": "map_class",
+                                },
+                                {
+                                    "name": "Aspect Ratio",
+                                    "id": "map_aspect_ratio",
+                                },
+                                {
+                                    "name": "Matches",
+                                    "id": "total_matches",
+                                    "type": "numeric",
+                                },
+                                {
+                                    "name": "Avg Turns",
+                                    "id": "avg_turns",
+                                    "type": "numeric",
+                                    "format": {"specifier": ".1f"},
+                                },
+                                {
+                                    "name": "Min Turns",
+                                    "id": "min_turns",
+                                    "type": "numeric",
+                                },
+                                {
+                                    "name": "Max Turns",
+                                    "id": "max_turns",
+                                    "type": "numeric",
+                                },
+                                {
+                                    "name": "Players",
+                                    "id": "unique_players",
+                                    "type": "numeric",
+                                },
+                            ],
+                        )
+                    ],
+                    width=12,
+                )
+            ]
         ),
     ]
 )
@@ -374,13 +244,13 @@ def update_map_length_chart(n_intervals: int):
 
         fig.update_layout(
             barmode="group",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-            ),
+            legend={
+                "orientation": "h",
+                "yanchor": "bottom",
+                "y": 1.02,
+                "xanchor": "right",
+                "x": 1,
+            },
         )
 
         return fig
@@ -392,137 +262,10 @@ def update_map_length_chart(n_intervals: int):
 
 
 @callback(
-    Output("territory-match-selector", "options"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_territory_match_options(n_intervals: int) -> List[Dict[str, Any]]:
-    """Update territory match selector options.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        List of match options for territory analysis
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_match_summary()
-
-        if df.empty:
-            return []
-
-        # Filter to matches that likely have territory data
-        # (we can't easily check without querying each match)
-        options = []
-        for _, row in df.head(20).iterrows():  # Limit to recent 20 matches
-            game_name = row.get("game_name", "Unknown")
-            save_date = row.get("save_date", "")
-            total_turns = row.get("total_turns", 0)
-
-            if pd.notna(save_date):
-                date_str = pd.to_datetime(save_date).strftime("%Y-%m-%d")
-            else:
-                date_str = "Unknown Date"
-
-            label = f"{game_name} ({date_str}) - {total_turns} turns"
-
-            options.append({"label": label, "value": row["match_id"]})
-
-        return options
-
-    except Exception as e:
-        logger.error(f"Error updating territory match options: {e}")
-        return []
-
-
-@callback(
-    Output("territory-timeline-chart", "figure"),
-    Input("territory-match-selector", "value"),
-)
-def update_territory_timeline_chart(match_id: Optional[int]):
-    """Update territory timeline chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure for territory timeline
-    """
-    if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view territory control"
-        )
-
-    try:
-        queries = get_queries()
-        df = queries.get_territory_control_summary(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No territory data available for this match"
-            )
-
-        return create_territory_control_chart(df)
-
-    except Exception as e:
-        return create_empty_chart_placeholder(
-            f"Error loading territory timeline: {str(e)}"
-        )
-
-
-@callback(
-    Output("territory-distribution-chart", "figure"),
-    Input("territory-match-selector", "value"),
-)
-def update_territory_distribution_chart(match_id: Optional[int]):
-    """Update territory distribution chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure for territory distribution
-    """
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match")
-
-    try:
-        queries = get_queries()
-        df = queries.get_territory_control_summary(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder("No territory data available")
-
-        # Get final turn data
-        final_turn = df["turn_number"].max()
-        final_data = df[df["turn_number"] == final_turn]
-
-        fig = create_base_figure(
-            title="Final Territory Distribution", show_legend=False
-        )
-
-        fig.add_trace(
-            go.Pie(
-                labels=final_data["player_name"],
-                values=final_data["controlled_territories"],
-                hole=0.3,
-                marker_colors=Config.PRIMARY_COLORS[: len(final_data)],
-            )
-        )
-
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(
-            f"Error loading territory distribution: {str(e)}"
-        )
-
-
-@callback(
     Output("map-stats-table", "data"),
     Input("refresh-interval", "n_intervals"),
 )
-def update_map_stats_table(n_intervals: int) -> List[Dict[str, Any]]:
+def update_map_stats_table(n_intervals: int) -> list[dict[str, Any]]:
     """Update map statistics table.
 
     Args:
@@ -543,93 +286,3 @@ def update_map_stats_table(n_intervals: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error updating map stats table: {e}")
         return []
-
-
-# Additional charts for strategic analysis tab
-@callback(
-    Output("starting-position-chart", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_starting_position_chart(n_intervals: int):
-    """Update starting position impact chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for starting position analysis
-    """
-    # This would require more complex analysis of starting positions
-    # For now, return a placeholder
-    return create_empty_chart_placeholder(
-        "Starting position analysis not yet implemented"
-    )
-
-
-@callback(
-    Output("map-class-performance-chart", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_map_class_performance_chart(n_intervals: int):
-    """Update map class performance chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for map class performance
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_map_performance_analysis()
-
-        if df.empty:
-            return create_empty_chart_placeholder("No map class data available")
-
-        # Group by map class
-        class_performance = (
-            df.groupby("map_class")
-            .agg({"total_matches": "sum", "avg_turns": "mean"})
-            .reset_index()
-        )
-
-        fig = create_base_figure(
-            title="Map Class Performance", x_title="Map Class", y_title="Average Turns"
-        )
-
-        fig.add_trace(
-            go.Bar(
-                x=class_performance["map_class"],
-                y=class_performance["avg_turns"],
-                marker_color=Config.PRIMARY_COLORS[2],
-                text=[f"{turns:.0f}" for turns in class_performance["avg_turns"]],
-                textposition="auto",
-            )
-        )
-
-        fig.update_layout(xaxis_tickangle=-45)
-
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading map class data: {str(e)}")
-
-
-@callback(
-    Output("expansion-patterns-chart", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_expansion_patterns_chart(n_intervals: int):
-    """Update expansion patterns chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for expansion patterns
-    """
-    # This would require complex analysis of territory expansion over time
-    # For now, return a placeholder
-    return create_empty_chart_placeholder(
-        "Expansion pattern analysis not yet implemented"
-    )
