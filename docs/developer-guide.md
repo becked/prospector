@@ -1,15 +1,24 @@
 # Developer Guide
 
+> **Purpose:** This guide explains the architecture, design patterns, and technical implementation of the Old World Tournament Visualizer. For workflows, commands, and operational procedures, see `CLAUDE.md`.
+
 ## Architecture Overview
 
 ### Data Flow
 
-The tournament visualizer follows a clear data pipeline:
+The tournament visualizer follows a multi-stage ETL pipeline:
 
-1. **Save files (`.zip`)** → **Parser** → **Events (dicts)**
-2. **Events** → **ETL** → **DuckDB tables**
-3. **DuckDB** → **Queries** → **Analytics DataFrames**
-4. **DataFrames** → **Dash components** → **Web UI**
+1. **Data Extraction**: XML save files (`.zip`) → Parser → Structured dictionaries
+2. **Data Transformation**: Events → ETL pipeline → Normalized data structures
+3. **Data Loading**: Transformed data → DuckDB tables (relational storage)
+4. **Analytics Layer**: DuckDB → Query abstraction → Pandas DataFrames
+5. **Presentation Layer**: DataFrames → Dash/Plotly components → Interactive web UI
+
+**Key Design Decisions:**
+- **DuckDB over SQLite**: OLAP optimization, better DataFrame integration, superior SQL analytics
+- **Single-pass parsing**: Memory-efficient extraction from potentially large XML files
+- **Event-based storage**: Flexible schema accommodates diverse event types via JSON
+- **Query separation**: Business logic isolated in query layer, not scattered in UI code
 
 ### Key Components
 
@@ -236,158 +245,40 @@ ON player_yield_history(turn_number);
 - Foreign keys enforce referential integrity
 - Indexes optimize common query patterns
 
-### Adding New History Tables
+### Adding New History Tables - Architectural Pattern
 
-To add a new history table (e.g., `player_culture_history`):
-
-#### 1. Update Database Schema
-
-Add table creation in `database.py`:
+**Consistent structure across all history tables:**
 
 ```python
-def _create_player_culture_history_table(self) -> None:
-    """Create the player_culture_history table."""
-    query = """
-    CREATE TABLE IF NOT EXISTS player_culture_history (
-        culture_history_id BIGINT PRIMARY KEY,
-        match_id BIGINT NOT NULL REFERENCES matches(match_id),
-        player_id BIGINT NOT NULL REFERENCES players(player_id),
-        turn_number INTEGER NOT NULL,
-        culture_type VARCHAR(50) NOT NULL,
-        culture_level INTEGER NOT NULL,
+# Schema pattern
+CREATE TABLE player_<category>_history (
+    <category>_history_id BIGINT PRIMARY KEY,        # Auto-generated from sequence
+    match_id BIGINT NOT NULL REFERENCES matches,      # Which match
+    player_id BIGINT NOT NULL REFERENCES players,     # Which player
+    turn_number INTEGER NOT NULL,                     # When (temporal dimension)
+    <category>_specific_fields...,                    # What (data payload)
 
-        CHECK (turn_number >= 0),
-        UNIQUE (match_id, player_id, turn_number, culture_type)
-    );
-
-    CREATE INDEX idx_culture_history_match_player
-    ON player_culture_history(match_id, player_id);
-    """
-    with self.get_connection() as conn:
-        conn.execute(query)
+    CHECK (turn_number >= 0),                         # Basic validation
+    UNIQUE (match_id, player_id, turn_number, ...)   # Prevent duplicates
+);
 ```
 
-#### 2. Add Parser Method
+**Data flow pattern:**
+1. **Parser** extracts from `TurnData` elements → Returns `List[Dict[str, Any]]`
+2. **ETL** maps player IDs and adds match_id → Enriches dictionaries
+3. **Database** bulk inserts via sequence-generated IDs → Transactional commit
+4. **Queries** join with players/matches → Returns DataFrames for analytics
 
-Extract data in `parser.py`:
-
-```python
-def extract_culture_history(self) -> List[Dict[str, Any]]:
-    """Extract culture history from TurnData elements."""
-    culture_history = []
-
-    for player in self.root.findall('.//Player[@ID]'):
-        player_id = int(player.get('ID')) + 1
-        turn_list = player.find('TurnList')
-
-        if turn_list is not None:
-            for turn_data in turn_list.findall('TurnData'):
-                turn_number = int(turn_data.get('Turn', 0))
-
-                # Extract culture-related attributes
-                culture_type = turn_data.get('CultureType')
-                culture_level = int(turn_data.get('CultureLevel', 0))
-
-                if culture_type:
-                    culture_history.append({
-                        'player_id': player_id,
-                        'turn_number': turn_number,
-                        'culture_type': culture_type,
-                        'culture_level': culture_level,
-                    })
-
-    return culture_history
-```
-
-#### 3. Add Bulk Insert Method
-
-Add database method in `database.py`:
-
-```python
-def bulk_insert_culture_history(
-    self, culture_data: List[Dict[str, Any]]
-) -> None:
-    """Bulk insert culture history records."""
-    if not culture_data:
-        return
-
-    with self.get_connection() as conn:
-        query = """
-        INSERT INTO player_culture_history (
-            culture_history_id, match_id, player_id,
-            turn_number, culture_type, culture_level
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """
-
-        values = []
-        for culture in culture_data:
-            culture_id = conn.execute(
-                "SELECT nextval('culture_history_id_seq')"
-            ).fetchone()[0]
-            values.append([
-                culture_id,
-                culture["match_id"],
-                culture["player_id"],
-                culture["turn_number"],
-                culture["culture_type"],
-                culture["culture_level"],
-            ])
-
-        conn.executemany(query, values)
-```
-
-#### 4. Update ETL Pipeline
-
-Add to ETL processing in `etl.py`:
-
-```python
-# In _load_tournament_data method
-culture_history = parsed_data.get("culture_history", [])
-for culture_data in culture_history:
-    culture_data["match_id"] = match_id
-    if culture_data.get("player_id") in player_id_mapping:
-        culture_data["player_id"] = player_id_mapping[culture_data["player_id"]]
-
-if culture_history:
-    self.db.bulk_insert_culture_history(culture_history)
-    logger.info(f"Inserted {len(culture_history)} culture history records")
-```
-
-#### 5. Write Tests
-
-Test extraction in `tests/test_parser.py`:
-
-```python
-def test_extract_culture_history():
-    parser = OldWorldSaveParser("test_data.zip")
-    parser.extract_and_parse()
-
-    culture_history = parser.extract_culture_history()
-
-    assert len(culture_history) > 0
-    assert all('player_id' in record for record in culture_history)
-    assert all('turn_number' in record for record in culture_history)
-```
-
-### Validation
-
-After adding history data, run validation:
-
-```bash
-# Validate history data integrity
-uv run python scripts/validate_history_data.py
-```
-
-The validation script checks:
-- Record counts
-- Foreign key integrity
-- Data quality (NULLs, negative values)
-- Turn consistency across tables
+**Key architectural decisions:**
+- **No CHECK constraint on amounts**: Yields/values can be negative (debt, unhappiness)
+- **UNIQUE constraint prevents duplicates**: At turn granularity per player
+- **Sequences for IDs**: DuckDB sequences provide auto-increment behavior
+- **Bulk inserts**: Performance optimization vs. row-by-row inserts
 
 ### Analytics Examples
 
 See comprehensive analytics examples in:
-- `docs/turn-by-turn-history-analytics.md`
+- `docs/archive/reports/turn-by-turn-history-analytics.md`
 
 Quick examples:
 
@@ -425,23 +316,19 @@ JOIN players p ON mh.player_id = p.player_id
 WHERE mh.match_id = 1;
 ```
 
-### Migration Management
+### Schema Evolution Strategy
 
-History tables were added via migration 002:
+**Migration approach:**
+- Versioned migration scripts in `scripts/migrations/`
+- Each migration documented in `docs/migrations/`
+- Always include rollback procedures
+- Backup creation before destructive changes
 
-```bash
-# Run migration
-uv run python scripts/migrations/002_add_history_tables.py
-
-# Rollback if needed
-uv run python scripts/migrations/002_add_history_tables.py --rollback
-```
-
-**Migration Details:**
-- Drops broken `game_state` table
-- Renames `resources` → `player_yield_history`
-- Creates 5 new history tables
-- See: `docs/migrations/002_add_history_tables.md`
+**Example: Migration 002 (History Tables)**
+- Removed `game_state` table (design flaw: all rows had turn_number=0)
+- Renamed `resources` → `player_yield_history` (semantic clarity)
+- Added 5 specialized history tables (separation of concerns)
+- See: `docs/migrations/002_add_history_tables.md` for details
 
 ## Yields Visualization
 
@@ -606,27 +493,25 @@ def test_new_yield_type(multi_yield_data: pd.DataFrame) -> None:
 - ✅ Tests validate empty data, single/many players, sparse data
 - ✅ Tests confirm negative yields work correctly
 
-### Troubleshooting
+### Design Considerations
 
-**Charts not updating:**
-- Check browser console for JavaScript errors
-- Verify callback is being triggered (check network tab)
-- Restart server: `uv run python manage.py restart`
+**Chart rendering performance:**
+- 14 charts × ~200 points each = ~2,800 total render points
+- Plotly handles this efficiently with WebGL acceleration
+- No virtualization needed until 10,000+ points
+- Browser rendering is the bottleneck, not data fetching
 
-**Empty charts:**
-- Verify match has yield data: `SELECT COUNT(*) FROM player_yield_history WHERE match_id = ?`
-- Check that resource_type values match YIELD_TYPES constant
-- Ensure data extraction is working in parser
+**Query optimization:**
+- Single query fetches all yields (14 types × all turns)
+- Client-side filtering by yield type (fast enough)
+- Alternative considered: 14 separate queries (rejected - too many round trips)
+- Trade-off: Slightly more data transfer for simpler code and fewer queries
 
-**Performance issues:**
-- Check query execution time in logs
-- Verify indexes exist: `SHOW TABLES; DESCRIBE player_yield_history;`
-- Consider limiting data points if matches are extremely long (> 500 turns)
-
-**Test failures:**
-- Ensure test data uses `amount` column (not `yield_amount`)
-- Check y-axis labels (not title) for display name validation
-- Run tests with `-v` flag for detailed output
+**Code maintainability:**
+- Generic chart function reduces duplication (DRY principle)
+- Adding 15th yield type requires only constant update
+- No yield-specific logic scattered through codebase
+- Easy to test (one function, many test cases)
 
 ## Plotly Modebar Configuration
 
@@ -707,121 +592,105 @@ After any parser changes affecting MemoryData, run:
 uv run python scripts/validate_memorydata_ownership.py
 ```
 
-## Adding New Event Types
+## Event System Architecture
 
-To add support for a new LogData event type:
+### Event Storage Pattern
 
-### 1. Update Parser
+**Schema design:**
 
-Add event data extraction in `_build_logdata_event_data()`:
+```sql
+CREATE TABLE events (
+    event_id BIGINT PRIMARY KEY,
+    match_id BIGINT REFERENCES matches,
+    player_id BIGINT REFERENCES players,
+    turn_number INTEGER,
+    event_type VARCHAR(100),      -- Enum-like: "LAW_ADOPTED", "TECH_DISCOVERED"
+    event_data JSON,               -- Flexible payload for event-specific data
+    description TEXT,              -- Human-readable summary
+    timestamp TIMESTAMP
+);
+```
+
+**Design rationale:**
+- **JSON event_data field**: Accommodates diverse event types without schema changes
+- **No event-specific tables**: YAGNI - JSON provides enough flexibility
+- **Indexed on (event_type, player_id, turn_number)**: Optimizes common query patterns
+- **Description field**: Pre-computed readable text avoids parsing JSON in UI
+
+### Event Type Namespaces
+
+**Two separate event sources with distinct namespaces:**
+
+1. **MemoryData events**: `MEMORYPLAYER_*`, `MEMORYFAMILY_*`, `MEMORYTRIBE_*`
+   - AI decision-making context
+   - Limited historical scope
+   - Parsed from `Player/MemoryList` elements
+
+2. **LogData events**: `LAW_ADOPTED`, `TECH_DISCOVERED`, `GOAL_*`, etc.
+   - Complete turn-by-turn gameplay history
+   - Comprehensive event coverage
+   - Parsed from `Player/PermanentLogList` elements
+
+**No overlap**: Event types are mutually exclusive → Simple concatenation, no deduplication needed
+
+### Adding New Event Types
+
+**Parser extensibility pattern:**
 
 ```python
+# In parser.py - _build_logdata_event_data()
 def _build_logdata_event_data(self, event_type, data1, data2, data3):
-    if event_type == 'YOUR_NEW_TYPE' and data1:
-        return {'your_field': data1}
-
-    # Existing code...
-```
-
-### 2. Add Description Formatting
-
-Add human-readable formatting in `_format_logdata_event()`:
-
-```python
-def _format_logdata_event(self, event_type, event_data, text):
-    if event_type == 'YOUR_NEW_TYPE' and event_data:
-        field_value = event_data['your_field']
-        return f"Your description: {field_value}"
-
-    # Existing code...
-```
-
-### 3. Write Tests
-
-Add test cases in `tests/test_parser_logdata.py`:
-
-```python
-def test_extract_your_new_type(sample_xml_path):
-    parser = OldWorldSaveParser(str(sample_xml_path))
-    parser.extract_and_parse()
-
-    events = parser.extract_logdata_events()
-    new_type_events = [e for e in events if e['event_type'] == 'YOUR_NEW_TYPE']
-
-    assert len(new_type_events) > 0
-    assert 'your_field' in new_type_events[0]['event_data']
-```
-
-### 4. Add Query (if needed)
-
-Create analytics query in `queries.py`:
-
-```python
-def get_your_analysis(self, match_id: int) -> pd.DataFrame:
-    """Get analysis for your new event type.
-
-    Args:
-        match_id: Match ID to analyze
-
-    Returns:
-        DataFrame with analysis results
-    """
-    query = """
-    SELECT
-        e.player_id,
-        p.player_name,
-        COUNT(*) as event_count
-    FROM events e
-    JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
-    WHERE e.event_type = 'YOUR_NEW_TYPE'
-        AND e.match_id = ?
-    GROUP BY e.player_id, p.player_name
-    """
-
-    with self.db.get_connection() as conn:
-        return conn.execute(query, [match_id]).df()
-```
-
-## Testing Strategy
-
-### Unit Tests
-
-Test individual parsing methods with small XML fixtures:
-
-```bash
-uv run pytest tests/test_parser_logdata.py -v
+    """Build event-specific data dictionary from XML attributes."""
+    if event_type == 'LAW_ADOPTED' and data1:
+        return {'law': data1}  # Extract relevant data
+    # ... more event types ...
+    return {}  # Unknown events get empty dict
 ```
 
 **Benefits:**
-- Fast feedback loop
-- Isolated testing
-- Easy to debug
+- New event types require only parser changes
+- Database schema unchanged (JSON handles structure)
+- Queries filter by event_type string
+- UI gets pre-formatted description
 
-### Integration Tests
+## Testing Architecture
 
-Test full ETL pipeline with real save files:
+### Test Pyramid Strategy
 
-```bash
-uv run pytest tests/test_integration_logdata.py -v
+**Three testing layers with different purposes:**
+
+```
+        /\
+       /UI\          Integration tests (slow, comprehensive)
+      /----\
+     /Unit  \        Unit tests (fast, isolated)
+    /--------\
+   /Validation\      Validation scripts (production data)
+  /____________\
 ```
 
-**Benefits:**
-- Verify end-to-end functionality
-- Catch database issues
-- Validate data quality
+1. **Unit tests** (base layer - most tests):
+   - Test individual functions in isolation
+   - Mock external dependencies (database, file system)
+   - Fast execution (< 1 second suite)
+   - Example: Parser extracts correct player IDs from XML
 
-### Performance Tests (Optional)
+2. **Integration tests** (middle layer):
+   - Test component interactions
+   - Real database, real file I/O
+   - Moderate execution time (< 30 seconds)
+   - Example: Full ETL pipeline from save file to database
 
-Monitor extraction performance:
+3. **Validation scripts** (top layer - production):
+   - Test real-world data quality
+   - Run after imports, not in CI
+   - Catch anomalies tests miss
+   - Example: Check for unlinked players, data integrity
 
-```bash
-uv run pytest tests/test_performance.py -v
-```
-
-**Benefits:**
-- Catch performance regressions
-- Ensure scalability
-- Monitor import times
+**Trade-offs:**
+- Unit tests catch logic errors quickly but miss integration issues
+- Integration tests catch schema mismatches but are slower
+- Validation scripts catch real-world edge cases but can't run in CI
 
 ## Common Issues & Solutions
 
@@ -917,101 +786,47 @@ Complex logic needs inline comments explaining "why":
 player_id = int(player_xml_id) + 1
 ```
 
-## Development Workflow
+## Development Practices
 
-### 1. Make Changes
+### Test-Driven Development
 
-Edit code following TDD principles:
-1. Write failing test
-2. Implement feature
-3. Run tests until passing
+**Three-layer testing strategy:**
 
-### 2. Run Quality Checks
+1. **Unit tests** (`tests/test_*.py`):
+   - Fast feedback (< 1 second)
+   - Isolated component testing
+   - Mock external dependencies
 
-```bash
-# Format code
-uv run black tournament_visualizer/
+2. **Integration tests** (`tests/test_integration_*.py`):
+   - End-to-end pipeline validation
+   - Real database interactions
+   - Catch inter-component issues
 
-# Lint code
-uv run ruff check tournament_visualizer/
+3. **Validation scripts** (`scripts/validate_*.py`):
+   - Post-import data quality checks
+   - Production data verification
+   - Business rule enforcement
 
-# Run tests
-uv run pytest -v
+**Why three layers?** Unit tests catch logic errors quickly. Integration tests catch schema mismatches. Validation scripts catch real-world data anomalies that tests might miss.
 
-# Check coverage
-uv run pytest --cov=tournament_visualizer
-```
+### Code Quality Standards
 
-### 3. Commit Changes
+**Type annotations required:**
+- All public functions must have complete type hints
+- Enables static analysis (mypy)
+- Self-documenting code
+- IDE autocomplete support
 
-Follow conventional commit format:
+**Docstring conventions:**
+- Google style docstrings
+- Document Args, Returns, Raises
+- Include usage examples for complex functions
+- Explain "why" in comments, "what" in docstrings
 
-```bash
-git commit -m "feat: Add support for GOAL_STARTED events"
-git commit -m "fix: Correct player ID mapping for LogData"
-git commit -m "docs: Update developer guide with examples"
-```
-
-### 4. Test with Real Data
-
-Re-import tournament data to verify:
-
-```bash
-# Backup database first
-cp tournament_data.duckdb tournament_data.duckdb.backup
-
-# Force re-import
-uv run python scripts/import_tournaments.py --directory saves --force --verbose
-```
-
-## Debugging Tips
-
-### 1. Inspect XML Structure
-
-```bash
-# Extract save file
-unzip -p saves/match_*.zip | head -n 500
-
-# Search for specific elements
-unzip -p saves/match_*.zip | grep -A 5 "LAW_ADOPTED"
-```
-
-### 2. Check Database Contents
-
-```bash
-# Open DuckDB
-uv run duckdb tournament_data.duckdb -readonly
-
-# Inspect events
-SELECT event_type, COUNT(*) as count
-FROM events
-GROUP BY event_type
-ORDER BY count DESC;
-
-# Check specific match
-SELECT * FROM events
-WHERE match_id = 10 AND event_type = 'LAW_ADOPTED';
-```
-
-### 3. Run Validation Scripts
-
-```bash
-# LogData validation
-uv run python scripts/validate_logdata.py
-
-# MemoryData validation
-uv run python scripts/validate_memorydata_ownership.py
-
-# Analytics verification
-uv run python scripts/verify_analytics.py
-```
-
-### 4. Enable Debug Logging
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
+**Formatting:**
+- Black for consistent code style (no debates)
+- Ruff for linting and import organization
+- Pre-commit hooks enforce standards
 
 ## Performance Optimization
 
@@ -1051,35 +866,56 @@ for event in events:
     db.insert_event(event)
 ```
 
-## Resources
+## Architecture Principles
 
-### Project Files
+### YAGNI (You Aren't Gonna Need It)
 
-- `README.md`: User documentation
-- `CLAUDE.md`: Project-specific instructions
-- `docs/plans/`: Implementation plans and investigation notes
-- `tests/`: Test files and fixtures
+**Applied throughout:**
+- No premature abstraction layers
+- Features implemented when needed, not "just in case"
+- Example: Single query for all yields instead of separate query per yield type
+- Example: No caching layer until performance actually becomes an issue
+
+### DRY (Don't Repeat Yourself)
+
+**Pattern reuse:**
+- Generic `create_yield_chart()` function handles all 14 yield types
+- Shared name normalization logic across all player/participant matching
+- Centralized modebar configuration in `config.py`
+- Query abstraction layer prevents SQL duplication
+
+### Separation of Concerns
+
+**Clear boundaries:**
+- Parser: XML → Dictionaries (no database knowledge)
+- ETL: Dictionaries → Database (no XML knowledge)
+- Queries: Database → DataFrames (no UI knowledge)
+- UI: DataFrames → Components (no SQL knowledge)
+
+**Benefits:**
+- Components testable in isolation
+- Easy to swap implementations
+- Clear responsibility boundaries
+- Reduced cognitive load
+
+## References
+
+### Documentation Structure
+
+- **This file (`developer-guide.md`)**: Architecture, design patterns, technical concepts
+- **`CLAUDE.md`**: Workflows, commands, operational procedures
+- **`docs/migrations/`**: Schema changes with rationale
+- **`docs/archive/`**: Historical implementation plans and reports
 
 ### External Resources
 
-- [Old World Game](https://www.mohawkgames.com/oldworld/)
-- [DuckDB Documentation](https://duckdb.org/docs/)
-- [Plotly Dash Documentation](https://dash.plotly.com/)
-
-## Getting Help
-
-If you get stuck:
-
-1. Check this developer guide
-2. Review test files for examples
-3. Inspect the implementation plan: `docs/plans/logdata-ingestion-implementation-plan.md`
-4. Check investigation notes: `docs/plans/logdata-investigation-findings.md`
-5. Run validation scripts to identify issues
-6. Check git history for similar changes
+- [DuckDB Documentation](https://duckdb.org/docs/) - OLAP database
+- [Plotly Dash Documentation](https://dash.plotly.com/) - Web framework
+- [Old World Wiki](https://oldworld.fandom.com/) - Game mechanics reference
 
 ---
 
-**Last Updated:** 2025-10-10
+**Last Updated:** 2025-10-16
 
 **Contributors:** Initial implementation following TDD and YAGNI principles. Turn-by-turn history feature added in October 2025. Comprehensive yields visualization added in October 2025.
 
@@ -1209,31 +1045,21 @@ GROUP BY tp.participant_id, tp.display_name, p.civilization
 ORDER BY tp.display_name, times_played DESC;
 ```
 
-### Workflow
+### Linking Architecture
 
-**Initial setup:**
-```bash
-# 1. Sync participants from Challonge
-uv run python scripts/sync_challonge_participants.py
+**Two-phase linking process:**
 
-# 2. Import save files
-uv run python scripts/import_attachments.py --directory saves --force
+1. **Automated matching** (90%+ success rate):
+   - Normalize both save file names and Challonge names
+   - Match on exact normalized string equality
+   - Handles most common variations (whitespace, case, accents)
 
-# 3. Link players to participants (automatic in ETL, or manual)
-uv run python scripts/link_players_to_participants.py
+2. **Manual override system** (edge cases):
+   - JSON configuration file: `data/participant_name_overrides.json`
+   - Uses stable `challonge_match_id` (survives re-imports)
+   - Per-match overrides allow handling name changes mid-tournament
 
-# 4. Validate
-uv run python scripts/validate_participants.py
-```
-
-**After tournament updates:**
-```bash
-# Re-sync participants (handles new/changed participants)
-uv run python scripts/sync_challonge_participants.py
-
-# Re-link (if participant names changed)
-uv run python scripts/link_players_to_participants.py
-```
+**Design trade-off**: Chose exact matching over fuzzy matching to avoid false positives. Manual overrides handle edge cases without complexity of Levenshtein distance or ML-based matching.
 
 ### Name Matching
 
@@ -1272,17 +1098,17 @@ Then re-run linking:
 uv run python scripts/link_players_to_participants.py
 ```
 
-### Validation
+### Data Integrity Constraints
 
-```bash
-uv run python scripts/validate_participants.py
-```
+**Foreign key enforcement:**
+- `players.participant_id` → `tournament_participants.participant_id`
+- `matches.player1_participant_id` → `tournament_participants.participant_id`
+- `matches.winner_participant_id` → `tournament_participants.participant_id`
 
-Checks:
-- Participant data integrity
-- Player-participant foreign key validity
-- Match participant consistency
-- No orphaned links
+**Validation strategy:**
+- Pre-commit validation scripts prevent corrupt data
+- Post-import validation ensures referential integrity
+- Unlinked players allowed (graceful degradation)
 
 ### DuckDB Workaround
 
@@ -1455,54 +1281,30 @@ HAVING COUNT(DISTINCT p.civilization) > 1
 ORDER BY civ_count DESC;
 ```
 
-### Troubleshooting
+### Query Design Patterns
 
-#### "Players appearing multiple times in table"
+**Smart grouping key pattern:**
 
-Check if query is grouping correctly:
-```python
-df = queries.get_player_performance()
-duplicates = df[df.duplicated('player_name', keep=False)]
-print(duplicates[['player_name', 'participant_id', 'is_unlinked']])
-```
-
-If linked players duplicate: Bug in grouping logic (participant_id should be unique)
-If unlinked players duplicate: Check normalized name grouping
-
-#### "Win rates don't match Challonge"
-
-Verify participant linking:
-```bash
-# Check if player is linked correctly
-uv run duckdb data/tournament_data.duckdb -readonly -c "
-SELECT
-    p.player_name,
-    p.participant_id,
-    tp.display_name as participant_name
-FROM players p
-LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
-WHERE p.player_name LIKE '%PlayerName%'
-"
-```
-
-If linked to wrong participant: Add manual override
-If unlinked: Add participant and re-run linking
-
-#### "Unlinked players not grouping by name"
-
-Check for case variations:
 ```sql
-SELECT
-    player_name,
-    player_name_normalized,
-    COUNT(*)
-FROM players
-WHERE participant_id IS NULL
-GROUP BY player_name_normalized, player_name
-HAVING COUNT(*) > 1;
+-- Group by participant when available, fallback to normalized name
+COALESCE(
+    CAST(tp.participant_id AS VARCHAR),
+    'unlinked_' || p.player_name_normalized
+) as grouping_key
 ```
 
-Should collapse to single row per normalized name.
+**Why this works:**
+- Linked players: Group by participant_id → Correct cross-match aggregation
+- Unlinked players: Group by normalized name → Best-effort fallback
+- String prefix prevents ID collision with actual participant IDs
+- Graceful degradation when linking incomplete
+
+**Alternative approaches considered:**
+
+1. **Filter out unlinked players**: Rejected - loses data visibility
+2. **Show all player instances**: Rejected - confusing for users
+3. **Fuzzy name matching**: Rejected - risk of false positives
+4. **This approach**: Accepted - balances data quality with usability
 
 ### Performance Considerations
 
