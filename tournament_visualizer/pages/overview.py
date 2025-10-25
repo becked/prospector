@@ -60,268 +60,310 @@ layout = html.Div(
         ),
         # Alert area
         html.Div(id="overview-alerts"),
-        # Summary metrics
-        html.Div(id="overview-metrics"),
-        # Main charts section - 3 pie charts in a row
-        dbc.Row(
+        # Tabbed interface
+        dbc.Tabs(
             [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Nation Win Percentage",
-                            chart_id="overview-nation-win-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=4,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Nation Loss Percentage",
-                            chart_id="overview-nation-loss-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=4,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Nation Popularity",
-                            chart_id="overview-nation-popularity-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=4,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Unit breakdown and Map breakdown section - 2 charts side by side
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Military Unit Breakdown",
-                            chart_id="overview-units-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Map Breakdown",
-                            chart_id="overview-map-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Event Category Timeline - full width
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Event Category Timeline",
-                            chart_id="overview-event-timeline",
-                            height="450px",
-                        )
-                    ],
-                    width=12,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Economic & Military Progression - 2x2 grid
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Average Science Per Turn",
-                            chart_id="overview-science-progression",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Average Orders Per Turn",
-                            chart_id="overview-orders-progression",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            className="mb-4",
-        ),
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Average Military Score Per Turn",
-                            chart_id="overview-military-progression",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Average Legitimacy Per Turn",
-                            chart_id="overview-legitimacy-progression",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Ruler Analytics Section
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Archetype Performance",
-                            chart_id="overview-ruler-archetype-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Trait Performance",
-                            chart_id="overview-ruler-trait-performance-chart",
-                            height="400px",
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            className="mb-4",
-        ),
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Archetype Matchup Matrix",
-                            chart_id="overview-ruler-matchup-matrix-chart",
-                            height="550px",
-                        )
-                    ],
-                    width=8,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Popular Combinations",
-                            chart_id="overview-ruler-combinations-chart",
-                            height="550px",
-                        )
-                    ],
-                    width=4,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Law Progression Analysis - 2 charts side by side
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Law Timing Distribution",
-                            chart_id="overview-law-distribution",
-                            height="450px",
-                        )
-                    ],
-                    width=6,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Law Progression Efficiency",
-                            chart_id="overview-law-efficiency",
-                            height="450px",
-                        )
-                    ],
-                    width=6,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Counter-Pick Analysis - heatmap and win rate chart
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Nation Counter-Pick Effectiveness",
-                            chart_id="overview-counter-pick-heatmap",
-                            height="550px",
-                        )
-                    ],
-                    width=8,
-                ),
-                dbc.Col(
-                    [
-                        create_chart_card(
-                            title="Pick Order Win Rate",
-                            chart_id="overview-pick-order-win-rate",
-                            height="550px",
-                        )
-                    ],
-                    width=4,
-                ),
-            ],
-            className="mb-4",
-        ),
-        # Matches table
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        create_data_table_card(
-                            title="Matches",
-                            table_id="overview-matches-table",
-                            columns=[
-                                {
-                                    "name": "Match",
-                                    "id": "match_link",
-                                    "presentation": "markdown",
-                                },
-                                {"name": "Date", "id": "save_date", "type": "datetime"},
-                                {
-                                    "name": "Turns",
-                                    "id": "total_turns",
-                                    "type": "numeric",
-                                },
-                                {"name": "Winner", "id": "winner_name"},
-                                {"name": "Map", "id": "map_info"},
+                # Tab 1: Summary
+                dbc.Tab(
+                    label="Summary",
+                    tab_id="summary-tab",
+                    children=[
+                        # Summary metrics
+                        html.Div(id="overview-metrics", className="mt-3"),
+                        # Event Category Timeline - full width
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Event Category Timeline",
+                                            chart_id="overview-event-timeline",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
                             ],
-                        )
+                            className="mb-4",
+                        ),
+                        # Unit and Map breakdown charts
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Military Unit Breakdown",
+                                            chart_id="overview-units-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Map Breakdown",
+                                            chart_id="overview-map-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Matches table
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_data_table_card(
+                                            title="Matches",
+                                            table_id="overview-matches-table",
+                                            columns=[
+                                                {
+                                                    "name": "Match",
+                                                    "id": "match_link",
+                                                    "presentation": "markdown",
+                                                },
+                                                {
+                                                    "name": "Date",
+                                                    "id": "save_date",
+                                                    "type": "datetime",
+                                                },
+                                                {
+                                                    "name": "Turns",
+                                                    "id": "total_turns",
+                                                    "type": "numeric",
+                                                },
+                                                {"name": "Winner", "id": "winner_name"},
+                                                {"name": "Map", "id": "map_info"},
+                                            ],
+                                        )
+                                    ],
+                                    width=12,
+                                )
+                            ],
+                            className="mb-4",
+                        ),
                     ],
-                    width=12,
-                )
-            ]
+                ),
+                # Tab 2: Nations
+                dbc.Tab(
+                    label="Nations",
+                    tab_id="nations-tab",
+                    children=[
+                        # Nation performance charts - 3 pie charts in a row
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Nation Win Percentage",
+                                            chart_id="overview-nation-win-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=4,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Nation Loss Percentage",
+                                            chart_id="overview-nation-loss-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=4,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Nation Popularity",
+                                            chart_id="overview-nation-popularity-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=4,
+                                ),
+                            ],
+                            className="mb-4 mt-3",
+                        ),
+                        # Counter-Pick Analysis - heatmap and win rate chart
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Nation Counter-Pick Effectiveness",
+                                            chart_id="overview-counter-pick-heatmap",
+                                            height="550px",
+                                        )
+                                    ],
+                                    width=8,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Pick Order Win Rate",
+                                            chart_id="overview-pick-order-win-rate",
+                                            height="550px",
+                                        )
+                                    ],
+                                    width=4,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                    ],
+                ),
+                # Tab 3: Rulers
+                dbc.Tab(
+                    label="Rulers",
+                    tab_id="rulers-tab",
+                    children=[
+                        # Ruler performance charts
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Archetype Performance",
+                                            chart_id="overview-ruler-archetype-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Trait Performance",
+                                            chart_id="overview-ruler-trait-performance-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4 mt-3",
+                        ),
+                        # Ruler matchups and combinations
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Archetype Matchup Matrix",
+                                            chart_id="overview-ruler-matchup-matrix-chart",
+                                            height="550px",
+                                        )
+                                    ],
+                                    width=8,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Popular Combinations",
+                                            chart_id="overview-ruler-combinations-chart",
+                                            height="550px",
+                                        )
+                                    ],
+                                    width=4,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                    ],
+                ),
+                # Tab 4: Economy
+                dbc.Tab(
+                    label="Economy",
+                    tab_id="economy-tab",
+                    children=[
+                        # Economic progression - Science and Orders
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Average Science Per Turn",
+                                            chart_id="overview-science-progression",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Average Orders Per Turn",
+                                            chart_id="overview-orders-progression",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4 mt-3",
+                        ),
+                        # Military and Legitimacy progression
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Average Military Score Per Turn",
+                                            chart_id="overview-military-progression",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Average Legitimacy Per Turn",
+                                            chart_id="overview-legitimacy-progression",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Law Progression Analysis - 2 charts side by side
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Law Timing Distribution",
+                                            chart_id="overview-law-distribution",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Law Progression Efficiency",
+                                            chart_id="overview-law-efficiency",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                    ],
+                ),
+            ],
+            id="overview-tabs",
+            active_tab="summary-tab",
         ),
     ]
 )
