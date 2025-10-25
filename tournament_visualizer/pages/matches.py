@@ -17,7 +17,6 @@ from tournament_visualizer.components.charts import (
     create_ambition_summary_table,
     create_ambition_timeline_chart,
     create_city_founding_scatter_jitter_chart,
-    create_city_founding_timeline_chart,
     create_cumulative_city_count_chart,
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
@@ -636,22 +635,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             create_chart_card(
                                                 title="Cumulative City Count",
                                                 chart_id="match-cumulative-city-count",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # City Founding Timeline
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="City Founding Timeline",
-                                                chart_id="match-city-founding-timeline",
                                                 height="400px",
                                             )
                                         ],
@@ -1660,42 +1643,6 @@ def update_ambition_summary(match_id: Optional[int]) -> go.Figure:
         logger.error(f"Error loading ambition summary: {e}")
         return create_empty_chart_placeholder(
             f"Error loading ambition summary: {str(e)}"
-        )
-
-
-@callback(
-    Output("match-city-founding-timeline", "figure"),
-    Input("match-selector", "value"),
-)
-def update_city_founding_timeline(match_id: Optional[int]) -> go.Figure:
-    """Update city founding timeline chart.
-
-    Args:
-        match_id: Selected match ID
-
-    Returns:
-        Plotly figure with city founding timeline
-    """
-    if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view city founding timeline"
-        )
-
-    try:
-        queries = get_queries()
-        df = queries.get_city_founding_timeline(match_id)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                "No city founding data available for this match"
-            )
-
-        return create_city_founding_timeline_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error loading city founding timeline: {e}")
-        return create_empty_chart_placeholder(
-            f"Error loading city founding timeline: {str(e)}"
         )
 
 
