@@ -643,12 +643,12 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                                 "Turn:",
                                                                 className="form-label",
                                                             ),
-                                                            dcc.RangeSlider(
-                                                                id="match-territory-turn-range",
+                                                            dcc.Slider(
+                                                                id="match-territory-turn-slider",
                                                                 min=0,
                                                                 max=100,
                                                                 step=1,
-                                                                value=[0, 100],
+                                                                value=100,
                                                                 marks={
                                                                     i: str(i)
                                                                     for i in range(
@@ -1787,9 +1787,9 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
 @callback(
     [
         Output("match-territory-heatmap", "figure"),
-        Output("match-territory-turn-range", "max"),
-        Output("match-territory-turn-range", "value"),
-        Output("match-territory-turn-range", "marks"),
+        Output("match-territory-turn-slider", "max"),
+        Output("match-territory-turn-slider", "value"),
+        Output("match-territory-turn-slider", "marks"),
     ],
     Input("match-selector", "value"),
 )
@@ -1806,7 +1806,7 @@ def update_match_territory_controls(match_id: Optional[int]):
         empty_fig = create_empty_chart_placeholder(
             "Select a match to view territory map"
         )
-        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+        return empty_fig, 100, 100, {i: str(i) for i in range(0, 101, 25)}
 
     try:
         queries = get_queries()
@@ -1818,7 +1818,7 @@ def update_match_territory_controls(match_id: Optional[int]):
             empty_fig = create_empty_chart_placeholder(
                 "No territory data available for this match"
             )
-            return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+            return empty_fig, 100, 100, {i: str(i) for i in range(0, 101, 25)}
 
         # Get final turn map data (default view)
         df = queries.get_territory_map(match_id, max_turn)
@@ -1827,7 +1827,7 @@ def update_match_territory_controls(match_id: Optional[int]):
             empty_fig = create_empty_chart_placeholder(
                 "No territory data available"
             )
-            return empty_fig, max_turn, [min_turn, max_turn], {}
+            return empty_fig, max_turn, max_turn, {}
 
         # Create hexagonal map
         from tournament_visualizer.components.charts import create_hexagonal_map
@@ -1840,52 +1840,49 @@ def update_match_territory_controls(match_id: Optional[int]):
         marks[min_turn] = str(min_turn)  # Ensure min is marked
         marks[max_turn] = str(max_turn)  # Ensure max is marked
 
-        return fig, max_turn, [min_turn, max_turn], marks
+        return fig, max_turn, max_turn, marks
 
     except Exception as e:
         logger.error(f"Error updating match territory heatmap: {e}")
         empty_fig = create_empty_chart_placeholder(
             f"Error loading territory map: {str(e)}"
         )
-        return empty_fig, 100, [0, 100], {i: str(i) for i in range(0, 101, 25)}
+        return empty_fig, 100, 100, {i: str(i) for i in range(0, 101, 25)}
 
 
 @callback(
     Output("match-territory-heatmap", "figure", allow_duplicate=True),
     [
         Input("match-selector", "value"),
-        Input("match-territory-turn-range", "value"),
+        Input("match-territory-turn-slider", "value"),
     ],
     prevent_initial_call=True,
 )
 def update_match_territory_heatmap_turn(
     match_id: Optional[int],
-    turn_range: List[int]
+    turn_number: int
 ) -> go.Figure:
     """Update territory heatmap when turn slider changes.
 
     Args:
         match_id: Selected match ID
-        turn_range: [min_turn, max_turn] from slider
+        turn_number: Turn number from slider
 
     Returns:
         Plotly figure for territory map at selected turn
     """
-    if not match_id or not turn_range:
+    if not match_id or turn_number is None:
         return create_empty_chart_placeholder("Select a match")
 
     try:
         queries = get_queries()
 
-        # Use the max value from range slider (right handle)
-        display_turn = turn_range[1]
-
         # Get map data for selected turn
-        df = queries.get_territory_map(match_id, display_turn)
+        df = queries.get_territory_map(match_id, turn_number)
 
         if df.empty:
             return create_empty_chart_placeholder(
-                f"No territory data for turn {display_turn}"
+                f"No territory data for turn {turn_number}"
             )
 
         # Create hexagonal map
