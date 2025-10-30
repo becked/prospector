@@ -101,6 +101,9 @@ uv run python scripts/validate_participants.py
 # For participant UI data quality
 uv run python scripts/validate_participant_ui_data.py
 
+# For city data
+uv run python scripts/validate_city_data.py
+
 # For analytics queries
 uv run python scripts/verify_analytics.py
 ```
@@ -218,6 +221,118 @@ FROM player_yield_history yh
 - Extract for inspection: `unzip -p saves/match_*.zip | head -n 1000`
 - Root element contains match metadata as attributes
 - Player elements contain turn-by-turn data
+
+## City Data Analysis
+
+### Overview
+City data tracks expansion patterns, production strategies, and territorial control for each tournament match.
+
+### What We Track
+- **Cities**: Name, owner, location, founding turn, population
+- **Production**: Units built per city (settlers, military, workers)
+- **Projects**: City projects completed (forums, temples, wonders)
+- **Ownership**: Original founder vs. current owner (conquest tracking)
+
+### Database Tables
+- `cities` - Core city attributes
+- `city_unit_production` - Units built per city
+- `city_projects` - Projects completed per city
+
+See: `docs/database-schema.md` for complete schema
+
+### Querying City Data
+
+```python
+from tournament_visualizer.data.queries import (
+    get_match_cities,
+    get_player_expansion_stats,
+    get_production_summary
+)
+
+# Get all cities in a match
+cities = get_match_cities(match_id=1)
+for city in cities:
+    print(f"{city['city_name']} founded turn {city['founded_turn']}")
+
+# Get expansion statistics
+stats = get_player_expansion_stats(match_id=1)
+for player in stats:
+    print(f"{player['player_name']}: {player['total_cities']} cities")
+
+# Get production summary
+summary = get_production_summary(match_id=1)
+for player in summary:
+    print(f"{player['player_name']}: {player['settlers']} settlers")
+```
+
+### Validation
+
+After re-importing data, validate city data:
+```bash
+uv run python scripts/validate_city_data.py
+```
+
+### Common Queries
+
+```sql
+-- Top expanders (most cities)
+SELECT
+    p.player_name,
+    COUNT(c.city_id) as total_cities
+FROM cities c
+JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+GROUP BY p.player_name
+ORDER BY total_cities DESC
+LIMIT 10;
+
+-- Expansion speed (cities per turn)
+SELECT
+    p.player_name,
+    COUNT(c.city_id) as cities,
+    MAX(c.founded_turn) as last_city_turn,
+    CAST(COUNT(c.city_id) AS FLOAT) / MAX(c.founded_turn) as expansion_rate
+FROM cities c
+JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+GROUP BY p.player_name
+ORDER BY expansion_rate DESC;
+
+-- Military vs. economic production
+SELECT
+    p.player_name,
+    SUM(CASE WHEN prod.unit_type IN ('UNIT_SPEARMAN', 'UNIT_ARCHER', 'UNIT_HORSEMAN')
+        THEN prod.count ELSE 0 END) as military_units,
+    SUM(CASE WHEN prod.unit_type IN ('UNIT_SETTLER', 'UNIT_WORKER')
+        THEN prod.count ELSE 0 END) as economic_units
+FROM city_unit_production prod
+JOIN cities c ON prod.match_id = c.match_id AND prod.city_id = c.city_id
+JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+GROUP BY p.player_name;
+
+-- Captured cities
+SELECT
+    p.player_name,
+    COUNT(*) as cities_captured
+FROM cities c
+JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+WHERE c.first_player_id != c.player_id
+GROUP BY p.player_name
+ORDER BY cities_captured DESC;
+```
+
+### Troubleshooting
+
+**No cities in database:**
+- Run validation: `uv run python scripts/validate_city_data.py`
+- Check migration applied: `uv run duckdb data/tournament_data.duckdb -c "SHOW TABLES"`
+- Re-import data: `uv run python scripts/import_attachments.py --directory saves --force`
+
+**Incorrect player IDs:**
+- Verify player ID conversion: XML uses 0-based, DB uses 1-based
+- Check validation script output for errors
+
+**Missing production data:**
+- Some cities may have no production (newly founded)
+- Check if `<UnitProductionCounts>` is empty in XML
 
 ### Override Systems Quick Reference
 
