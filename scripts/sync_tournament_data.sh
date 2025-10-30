@@ -213,8 +213,16 @@ fi
 DB_SIZE=$(du -h "${DB_PATH}" | cut -f1)
 echo -e "${BLUE}Uploading ${DB_SIZE} database file to temporary location...${NC}"
 
+# Clean up any existing temp file from previous failed uploads
+echo -e "${BLUE}Cleaning up any existing temp file...${NC}"
+fly ssh console -a "${APP_NAME}" -C "rm -f ${REMOTE_TEMP_PATH}" 2>/dev/null || true
+
 # Upload to new filename (avoids file locking issues)
-if echo "put ${DB_PATH} ${REMOTE_TEMP_PATH}" | fly ssh sftp shell -a "${APP_NAME}"; then
+# Use here-doc to ensure SFTP doesn't close prematurely with large files
+if fly ssh sftp shell -a "${APP_NAME}" <<EOF
+put ${DB_PATH} ${REMOTE_TEMP_PATH}
+EOF
+then
     echo -e "${GREEN}✓ Database uploaded to temporary location${NC}"
 else
     echo -e "${RED}Error: Failed to upload database${NC}"
