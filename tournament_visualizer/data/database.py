@@ -355,6 +355,10 @@ class TournamentDatabase:
             y_coordinate INTEGER NOT NULL,
             turn_number INTEGER NOT NULL,
             terrain_type VARCHAR(50),
+            improvement_type VARCHAR(50),
+            specialist_type VARCHAR(50),
+            resource_type VARCHAR(50),
+            has_road BOOLEAN DEFAULT FALSE,
             owner_player_id BIGINT REFERENCES players(player_id),
 
             CONSTRAINT check_x_coordinate CHECK(x_coordinate >= 0),
