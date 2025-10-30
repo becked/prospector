@@ -1862,6 +1862,176 @@ class OldWorldSaveParser:
 
         return rulers
 
+    def extract_cities(self) -> List[Dict[str, Any]]:
+        """Extract city data from the save file.
+
+        Returns:
+            List of city dictionaries
+
+        Raises:
+            ValueError: If XML not parsed
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        logger.info("Extracting city data")
+        cities = []
+
+        # Find all City elements (direct children of root)
+        for city_elem in self.root.findall("City"):
+            try:
+                city_data = self._parse_city_element(city_elem)
+                cities.append(city_data)
+            except Exception as e:
+                logger.warning(f"Failed to parse city: {e}")
+                continue
+
+        logger.info(f"Extracted {len(cities)} cities")
+        return cities
+
+    def _parse_city_element(self, city_elem: ET.Element) -> Dict[str, Any]:
+        """Parse a single City XML element.
+
+        Args:
+            city_elem: City XML element
+
+        Returns:
+            Dictionary with city data
+        """
+        # Extract required attributes
+        city_id = self._safe_int(city_elem.get('ID'))
+        tile_id = self._safe_int(city_elem.get('TileID'))
+        player_xml_id = self._safe_int(city_elem.get('Player'))
+        founded_turn = self._safe_int(city_elem.get('Founded'))
+
+        # Convert player ID: XML is 0-based, database is 1-based
+        player_id = player_xml_id + 1
+
+        # Extract optional attributes
+        family_name = city_elem.get('Family')
+
+        # Extract child elements
+        name_elem = city_elem.find('NameType')
+        city_name = name_elem.text if name_elem is not None else 'UNKNOWN'
+
+        # Population (optional)
+        citizens_elem = city_elem.find('Citizens')
+        population = self._safe_int(citizens_elem.text) if citizens_elem is not None else None
+
+        # Governor (optional)
+        governor_elem = city_elem.find('GovernorID')
+        governor_id = self._safe_int(governor_elem.text) if governor_elem is not None else None
+
+        # Capital flag (present = capital, absent = not capital)
+        capital_elem = city_elem.find('Capital')
+        is_capital = capital_elem is not None
+
+        # First and last player (for conquest detection)
+        first_player_elem = city_elem.find('FirstPlayer')
+        last_player_elem = city_elem.find('LastPlayer')
+
+        # Convert first/last player IDs (also 0-based in XML)
+        first_player_id = None
+        if first_player_elem is not None:
+            first_player_xml_id = self._safe_int(first_player_elem.text)
+            first_player_id = first_player_xml_id + 1
+
+        # Build city dictionary
+        city_data = {
+            'city_id': city_id,
+            'city_name': city_name,
+            'tile_id': tile_id,
+            'player_id': player_id,
+            'founded_turn': founded_turn,
+            'family_name': family_name,
+            'is_capital': is_capital,
+            'population': population,
+            'governor_id': governor_id,
+            'first_player_id': first_player_id,
+        }
+
+        return city_data
+
+    def extract_city_unit_production(self) -> List[Dict[str, Any]]:
+        """Extract unit production counts for all cities.
+
+        Returns:
+            List of production dictionaries
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        logger.info("Extracting city unit production")
+        production_records = []
+
+        for city_elem in self.root.findall("City"):
+            try:
+                city_id = self._safe_int(city_elem.get('ID'))
+
+                # Find UnitProductionCounts element
+                production_elem = city_elem.find('UnitProductionCounts')
+                if production_elem is None:
+                    continue
+
+                # Extract each unit type
+                for unit_elem in production_elem:
+                    unit_type = unit_elem.tag
+                    count = self._safe_int(unit_elem.text)
+
+                    if count > 0:  # Only record non-zero production
+                        production_records.append({
+                            'city_id': city_id,
+                            'unit_type': unit_type,
+                            'count': count
+                        })
+
+            except Exception as e:
+                logger.warning(f"Failed to parse production for city {city_id}: {e}")
+                continue
+
+        logger.info(f"Extracted {len(production_records)} production records")
+        return production_records
+
+    def extract_city_projects(self) -> List[Dict[str, Any]]:
+        """Extract project counts for all cities.
+
+        Returns:
+            List of project dictionaries
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        logger.info("Extracting city projects")
+        project_records = []
+
+        for city_elem in self.root.findall("City"):
+            try:
+                city_id = self._safe_int(city_elem.get('ID'))
+
+                # Find ProjectCount element
+                projects_elem = city_elem.find('ProjectCount')
+                if projects_elem is None:
+                    continue
+
+                # Extract each project type
+                for project_elem in projects_elem:
+                    project_type = project_elem.tag
+                    count = self._safe_int(project_elem.text)
+
+                    if count > 0:  # Only record non-zero counts
+                        project_records.append({
+                            'city_id': city_id,
+                            'project_type': project_type,
+                            'count': count
+                        })
+
+            except Exception as e:
+                logger.warning(f"Failed to parse projects for city {city_id}: {e}")
+                continue
+
+        logger.info(f"Extracted {len(project_records)} project records")
+        return project_records
+
     def _find_succession_turn(
         self, player_elem: ET.Element, character_id: int
     ) -> Optional[int]:
