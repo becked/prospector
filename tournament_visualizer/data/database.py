@@ -154,6 +154,9 @@ class TournamentDatabase:
         self._create_religion_opinion_history_table()
         self._create_participant_name_overrides_table()
         self._create_pick_order_games_table()
+        self._create_cities_table()
+        self._create_city_unit_production_table()
+        self._create_city_projects_table()
         self._create_schema_migrations_table()
         self._create_views()
 
@@ -182,6 +185,8 @@ class TournamentDatabase:
             "CREATE SEQUENCE IF NOT EXISTS legitimacy_history_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS family_opinion_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS religion_opinion_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS city_unit_production_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS city_projects_id_seq START 1;",
         ]
 
         with self.get_connection() as conn:
@@ -868,6 +873,71 @@ class TournamentDatabase:
 
         CREATE INDEX IF NOT EXISTS idx_pick_order_games_matched_match
         ON pick_order_games(matched_match_id);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_cities_table(self) -> None:
+        """Create the cities table for tracking city data."""
+        query = """
+        CREATE TABLE IF NOT EXISTS cities (
+            city_id INTEGER NOT NULL,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            city_name VARCHAR NOT NULL,
+            tile_id INTEGER NOT NULL,
+            founded_turn INTEGER NOT NULL,
+            family_name VARCHAR,
+            is_capital BOOLEAN DEFAULT FALSE,
+            population INTEGER,
+            first_player_id BIGINT,
+            governor_id INTEGER,
+            PRIMARY KEY (match_id, city_id),
+            CONSTRAINT check_founded_turn CHECK(founded_turn >= 0),
+            CONSTRAINT check_population CHECK(population IS NULL OR population >= 0)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cities_match_id ON cities(match_id);
+        CREATE INDEX IF NOT EXISTS idx_cities_player_id ON cities(match_id, player_id);
+        CREATE INDEX IF NOT EXISTS idx_cities_founded_turn ON cities(match_id, founded_turn);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_city_unit_production_table(self) -> None:
+        """Create the city_unit_production table for tracking unit production by city."""
+        query = """
+        CREATE TABLE IF NOT EXISTS city_unit_production (
+            production_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            city_id INTEGER NOT NULL,
+            unit_type VARCHAR NOT NULL,
+            count INTEGER NOT NULL,
+            CONSTRAINT check_production_count CHECK(count > 0),
+            CONSTRAINT unique_city_unit_production UNIQUE(match_id, city_id, unit_type)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_city_production_match_city ON city_unit_production(match_id, city_id);
+        CREATE INDEX IF NOT EXISTS idx_city_production_unit_type ON city_unit_production(unit_type);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_city_projects_table(self) -> None:
+        """Create the city_projects table for tracking city projects."""
+        query = """
+        CREATE TABLE IF NOT EXISTS city_projects (
+            project_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            city_id INTEGER NOT NULL,
+            project_type VARCHAR NOT NULL,
+            count INTEGER NOT NULL,
+            CONSTRAINT check_project_count CHECK(count > 0),
+            CONSTRAINT unique_city_project UNIQUE(match_id, city_id, project_type)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_city_projects_match_city ON city_projects(match_id, city_id);
+        CREATE INDEX IF NOT EXISTS idx_city_projects_type ON city_projects(project_type);
         """
         with self.get_connection() as conn:
             conn.execute(query)
