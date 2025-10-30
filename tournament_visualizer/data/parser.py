@@ -734,6 +734,10 @@ class OldWorldSaveParser:
             - y_coordinate: Tile Y position on map grid
             - turn_number: Game turn (1 to final_turn)
             - terrain_type: Terrain constant (e.g., "TERRAIN_GRASSLAND")
+            - improvement_type: Improvement constant or None
+            - specialist_type: Specialist constant or None
+            - resource_type: Resource constant or None
+            - has_road: Boolean, True if tile has road
             - owner_player_id: Database player ID (1-based), or None if unowned
 
         Raises:
@@ -769,6 +773,22 @@ class OldWorldSaveParser:
             terrain_elem = tile_elem.find("Terrain")
             terrain = terrain_elem.text if terrain_elem is not None else None
 
+            # Extract improvement
+            improvement_elem = tile_elem.find("Improvement")
+            improvement = improvement_elem.text if improvement_elem is not None else None
+
+            # Extract specialist
+            specialist_elem = tile_elem.find("Specialist")
+            specialist = specialist_elem.text if specialist_elem is not None else None
+
+            # Extract resource
+            resource_elem = tile_elem.find("Resource")
+            resource = resource_elem.text if resource_elem is not None else None
+
+            # Extract road
+            # Road is an empty element <Road /> so check for existence
+            has_road = tile_elem.find("Road") is not None
+
             # Extract ownership history
             # OwnerHistory contains turn-by-turn ownership changes
             # Example: <OwnerHistory><T45>1</T45><T64>-1</T64></OwnerHistory>
@@ -794,6 +814,10 @@ class OldWorldSaveParser:
                 "x_coord": x_coord,
                 "y_coord": y_coord,
                 "terrain": terrain,
+                "improvement": improvement,
+                "specialist": specialist,
+                "resource": resource,
+                "has_road": has_road,
                 "ownership_by_turn": ownership_by_turn,
             }
 
@@ -822,6 +846,10 @@ class OldWorldSaveParser:
                         "y_coordinate": data["y_coord"],
                         "turn_number": turn,
                         "terrain_type": data["terrain"],
+                        "improvement_type": data["improvement"],
+                        "specialist_type": data["specialist"],
+                        "resource_type": data["resource"],
+                        "has_road": data["has_road"],
                         "owner_player_id": current_owner,
                     }
                 )
