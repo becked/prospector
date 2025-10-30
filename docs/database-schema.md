@@ -36,7 +36,7 @@
 
 ## cities
 
-**Purpose:** Tracks cities in tournament matches, including ownership, founding information, and population. Enables analysis of expansion patterns and territorial control.
+**Purpose:** *TODO: Add description*
 
 **Current rows:** 0
 
@@ -44,17 +44,17 @@
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
-| `city_id` | INTEGER |  |  | City ID (0-based, unique per match) |
-| `match_id` | BIGINT |  |  | Reference to tournament match |
-| `player_id` | BIGINT |  |  | Current owner of the city (1-based) |
-| `city_name` | VARCHAR |  |  | City name constant (e.g., CITYNAME_NINEVEH) |
-| `tile_id` | INTEGER |  |  | Map location identifier |
-| `founded_turn` | INTEGER |  |  | Turn when city was founded |
-| `family_name` | VARCHAR | ✓ |  | Controlling family (e.g., FAMILY_TUDIYA) |
-| `is_capital` | BOOLEAN | ✓ | CAST('f' AS BOOLEAN) | Whether this is a capital city |
-| `population` | INTEGER | ✓ |  | Current population (number of citizens) |
-| `first_player_id` | BIGINT | ✓ |  | Original founder (for conquest tracking) |
-| `governor_id` | INTEGER | ✓ |  | Character ID of city governor |
+| `city_id` | INTEGER |  |  | *TODO* |
+| `match_id` | BIGINT |  |  | *TODO* |
+| `player_id` | BIGINT |  |  | *TODO* |
+| `city_name` | VARCHAR |  |  | *TODO* |
+| `tile_id` | INTEGER |  |  | *TODO* |
+| `founded_turn` | INTEGER |  |  | *TODO* |
+| `family_name` | VARCHAR | ✓ |  | *TODO* |
+| `is_capital` | BOOLEAN | ✓ | CAST('f' AS BOOLEAN) | *TODO* |
+| `population` | INTEGER | ✓ |  | *TODO* |
+| `first_player_id` | BIGINT | ✓ |  | *TODO* |
+| `governor_id` | INTEGER | ✓ |  | *TODO* |
 
 ### Constraints
 
@@ -68,21 +68,17 @@
 
 ### Relationships
 
-- **Foreign Key:** `match_id` → `matches.match_id`
-- **Foreign Key:** `player_id` → `players.player_id` (within same match)
-- **Related Tables:** `city_unit_production`, `city_projects` (child tables)
+*TODO: Document foreign keys and relationships*
 
 ### Related Code
 
-- **Parser:** `tournament_visualizer/data/parser.py::extract_cities()`
-- **Database:** `tournament_visualizer/data/database.py::insert_cities()`
-- **Queries:** `tournament_visualizer/data/queries.py::get_match_cities()`, `get_player_expansion_stats()`
+*TODO: Link to parser/query code*
 
 ---
 
 ## city_projects
 
-**Purpose:** Tracks city projects completed in each city (forums, temples, wonders, etc.). Enables analysis of city development strategies and project priorities.
+**Purpose:** *TODO: Add description*
 
 **Current rows:** 0
 
@@ -90,11 +86,11 @@
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
-| `project_id` | INTEGER |  | nextval('city_projects_id_seq') | Auto-incrementing primary key |
-| `match_id` | BIGINT |  |  | Reference to tournament match |
-| `city_id` | INTEGER |  |  | Reference to city (within match) |
-| `project_type` | VARCHAR |  |  | Project type constant (e.g., PROJECT_FORUM_2) |
-| `count` | INTEGER |  |  | Number of times this project was completed |
+| `project_id` | INTEGER |  | nextval('city_projects_id_seq') | *TODO* |
+| `match_id` | BIGINT |  |  | *TODO* |
+| `city_id` | INTEGER |  |  | *TODO* |
+| `project_type` | VARCHAR |  |  | *TODO* |
+| `count` | INTEGER |  |  | *TODO* |
 
 ### Constraints
 
@@ -107,18 +103,17 @@
 
 ### Relationships
 
-- **Foreign Key:** `(match_id, city_id)` → `cities(match_id, city_id)`
+*TODO: Document foreign keys and relationships*
 
 ### Related Code
 
-- **Parser:** `tournament_visualizer/data/parser.py::extract_city_projects()`
-- **Database:** `tournament_visualizer/data/database.py::insert_city_projects()`
+*TODO: Link to parser/query code*
 
 ---
 
 ## city_unit_production
 
-**Purpose:** Tracks units produced by each city (settlers, military units, workers, etc.). Enables analysis of production strategies (military vs. economic focus, expansion patterns).
+**Purpose:** *TODO: Add description*
 
 **Current rows:** 0
 
@@ -126,11 +121,11 @@
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
-| `production_id` | INTEGER |  | nextval('city_unit_production_id_seq') | Auto-incrementing primary key |
-| `match_id` | BIGINT |  |  | Reference to tournament match |
-| `city_id` | INTEGER |  |  | Reference to city (within match) |
-| `unit_type` | VARCHAR |  |  | Unit type constant (e.g., UNIT_SETTLER, UNIT_SPEARMAN) |
-| `count` | INTEGER |  |  | Total number of this unit type produced |
+| `production_id` | INTEGER |  | nextval('city_unit_production_id_seq') | *TODO* |
+| `match_id` | BIGINT |  |  | *TODO* |
+| `city_id` | INTEGER |  |  | *TODO* |
+| `unit_type` | VARCHAR |  |  | *TODO* |
+| `count` | INTEGER |  |  | *TODO* |
 
 ### Constraints
 
@@ -143,13 +138,11 @@
 
 ### Relationships
 
-- **Foreign Key:** `(match_id, city_id)` → `cities(match_id, city_id)`
+*TODO: Document foreign keys and relationships*
 
 ### Related Code
 
-- **Parser:** `tournament_visualizer/data/parser.py::extract_city_unit_production()`
-- **Database:** `tournament_visualizer/data/database.py::insert_city_unit_production()`
-- **Queries:** `tournament_visualizer/data/queries.py::get_production_summary()`
+*TODO: Link to parser/query code*
 
 ---
 
