@@ -105,6 +105,18 @@ uv run python scripts/validate_participant_ui_data.py
 uv run python scripts/verify_analytics.py
 ```
 
+### Database Schema
+
+**Always reference the schema documentation before writing queries:**
+- `docs/schema.sql` - Exact DDL with types and constraints
+- `docs/database-schema.md` - Table descriptions and relationships
+
+**After schema changes, update documentation:**
+```bash
+uv run python scripts/export_schema.py
+git add docs/schema.sql docs/database-schema.md
+```
+
 ## Critical Domain Knowledge
 
 ### Player ID Mapping (Critical!)
