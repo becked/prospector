@@ -1,7 +1,7 @@
 # Migration 005: Add Tile Details to Territories
 
 **Date:** 2025-10-30
-**Status:** Pending
+**Status:** Completed
 
 ## Summary
 Extends territories table with improvement_type, specialist_type, resource_type, and has_road columns.
