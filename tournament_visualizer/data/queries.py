@@ -2604,9 +2604,7 @@ class TournamentQueries:
                 "legitimacy": conn.execute(legitimacy_query).df(),
             }
 
-    def get_territory_map(
-        self, match_id: int, turn_number: int
-    ) -> pd.DataFrame:
+    def get_territory_map(self, match_id: int, turn_number: int) -> pd.DataFrame:
         """Get territory map snapshot for a specific match and turn.
 
         Returns all tiles with their ownership and terrain for visualization.

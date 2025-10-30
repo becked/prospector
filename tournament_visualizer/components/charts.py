@@ -2542,11 +2542,15 @@ def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
                     name=player,
                     marker=dict(
                         symbol="circle",
-                        color=Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)],
+                        color=Config.PRIMARY_COLORS[
+                            player_idx % len(Config.PRIMARY_COLORS)
+                        ],
                         size=14,
                         line=dict(width=2, color="white"),
                     ),
-                    showlegend=(tech == tech_order[0]),  # Only show legend for first tech
+                    showlegend=(
+                        tech == tech_order[0]
+                    ),  # Only show legend for first tech
                     legendgroup=player,
                     hovertemplate=f"<b>{tech}</b><br>{player}<br>Turn {turn}<extra></extra>",
                 )
@@ -2675,7 +2679,9 @@ def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
                     name=player,
                     marker=dict(
                         symbol="circle",
-                        color=Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)],
+                        color=Config.PRIMARY_COLORS[
+                            player_idx % len(Config.PRIMARY_COLORS)
+                        ],
                         size=14,
                         line=dict(width=2, color="white"),
                     ),
@@ -4050,9 +4056,7 @@ def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
             line=dict(color="#1f77b4", width=2),
             name="Median",
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Median: %{y:.1f}<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>" "Median: %{y:.1f}<br>" "<extra></extra>"
             ),
         )
     )
@@ -4117,9 +4121,7 @@ def create_orders_progression_chart(df: pd.DataFrame) -> go.Figure:
             line=dict(color="#ff7f0e", width=2),
             name="Median",
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Median: %{y:.1f}<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>" "Median: %{y:.1f}<br>" "<extra></extra>"
             ),
         )
     )
@@ -4184,9 +4186,7 @@ def create_military_progression_chart(df: pd.DataFrame) -> go.Figure:
             line=dict(color="#2ca02c", width=2),
             name="Median",
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Median: %{y:.0f}<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>" "Median: %{y:.0f}<br>" "<extra></extra>"
             ),
         )
     )
@@ -4251,9 +4251,7 @@ def create_legitimacy_progression_chart(df: pd.DataFrame) -> go.Figure:
             line=dict(color="#d62728", width=2),
             name="Median",
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Median: %{y:.0f}<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>" "Median: %{y:.0f}<br>" "<extra></extra>"
             ),
         )
     )
@@ -4559,7 +4557,9 @@ def create_hexagonal_map(
     # Calculate hex positions
     # Offset rows (even rows shifted right by 0.5 hex width)
     df = df.copy()
-    df["hex_x"] = df["x_coordinate"] * HEX_WIDTH + (df["y_coordinate"] % 2) * (HEX_WIDTH / 2)
+    df["hex_x"] = df["x_coordinate"] * HEX_WIDTH + (df["y_coordinate"] % 2) * (
+        HEX_WIDTH / 2
+    )
     df["hex_y"] = df["y_coordinate"] * HEX_HEIGHT
 
     # Create figure
@@ -4569,13 +4569,13 @@ def create_hexagonal_map(
     # Owned tiles: use player colors
     # Unowned tiles: use terrain colors
     terrain_colors = {
-        "TERRAIN_WATER": "#4A90E2",       # Blue
-        "TERRAIN_GRASSLAND": "#7CB342",   # Green
-        "TERRAIN_DESERT": "#F4E04D",      # Yellow
-        "TERRAIN_ARID": "#D4A574",        # Tan
-        "TERRAIN_SCRUB": "#9CCC65",       # Light green
-        "TERRAIN_TUNDRA": "#B0BEC5",      # Grey-blue
-        "TERRAIN_SNOW": "#ECEFF1",        # White-grey
+        "TERRAIN_WATER": "#4A90E2",  # Blue
+        "TERRAIN_GRASSLAND": "#7CB342",  # Green
+        "TERRAIN_DESERT": "#F4E04D",  # Yellow
+        "TERRAIN_ARID": "#D4A574",  # Tan
+        "TERRAIN_SCRUB": "#9CCC65",  # Light green
+        "TERRAIN_TUNDRA": "#B0BEC5",  # Grey-blue
+        "TERRAIN_SNOW": "#ECEFF1",  # White-grey
     }
 
     # Get unique owners (excluding NULL/unowned)
@@ -4584,7 +4584,9 @@ def create_hexagonal_map(
 
     # Plot owned tiles by player
     if not owned_tiles.empty:
-        for i, (player_id, player_data) in enumerate(owned_tiles.groupby("owner_player_id")):
+        for i, (player_id, player_data) in enumerate(
+            owned_tiles.groupby("owner_player_id")
+        ):
             player_name = player_data["player_name"].iloc[0]
             color = Config.PRIMARY_COLORS[int(i) % len(Config.PRIMARY_COLORS)]
 
@@ -4606,7 +4608,9 @@ def create_hexagonal_map(
                         "Terrain: %{customdata[2]}<br>"
                         "<extra></extra>"
                     ),
-                    customdata=player_data[["x_coordinate", "y_coordinate", "terrain_type"]].values,
+                    customdata=player_data[
+                        ["x_coordinate", "y_coordinate", "terrain_type"]
+                    ].values,
                 )
             )
 
@@ -4616,7 +4620,9 @@ def create_hexagonal_map(
             color = terrain_colors.get(terrain, "#CCCCCC")  # Default grey
 
             # Clean up terrain name for display
-            terrain_display = terrain.replace("TERRAIN_", "").title() if terrain else "Unknown"
+            terrain_display = (
+                terrain.replace("TERRAIN_", "").title() if terrain else "Unknown"
+            )
 
             fig.add_trace(
                 go.Scatter(
@@ -4761,9 +4767,7 @@ def create_tournament_founding_distribution_chart(df: pd.DataFrame) -> go.Figure
             ],
             textposition="outside",
             marker_color=Config.PRIMARY_COLORS[0],
-            hovertemplate=(
-                "Turn Range: %{x}<br>" "Cities: %{y}<br>" "<extra></extra>"
-            ),
+            hovertemplate=("Turn Range: %{x}<br>" "Cities: %{y}<br>" "<extra></extra>"),
         )
     )
 
@@ -4858,10 +4862,7 @@ def create_tournament_project_priorities_chart(df: pd.DataFrame) -> go.Figure:
 
     # Get top 5 most common projects across all players
     top_projects = (
-        df.groupby("project_type")["project_count"]
-        .sum()
-        .nlargest(5)
-        .index.tolist()
+        df.groupby("project_type")["project_count"].sum().nlargest(5).index.tolist()
     )
 
     # Filter to only top projects
@@ -4880,7 +4881,8 @@ def create_tournament_project_priorities_chart(df: pd.DataFrame) -> go.Figure:
     # Create x-axis labels
     players = df_filtered[["player_name", "civilization"]].drop_duplicates()
     x_labels = [
-        f"{row['player_name']}<br>({row['civilization']})" for _, row in players.iterrows()
+        f"{row['player_name']}<br>({row['civilization']})"
+        for _, row in players.iterrows()
     ]
 
     # Add trace for each project type

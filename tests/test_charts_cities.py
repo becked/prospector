@@ -9,14 +9,13 @@ Test Strategy:
 
 import pandas as pd
 import plotly.graph_objects as go
-import pytest
 
 from tournament_visualizer.components.charts import (
+    create_tournament_conquest_summary_chart,
     create_tournament_expansion_timeline_chart,
     create_tournament_founding_distribution_chart,
     create_tournament_production_strategies_chart,
     create_tournament_project_priorities_chart,
-    create_tournament_conquest_summary_chart,
 )
 
 

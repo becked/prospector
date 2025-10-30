@@ -7,8 +7,8 @@ Test Strategy:
 - Use TournamentDatabase with known data (follows codebase pattern)
 """
 
-import pytest
 import pandas as pd
+import pytest
 
 from tournament_visualizer.data.database import TournamentDatabase
 from tournament_visualizer.data.queries import TournamentQueries
@@ -208,9 +208,7 @@ class TestTournamentCityAnalytics:
 
         # Check cumulative count is monotonically increasing per player
         for (player, civ), group in result.groupby(["player_name", "civilization"]):
-            cumulative = group.sort_values("founded_turn")[
-                "cumulative_cities"
-            ].tolist()
+            cumulative = group.sort_values("founded_turn")["cumulative_cities"].tolist()
             assert all(
                 cumulative[i] <= cumulative[i + 1] for i in range(len(cumulative) - 1)
             ), f"{player}'s cumulative cities should never decrease"
@@ -249,9 +247,7 @@ class TestTournamentCityAnalytics:
         # Check specific counts
         early_game = result[result["turn_range"] == "1-20"]
         assert len(early_game) == 1
-        assert (
-            early_game.iloc[0]["city_count"] == 8
-        )  # 8 cities founded in turns 1-20
+        assert early_game.iloc[0]["city_count"] == 8  # 8 cities founded in turns 1-20
 
     def test_get_tournament_production_strategies(self, test_db_with_city_data):
         """Test production strategies aggregates unit production per player."""
