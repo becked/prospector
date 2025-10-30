@@ -928,6 +928,10 @@
 | `y_coordinate` | INTEGER |  |  | *TODO* |
 | `turn_number` | INTEGER |  |  | *TODO* |
 | `terrain_type` | VARCHAR | ✓ |  | *TODO* |
+| `improvement_type` | VARCHAR | ✓ |  | *TODO* |
+| `specialist_type` | VARCHAR | ✓ |  | *TODO* |
+| `resource_type` | VARCHAR | ✓ |  | *TODO* |
+| `has_road` | BOOLEAN | ✓ | CAST('f' AS BOOLEAN) | *TODO* |
 | `owner_player_id` | BIGINT | ✓ |  | *TODO* |
 
 ### Constraints
