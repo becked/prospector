@@ -407,6 +407,39 @@ class TournamentETL:
                 f"Inserted {len(religion_opinion_history)} religion opinion history records"
             )
 
+        # Process city data
+        cities = parsed_data.get("cities", [])
+        # Cities already have correct player_id (1-based) from parser - no remapping needed
+        # However, we still need to add match_id
+        for city_data in cities:
+            city_data["match_id"] = match_id
+
+        if cities:
+            self.db.insert_cities(match_id, cities)
+            logger.info(f"Inserted {len(cities)} cities")
+
+        # Process city unit production
+        city_unit_production = parsed_data.get("city_unit_production", [])
+        # Production data doesn't need player_id mapping - just match_id
+        for prod_data in city_unit_production:
+            prod_data["match_id"] = match_id
+
+        if city_unit_production:
+            self.db.insert_city_unit_production(match_id, city_unit_production)
+            logger.info(
+                f"Inserted {len(city_unit_production)} city unit production records"
+            )
+
+        # Process city projects
+        city_projects = parsed_data.get("city_projects", [])
+        # Project data doesn't need player_id mapping - just match_id
+        for proj_data in city_projects:
+            proj_data["match_id"] = match_id
+
+        if city_projects:
+            self.db.insert_city_projects(match_id, city_projects)
+            logger.info(f"Inserted {len(city_projects)} city project records")
+
     def extract_lightweight_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Extract minimal metadata from a file for deduplication.
 
