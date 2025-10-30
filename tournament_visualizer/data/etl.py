@@ -409,10 +409,23 @@ class TournamentETL:
 
         # Process city data
         cities = parsed_data.get("cities", [])
-        # Cities already have correct player_id (1-based) from parser - no remapping needed
-        # However, we still need to add match_id
+        # Map player_ids from XML-based to database IDs (same as events/rulers)
         for city_data in cities:
             city_data["match_id"] = match_id
+            # Remap current owner player_id
+            if (
+                city_data.get("player_id")
+                and city_data["player_id"] in player_id_mapping
+            ):
+                city_data["player_id"] = player_id_mapping[city_data["player_id"]]
+            # Remap first_player_id (original founder) for conquest tracking
+            if (
+                city_data.get("first_player_id")
+                and city_data["first_player_id"] in player_id_mapping
+            ):
+                city_data["first_player_id"] = player_id_mapping[
+                    city_data["first_player_id"]
+                ]
 
         if cities:
             self.db.insert_cities(match_id, cities)
