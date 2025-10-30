@@ -495,6 +495,101 @@ ORDER BY cities_captured DESC;
 - Some cities may have no production (newly founded)
 - Check if `<UnitProductionCounts>` is empty in XML
 
+## Territory Tile Detail Analysis
+
+### Overview
+The `territories` table tracks turn-by-turn snapshots of every tile on the map, including ownership, terrain, improvements, specialists, resources, and infrastructure.
+
+### What We Track
+- **Ownership**: Which player controls each tile each turn
+- **Terrain**: Base terrain type (grassland, desert, water, urban, etc.)
+- **Improvements**: Buildings on tiles (mines, farms, quarries, barracks, etc.)
+- **Specialists**: Expert workers assigned to tiles (miners, ranchers, priests, officers, etc.)
+- **Resources**: Natural resources (horses, marble, wheat, etc.)
+- **Infrastructure**: Road network
+
+### Database Table
+- `territories` - Complete map state per turn
+
+See: `docs/database-schema.md` for complete schema
+
+### Querying Territory Data
+
+```python
+from tournament_visualizer.data.queries import TournamentQueries, get_queries
+
+# Get global queries instance
+queries = get_queries()
+
+# Get territories for a specific match and turn
+territories_df = queries.get_match_territories(match_id=1, turn_number=50)
+
+# Count specialists by type
+specialist_counts = queries.get_specialist_counts(match_id=1)
+
+# Get improvement distribution
+improvement_stats = queries.get_improvement_distribution(match_id=1)
+```
+
+### Common Analyses
+
+**Specialist Usage:**
+```sql
+-- Which players use the most specialists?
+SELECT
+    p.player_name,
+    COUNT(DISTINCT t.specialist_type) as specialist_types_used,
+    COUNT(*) as total_specialists
+FROM territories t
+JOIN players p ON t.match_id = p.match_id AND t.owner_player_id = p.player_id
+WHERE t.specialist_type IS NOT NULL
+  AND t.turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)
+GROUP BY p.player_name
+ORDER BY total_specialists DESC;
+```
+
+**Infrastructure Investment:**
+```sql
+-- Track improvement build-out over time
+SELECT
+    turn_number,
+    COUNT(DISTINCT CASE WHEN improvement_type IS NOT NULL THEN concat(x_coordinate, ',', y_coordinate) END) as total_improvements,
+    SUM(CASE WHEN has_road THEN 1 ELSE 0 END) as total_roads
+FROM territories
+WHERE match_id = 1 AND owner_player_id = 1
+GROUP BY turn_number
+ORDER BY turn_number;
+```
+
+**Resource Control:**
+```sql
+-- Who controls strategic resources?
+SELECT
+    p.player_name,
+    t.resource_type,
+    COUNT(*) as tiles_controlled
+FROM territories t
+JOIN players p ON t.match_id = p.match_id AND t.owner_player_id = p.player_id
+WHERE t.resource_type IN ('RESOURCE_IRON', 'RESOURCE_HORSE', 'RESOURCE_MARBLE')
+  AND t.turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)
+GROUP BY p.player_name, t.resource_type
+ORDER BY p.player_name, tiles_controlled DESC;
+```
+
+### Data Volume
+
+Territory data is **large**:
+- ~2000 tiles per map
+- ~100+ turns per game
+- = ~200,000+ records per match
+- Most fields are NULL (compress well)
+
+### Performance Tips
+
+- Always filter by `match_id` and `turn_number`
+- Use final turn for end-state analysis: `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = ?)`
+- Consider creating indexes if queries are slow
+
 ### Override Systems Quick Reference
 
 All override files follow a consistent design for data quality management:
