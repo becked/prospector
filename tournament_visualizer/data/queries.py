@@ -2690,83 +2690,46 @@ class TournamentQueries:
 
         return (result[0], result[1])
 
+    def get_match_cities(self, match_id: int) -> pd.DataFrame:
+        """Get all cities for a specific match.
+
+        Args:
+            match_id: Tournament match ID
+
+        Returns:
+            DataFrame with columns:
+                - city_id: City identifier
+                - city_name: City name (e.g., 'CITYNAME_NINEVEH')
+                - player_id: Current owner player ID
+                - player_name: Current owner player name
+                - founded_turn: Turn when city was founded
+                - is_capital: Boolean, TRUE if capital city
+                - population: City population (may be NULL)
+                - tile_id: Map tile location
+        """
+        query = """
+        SELECT
+            c.city_id,
+            c.city_name,
+            c.player_id,
+            p.player_name,
+            c.founded_turn,
+            c.is_capital,
+            c.population,
+            c.tile_id
+        FROM cities c
+        JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        WHERE c.match_id = ?
+        ORDER BY c.founded_turn, c.city_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
 
 # ========================================================================
-# City Data Query Functions
+# City Data Query Functions (Deprecated - use TournamentQueries methods)
 # ========================================================================
-
-
-def get_match_cities(
-    match_id: int,
-    db_path: str = "data/tournament_data.duckdb"
-) -> List[Dict[str, Any]]:
-    """Get all cities for a specific match.
-
-    Args:
-        match_id: Tournament match ID
-        db_path: Path to database
-
-    Returns:
-        List of city dictionaries
-    """
-    import duckdb
-
-    conn = duckdb.connect(db_path, read_only=True)
-
-    # Check if population column exists (optional column added later)
-    cols = conn.execute("PRAGMA table_info('cities')").fetchall()
-    col_names = [col[1] for col in cols]
-    has_population = 'population' in col_names
-
-    if has_population:
-        result = conn.execute("""
-            SELECT
-                c.city_id,
-                c.city_name,
-                c.player_id,
-                p.player_name,
-                c.founded_turn,
-                c.is_capital,
-                c.population,
-                c.tile_id
-            FROM cities c
-            JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
-            WHERE c.match_id = ?
-            ORDER BY c.founded_turn, c.city_id
-        """, [match_id]).fetchall()
-    else:
-        result = conn.execute("""
-            SELECT
-                c.city_id,
-                c.city_name,
-                c.player_id,
-                p.player_name,
-                c.founded_turn,
-                c.is_capital,
-                NULL as population,
-                c.tile_id
-            FROM cities c
-            JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
-            WHERE c.match_id = ?
-            ORDER BY c.founded_turn, c.city_id
-        """, [match_id]).fetchall()
-
-    conn.close()
-
-    cities = []
-    for row in result:
-        cities.append({
-            'city_id': row[0],
-            'city_name': row[1],
-            'player_id': row[2],
-            'player_name': row[3],
-            'founded_turn': row[4],
-            'is_capital': row[5],
-            'population': row[6],
-            'tile_id': row[7]
-        })
-
-    return cities
 
 
 def get_player_expansion_stats(
