@@ -8,5 +8,9 @@ Rincewind:
 Siontific
 * Actual time played of matches: https://github.com/becked/prospector/blob/main/docs/plans/youtube-playtime-tracking-implementation-plan.md 
 
-Other
-* Generative AI summary is terrible. Need to certainly do a better job in stage one, to filter to important events, as well as stage two with a prompt that makes it more concise so as to have less of its shitty filler words.
+Becked
+* Filter on overview page for things like max turns or various game settings, ex. ancient ruins or city density
+* Fix the integration with the spreadsheet
+
+Yagman
+* Charts showing number of games vs turn count (especially for adding context with the economic charts)
