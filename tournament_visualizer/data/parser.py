@@ -1905,6 +1905,9 @@ class OldWorldSaveParser:
         founded_turn = self._safe_int(city_elem.get('Founded'))
 
         # Convert player ID: XML is 0-based, database is 1-based
+        # Skip cities with invalid player IDs (barbarian cities, ruins, etc.)
+        if player_xml_id is None or player_xml_id < 0:
+            raise ValueError(f"Invalid player ID {player_xml_id} for city {city_id}")
         player_id = player_xml_id + 1
 
         # Extract optional attributes
