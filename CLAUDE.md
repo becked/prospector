@@ -243,26 +243,35 @@ See: `docs/database-schema.md` for complete schema
 ### Querying City Data
 
 ```python
-from tournament_visualizer.data.queries import (
-    get_match_cities,
-    get_player_expansion_stats,
-    get_production_summary
-)
+from tournament_visualizer.data.queries import TournamentQueries, get_queries
 
-# Get all cities in a match
-cities = get_match_cities(match_id=1)
-for city in cities:
+# Option 1: Use global queries instance
+queries = get_queries()
+
+# Option 2: Create instance with custom database
+from tournament_visualizer.data.database import TournamentDatabase
+db = TournamentDatabase("data/tournament_data.duckdb")
+queries = TournamentQueries(db)
+
+# Get all cities in a match (returns DataFrame)
+cities_df = queries.get_match_cities(match_id=1)
+for _, city in cities_df.iterrows():
     print(f"{city['city_name']} founded turn {city['founded_turn']}")
 
-# Get expansion statistics
-stats = get_player_expansion_stats(match_id=1)
-for player in stats:
+# Get expansion statistics (returns DataFrame)
+stats_df = queries.get_player_expansion_stats(match_id=1)
+for _, player in stats_df.iterrows():
     print(f"{player['player_name']}: {player['total_cities']} cities")
 
-# Get production summary
-summary = get_production_summary(match_id=1)
-for player in summary:
+# Get production summary (returns DataFrame)
+summary_df = queries.get_production_summary(match_id=1)
+for _, player in summary_df.iterrows():
     print(f"{player['player_name']}: {player['settlers']} settlers")
+
+# DataFrames can be easily converted for plotting or further analysis
+import matplotlib.pyplot as plt
+stats_df.plot(x='player_name', y='total_cities', kind='bar')
+plt.show()
 ```
 
 ### Validation
