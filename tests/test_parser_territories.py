@@ -201,3 +201,153 @@ def test_extract_territories_no_map_width():
 
     with pytest.raises(ValueError, match="MapWidth"):
         parser.extract_territories(match_id=1, final_turn=1)
+
+
+def test_extract_territories_includes_specialists() -> None:
+    """Test that extract_territories captures specialist assignments."""
+    # Create minimal XML with specialist on a tile
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="0">
+            <Terrain>TERRAIN_TEMPERATE</Terrain>
+            <Specialist>SPECIALIST_MINER</Specialist>
+            <OwnerHistory><T1>0</T1></OwnerHistory>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    # Find the tile record
+    tile_record = next(t for t in territories if t["tile_id"] == 0)
+
+    assert tile_record["specialist_type"] == "SPECIALIST_MINER"
+    assert tile_record["x_coordinate"] == 0
+    assert tile_record["y_coordinate"] == 0
+
+
+def test_extract_territories_includes_improvements() -> None:
+    """Test that extract_territories captures improvement types."""
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="5">
+            <Terrain>TERRAIN_TEMPERATE</Terrain>
+            <Improvement>IMPROVEMENT_MINE</Improvement>
+            <OwnerHistory><T1>0</T1></OwnerHistory>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    tile_record = next(t for t in territories if t["tile_id"] == 5)
+
+    assert tile_record["improvement_type"] == "IMPROVEMENT_MINE"
+
+
+def test_extract_territories_includes_resources() -> None:
+    """Test that extract_territories captures natural resources."""
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="7">
+            <Terrain>TERRAIN_GRASSLAND</Terrain>
+            <Resource>RESOURCE_HORSE</Resource>
+            <OwnerHistory><T1>0</T1></OwnerHistory>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    tile_record = next(t for t in territories if t["tile_id"] == 7)
+
+    assert tile_record["resource_type"] == "RESOURCE_HORSE"
+
+
+def test_extract_territories_includes_roads() -> None:
+    """Test that extract_territories captures road network."""
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="3">
+            <Terrain>TERRAIN_TEMPERATE</Terrain>
+            <Road />
+            <OwnerHistory><T1>0</T1></OwnerHistory>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    tile_record = next(t for t in territories if t["tile_id"] == 3)
+
+    assert tile_record["has_road"] is True
+
+
+def test_extract_territories_defaults_to_none_when_missing() -> None:
+    """Test that tiles without specialists/improvements/resources have None values."""
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="10">
+            <Terrain>TERRAIN_WATER</Terrain>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    tile_record = next(t for t in territories if t["tile_id"] == 10)
+
+    assert tile_record["specialist_type"] is None
+    assert tile_record["improvement_type"] is None
+    assert tile_record["resource_type"] is None
+    assert tile_record["has_road"] is False
+
+
+def test_extract_territories_combines_all_attributes() -> None:
+    """Test that a tile can have multiple attributes simultaneously."""
+    xml_content = """<?xml version="1.0"?>
+    <Root MapWidth="10">
+        <Player ID="0" OnlineID="12345" Name="TestPlayer" />
+        <Tile ID="15">
+            <Terrain>TERRAIN_TEMPERATE</Terrain>
+            <Improvement>IMPROVEMENT_PASTURE</Improvement>
+            <Specialist>SPECIALIST_RANCHER</Specialist>
+            <Resource>RESOURCE_HORSE</Resource>
+            <Road />
+            <OwnerHistory><T1>0</T1></OwnerHistory>
+        </Tile>
+    </Root>
+    """
+
+    parser = OldWorldSaveParser("")
+    parser.root = ET.fromstring(xml_content)
+
+    territories = parser.extract_territories(match_id=1, final_turn=1)
+
+    tile_record = next(t for t in territories if t["tile_id"] == 15)
+
+    assert tile_record["improvement_type"] == "IMPROVEMENT_PASTURE"
+    assert tile_record["specialist_type"] == "SPECIALIST_RANCHER"
+    assert tile_record["resource_type"] == "RESOURCE_HORSE"
+    assert tile_record["has_road"] is True
+    assert tile_record["terrain_type"] == "TERRAIN_TEMPERATE"
