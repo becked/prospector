@@ -309,10 +309,10 @@ class TestTournamentCityAnalytics:
         # Check ordering (should be by player_name, project_count DESC)
         alice_data = result[result["player_name"] == "Alice"]
         assert len(alice_data) == 2  # forums and festivals
-        assert alice_data.iloc[0]["project_type"] == "PROJECT_FORUM_1"
-        assert alice_data.iloc[0]["project_count"] == 2
-        assert alice_data.iloc[1]["project_type"] == "PROJECT_FESTIVAL"
-        assert alice_data.iloc[1]["project_count"] == 2
+        # Both have count of 2, order may vary
+        project_types = set(alice_data["project_type"].tolist())
+        assert project_types == {"PROJECT_FORUM_1", "PROJECT_FESTIVAL"}
+        assert all(alice_data["project_count"] == 2)
 
         # Verify Charlie's projects
         charlie_data = result[result["player_name"] == "Charlie"]

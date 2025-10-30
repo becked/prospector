@@ -2793,6 +2793,195 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_tournament_expansion_timeline(self) -> pd.DataFrame:
+        """Get cumulative city count over time for all players across the tournament.
+
+        Analyzes expansion strategies by showing how quickly players founded cities.
+        Returns cumulative count at each city founding event.
+
+        Returns:
+            DataFrame with columns:
+                - player_name: Player name
+                - civilization: Player's civilization
+                - founded_turn: Turn when city was founded
+                - cities_this_turn: Cities founded on this specific turn
+                - cumulative_cities: Total cities founded up to this turn
+        """
+        query = """
+        WITH city_foundings AS (
+            SELECT
+                p.player_name,
+                p.civilization,
+                c.founded_turn,
+                COUNT(*) as cities_this_turn
+            FROM cities c
+            JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+            GROUP BY p.player_name, p.civilization, c.founded_turn
+        )
+        SELECT
+            player_name,
+            civilization,
+            founded_turn,
+            cities_this_turn,
+            SUM(cities_this_turn) OVER (
+                PARTITION BY player_name, civilization
+                ORDER BY founded_turn
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ) as cumulative_cities
+        FROM city_foundings
+        ORDER BY player_name, civilization, founded_turn
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_tournament_city_founding_distribution(self) -> pd.DataFrame:
+        """Get distribution of city foundings across turn ranges.
+
+        Shows how many cities were founded in early game vs. mid game vs. late game.
+        Useful for understanding tournament-wide expansion timing patterns.
+
+        Returns:
+            DataFrame with columns:
+                - turn_range: Turn range bucket (e.g., '1-20', '21-40')
+                - city_count: Number of cities founded in this range
+                - percentage: Percentage of all cities founded in this range
+        """
+        query = """
+        WITH turn_buckets AS (
+            SELECT
+                CASE
+                    WHEN founded_turn <= 20 THEN '1-20'
+                    WHEN founded_turn <= 40 THEN '21-40'
+                    WHEN founded_turn <= 60 THEN '41-60'
+                    WHEN founded_turn <= 80 THEN '61-80'
+                    WHEN founded_turn <= 100 THEN '81-100'
+                    ELSE '101+'
+                END as turn_range,
+                COUNT(*) as city_count
+            FROM cities
+            GROUP BY turn_range
+        ),
+        total AS (
+            SELECT COUNT(*) as total_cities FROM cities
+        )
+        SELECT
+            turn_range,
+            city_count,
+            ROUND(city_count * 100.0 / total_cities, 1) as percentage
+        FROM turn_buckets, total
+        ORDER BY
+            CASE turn_range
+                WHEN '1-20' THEN 1
+                WHEN '21-40' THEN 2
+                WHEN '41-60' THEN 3
+                WHEN '61-80' THEN 4
+                WHEN '81-100' THEN 5
+                ELSE 6
+            END
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_tournament_production_strategies(self) -> pd.DataFrame:
+        """Get unit production strategies for all players across the tournament.
+
+        Aggregates production from all cities for each player, showing whether
+        they focused on economic units (settlers, workers) or military units.
+
+        Returns:
+            DataFrame with columns:
+                - player_name: Player name
+                - civilization: Player's civilization
+                - settlers: Total settler units produced
+                - workers: Total worker units produced
+                - disciples: Total disciple units produced (all religions)
+                - total_units: Total units produced
+        """
+        query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_SETTLER' THEN prod.count ELSE 0 END), 0) as settlers,
+            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_WORKER' THEN prod.count ELSE 0 END), 0) as workers,
+            COALESCE(SUM(CASE WHEN prod.unit_type LIKE '%_DISCIPLE' THEN prod.count ELSE 0 END), 0) as disciples,
+            COALESCE(SUM(prod.count), 0) as total_units
+        FROM players p
+        LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN city_unit_production prod ON c.match_id = prod.match_id AND c.city_id = prod.city_id
+        GROUP BY p.player_name, p.civilization
+        HAVING COALESCE(SUM(prod.count), 0) > 0
+        ORDER BY total_units DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_tournament_project_priorities(self) -> pd.DataFrame:
+        """Get city project priorities for all players across the tournament.
+
+        Shows which projects players prioritized (forums, treasuries, festivals, etc).
+
+        Returns:
+            DataFrame with columns:
+                - player_name: Player name
+                - civilization: Player's civilization
+                - project_type: Project type (e.g., 'PROJECT_FESTIVAL')
+                - project_count: Total times this project was completed
+        """
+        query = """
+        SELECT
+            p.player_name,
+            p.civilization,
+            proj.project_type,
+            SUM(proj.count) as project_count
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        JOIN city_projects proj ON c.match_id = proj.match_id AND c.city_id = proj.city_id
+        GROUP BY p.player_name, p.civilization, proj.project_type
+        ORDER BY p.player_name, project_count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def get_tournament_conquest_summary(self) -> pd.DataFrame:
+        """Get summary of all city conquests across the tournament.
+
+        Identifies cities that changed ownership (first_player_id != player_id).
+        This is rare but strategically significant.
+
+        Returns:
+            DataFrame with columns:
+                - conqueror_name: Name of player who conquered the city
+                - conqueror_civ: Civilization of conqueror
+                - original_founder_name: Name of player who founded the city
+                - original_founder_civ: Civilization of original founder
+                - city_name: Name of conquered city
+                - founded_turn: Turn when city was founded
+                - match_id: Match where conquest occurred
+        """
+        query = """
+        SELECT
+            conqueror.player_name as conqueror_name,
+            conqueror.civilization as conqueror_civ,
+            founder.player_name as original_founder_name,
+            founder.civilization as original_founder_civ,
+            c.city_name,
+            c.founded_turn,
+            c.match_id
+        FROM cities c
+        JOIN players conqueror ON c.match_id = conqueror.match_id AND c.player_id = conqueror.player_id
+        JOIN players founder ON c.match_id = founder.match_id AND c.first_player_id = founder.player_id
+        WHERE c.first_player_id IS NOT NULL
+          AND c.first_player_id != c.player_id
+        ORDER BY c.match_id, c.founded_turn
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
