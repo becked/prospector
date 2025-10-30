@@ -124,6 +124,9 @@ class TestCityDatabaseOperations:
         # Insert cities for match 1
         db.insert_cities(match_id=1, cities=sample_cities)
 
+        # Close db connection before verification
+        db.close()
+
         # Verify insertion
         conn = duckdb.connect(db_path, read_only=True)
         cities = conn.execute("""
@@ -158,6 +161,9 @@ class TestCityDatabaseOperations:
         # Insert production
         db.insert_city_unit_production(match_id=1, production=sample_production)
 
+        # Close db connection before verification
+        db.close()
+
         # Verify insertion
         conn = duckdb.connect(db_path, read_only=True)
         production = conn.execute("""
@@ -190,6 +196,9 @@ class TestCityDatabaseOperations:
         # Insert projects
         db.insert_city_projects(match_id=1, projects=sample_projects)
 
+        # Close db connection before verification
+        db.close()
+
         # Verify insertion
         conn = duckdb.connect(db_path, read_only=True)
         projects = conn.execute("""
@@ -213,6 +222,9 @@ class TestCityDatabaseOperations:
         db.insert_cities(match_id=1, cities=[])
         db.insert_city_unit_production(match_id=1, production=[])
         db.insert_city_projects(match_id=1, projects=[])
+
+        # Close db connection before verification
+        db.close()
 
         # Verify no data inserted
         conn = duckdb.connect(str(temp_db_with_schema), read_only=True)

@@ -1643,6 +1643,137 @@ class TournamentDatabase:
                 ],
             )
 
+    def insert_cities(self, match_id: int, cities: List[Dict[str, Any]]) -> None:
+        """Insert city data for a match.
+
+        Args:
+            match_id: Tournament match ID
+            cities: List of city dictionaries from parser
+        """
+        if not cities:
+            logger.debug(f"No cities to insert for match {match_id}")
+            return
+
+        logger.info(f"Inserting {len(cities)} cities for match {match_id}")
+
+        with self.get_connection() as conn:
+            # Prepare data for bulk insert
+            records = []
+            for city in cities:
+                record = (
+                    city['city_id'],
+                    match_id,
+                    city['player_id'],
+                    city['city_name'],
+                    city['tile_id'],
+                    city['founded_turn'],
+                    city.get('family_name'),
+                    city.get('is_capital', False),
+                    city.get('population'),
+                    city.get('first_player_id'),
+                    city.get('governor_id')
+                )
+                records.append(record)
+
+            # Bulk insert
+            conn.executemany("""
+                INSERT INTO cities (
+                    city_id, match_id, player_id, city_name,
+                    tile_id, founded_turn, family_name, is_capital,
+                    population, first_player_id, governor_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, records)
+
+        logger.info(f"✓ Inserted {len(cities)} cities for match {match_id}")
+
+    def insert_city_unit_production(
+        self,
+        match_id: int,
+        production: List[Dict[str, Any]]
+    ) -> None:
+        """Insert city unit production data.
+
+        Args:
+            match_id: Tournament match ID
+            production: List of production dictionaries from parser
+        """
+        if not production:
+            logger.debug(f"No production data to insert for match {match_id}")
+            return
+
+        logger.info(f"Inserting {len(production)} production records for match {match_id}")
+
+        with self.get_connection() as conn:
+            # Prepare data for bulk insert
+            records = []
+            for prod in production:
+                # Get next sequence value for production_id
+                production_id = conn.execute(
+                    "SELECT nextval('city_unit_production_id_seq')"
+                ).fetchone()[0]
+
+                record = (
+                    production_id,
+                    match_id,
+                    prod['city_id'],
+                    prod['unit_type'],
+                    prod['count']
+                )
+                records.append(record)
+
+            # Bulk insert
+            conn.executemany("""
+                INSERT INTO city_unit_production (
+                    production_id, match_id, city_id, unit_type, count
+                ) VALUES (?, ?, ?, ?, ?)
+            """, records)
+
+        logger.info(f"✓ Inserted {len(production)} production records")
+
+    def insert_city_projects(
+        self,
+        match_id: int,
+        projects: List[Dict[str, Any]]
+    ) -> None:
+        """Insert city project data.
+
+        Args:
+            match_id: Tournament match ID
+            projects: List of project dictionaries from parser
+        """
+        if not projects:
+            logger.debug(f"No project data to insert for match {match_id}")
+            return
+
+        logger.info(f"Inserting {len(projects)} project records for match {match_id}")
+
+        with self.get_connection() as conn:
+            # Prepare data for bulk insert
+            records = []
+            for proj in projects:
+                # Get next sequence value for project_id
+                project_id = conn.execute(
+                    "SELECT nextval('city_projects_id_seq')"
+                ).fetchone()[0]
+
+                record = (
+                    project_id,
+                    match_id,
+                    proj['city_id'],
+                    proj['project_type'],
+                    proj['count']
+                )
+                records.append(record)
+
+            # Bulk insert
+            conn.executemany("""
+                INSERT INTO city_projects (
+                    project_id, match_id, city_id, project_type, count
+                ) VALUES (?, ?, ?, ?, ?)
+            """, records)
+
+        logger.info(f"✓ Inserted {len(projects)} project records")
+
     def bulk_insert_points_history(self, points_data: List[Dict[str, Any]]) -> None:
         """Bulk insert points history records.
 
