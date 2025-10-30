@@ -2759,59 +2759,39 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_production_summary(self, match_id: int) -> pd.DataFrame:
+        """Get unit production summary for each player.
 
-# ========================================================================
-# City Data Query Functions (Deprecated - use TournamentQueries methods)
-# ========================================================================
+        Args:
+            match_id: Tournament match ID
 
-
-def get_production_summary(
-    match_id: int,
-    db_path: str = "data/tournament_data.duckdb"
-) -> List[Dict[str, Any]]:
-    """Get unit production summary for each player.
-
-    Args:
-        match_id: Tournament match ID
-        db_path: Path to database
-
-    Returns:
-        List of production summary dictionaries
-    """
-    import duckdb
-
-    conn = duckdb.connect(db_path, read_only=True)
-
-    result = conn.execute("""
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - total_units_produced: Total units produced across all cities
+                - unique_unit_types: Number of different unit types produced
+                - settlers: Total settler units produced
+                - workers: Total worker units produced
+        """
+        query = """
         SELECT
             p.player_id,
             p.player_name,
-            SUM(prod.count) as total_units_produced,
+            COALESCE(SUM(prod.count), 0) as total_units_produced,
             COUNT(DISTINCT prod.unit_type) as unique_unit_types,
-            SUM(CASE WHEN prod.unit_type = 'UNIT_SETTLER' THEN prod.count ELSE 0 END) as settlers,
-            SUM(CASE WHEN prod.unit_type = 'UNIT_WORKER' THEN prod.count ELSE 0 END) as workers
+            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_SETTLER' THEN prod.count ELSE 0 END), 0) as settlers,
+            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_WORKER' THEN prod.count ELSE 0 END), 0) as workers
         FROM players p
         LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
         LEFT JOIN city_unit_production prod ON c.match_id = prod.match_id AND c.city_id = prod.city_id
         WHERE p.match_id = ?
         GROUP BY p.player_id, p.player_name
         ORDER BY total_units_produced DESC
-    """, [match_id]).fetchall()
+        """
 
-    conn.close()
-
-    summary = []
-    for row in result:
-        summary.append({
-            'player_id': row[0],
-            'player_name': row[1],
-            'total_units_produced': row[2] or 0,
-            'unique_unit_types': row[3] or 0,
-            'settlers': row[4] or 0,
-            'workers': row[5] or 0
-        })
-
-    return summary
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
 
 
 # Global queries instance
