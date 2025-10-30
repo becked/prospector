@@ -275,6 +275,10 @@ CREATE TABLE territories (
     y_coordinate INTEGER NOT NULL,
     turn_number INTEGER NOT NULL,
     terrain_type VARCHAR,
+    improvement_type VARCHAR,      -- e.g., 'IMPROVEMENT_MINE', 'IMPROVEMENT_FARM'
+    specialist_type VARCHAR,       -- e.g., 'SPECIALIST_MINER', 'SPECIALIST_OFFICER_1'
+    resource_type VARCHAR,         -- e.g., 'RESOURCE_HORSE', 'RESOURCE_MARBLE'
+    has_road BOOLEAN DEFAULT FALSE,-- TRUE if tile has a road
     owner_player_id BIGINT
 );
 
