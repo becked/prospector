@@ -4670,3 +4670,325 @@ def create_hexagonal_map(
     )
 
     return fig
+
+
+def create_tournament_expansion_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create line chart showing cumulative city expansion over time for all players.
+
+    Shows how quickly players expanded throughout the tournament. Each line represents
+    one player's city count growth.
+
+    Args:
+        df: DataFrame from get_tournament_expansion_timeline() with columns:
+            player_name, civilization, founded_turn, cumulative_cities
+
+    Returns:
+        Plotly figure with line chart (one trace per player)
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No expansion data available")
+
+    fig = create_base_figure(
+        title="",  # Card header provides title
+        show_legend=True,
+        x_title="Turn",
+        y_title="Cumulative Cities",
+    )
+
+    # Group by player and create one trace per player
+    for (player_name, civ), group in df.groupby(["player_name", "civilization"]):
+        # Sort by turn to ensure proper line drawing
+        group = group.sort_values("founded_turn")
+
+        # Get civilization color
+        color = get_nation_color(civ)
+
+        fig.add_trace(
+            go.Scatter(
+                x=group["founded_turn"],
+                y=group["cumulative_cities"],
+                mode="lines+markers",
+                name=f"{player_name} ({civ})",
+                line=dict(color=color, width=2),
+                marker=dict(size=6, color=color),
+                hovertemplate=(
+                    f"<b>{player_name}</b><br>"
+                    "Turn: %{x}<br>"
+                    "Total Cities: %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Update layout for better readability
+    fig.update_layout(
+        hovermode="closest",
+        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+    )
+
+    return fig
+
+
+def create_tournament_founding_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create bar chart showing distribution of city foundings by turn range.
+
+    Shows when most cities were founded (early, mid, or late game).
+
+    Args:
+        df: DataFrame from get_tournament_city_founding_distribution() with columns:
+            turn_range, city_count, percentage
+
+    Returns:
+        Plotly figure with bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No city founding data available")
+
+    fig = create_base_figure(
+        title="",
+        show_legend=False,
+        x_title="Turn Range",
+        y_title="Cities Founded",
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=df["turn_range"],
+            y=df["city_count"],
+            text=[
+                f"{count}<br>({pct}%)"
+                for count, pct in zip(df["city_count"], df["percentage"])
+            ],
+            textposition="outside",
+            marker_color=Config.PRIMARY_COLORS[0],
+            hovertemplate=(
+                "Turn Range: %{x}<br>" "Cities: %{y}<br>" "<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(
+        xaxis=dict(type="category"),  # Preserve order
+        yaxis=dict(rangemode="tozero"),
+    )
+
+    return fig
+
+
+def create_tournament_production_strategies_chart(df: pd.DataFrame) -> go.Figure:
+    """Create stacked bar chart showing unit production strategies.
+
+    Compares how much each player focused on settlers vs workers vs disciples.
+
+    Args:
+        df: DataFrame from get_tournament_production_strategies() with columns:
+            player_name, civilization, settlers, workers, disciples, total_units
+
+    Returns:
+        Plotly figure with stacked bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No production data available")
+
+    fig = create_base_figure(
+        title="",
+        show_legend=True,
+        x_title="Player",
+        y_title="Units Produced",
+    )
+
+    # Create x-axis labels with civilization
+    x_labels = [
+        f"{row['player_name']}<br>({row['civilization']})" for _, row in df.iterrows()
+    ]
+
+    # Add traces for each unit type
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=df["settlers"],
+            name="Settlers",
+            marker_color="#FF6B6B",
+            hovertemplate="Settlers: %{y}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=df["workers"],
+            name="Workers",
+            marker_color="#4ECDC4",
+            hovertemplate="Workers: %{y}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=df["disciples"],
+            name="Disciples",
+            marker_color="#FFE66D",
+            hovertemplate="Disciples: %{y}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        barmode="stack",
+        xaxis=dict(tickangle=-45),
+    )
+
+    return fig
+
+
+def create_tournament_project_priorities_chart(df: pd.DataFrame) -> go.Figure:
+    """Create grouped bar chart showing city project priorities.
+
+    Shows which projects players focused on (forums, festivals, etc).
+
+    Args:
+        df: DataFrame from get_tournament_project_priorities() with columns:
+            player_name, civilization, project_type, project_count
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No project data available")
+
+    # Get top 5 most common projects across all players
+    top_projects = (
+        df.groupby("project_type")["project_count"]
+        .sum()
+        .nlargest(5)
+        .index.tolist()
+    )
+
+    # Filter to only top projects
+    df_filtered = df[df["project_type"].isin(top_projects)].copy()
+
+    if df_filtered.empty:
+        return create_empty_chart_placeholder("No project data available")
+
+    fig = create_base_figure(
+        title="",
+        show_legend=True,
+        x_title="Player",
+        y_title="Projects Completed",
+    )
+
+    # Create x-axis labels
+    players = df_filtered[["player_name", "civilization"]].drop_duplicates()
+    x_labels = [
+        f"{row['player_name']}<br>({row['civilization']})" for _, row in players.iterrows()
+    ]
+
+    # Add trace for each project type
+    for project_type in top_projects:
+        project_data = df_filtered[df_filtered["project_type"] == project_type]
+
+        # Merge with all players to show 0 for players who didn't build this
+        y_values = []
+        for _, player in players.iterrows():
+            player_project = project_data[
+                (project_data["player_name"] == player["player_name"])
+                & (project_data["civilization"] == player["civilization"])
+            ]
+            count = (
+                player_project["project_count"].iloc[0]
+                if not player_project.empty
+                else 0
+            )
+            y_values.append(count)
+
+        # Clean up project name for display
+        display_name = project_type.replace("PROJECT_", "").replace("_", " ").title()
+
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=y_values,
+                name=display_name,
+                hovertemplate=f"{display_name}: %{{y}}<extra></extra>",
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        xaxis=dict(tickangle=-45),
+    )
+
+    return fig
+
+
+def create_tournament_conquest_summary_chart(df: pd.DataFrame) -> go.Figure:
+    """Create table showing city conquests.
+
+    Displays rare but dramatic city conquest events.
+
+    Args:
+        df: DataFrame from get_tournament_conquest_summary() with columns:
+            conqueror_name, conqueror_civ, original_founder_name,
+            original_founder_civ, city_name, founded_turn, match_id
+
+    Returns:
+        Plotly figure with table
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No conquests occurred in the tournament.<br>"
+            "All cities remained with their original founders!"
+        )
+
+    # Clean up city names
+    df = df.copy()
+    df["city_name"] = df["city_name"].str.replace("CITYNAME_", "")
+
+    fig = go.Figure(
+        data=[
+            go.Table(
+                header=dict(
+                    values=[
+                        "City Conquered",
+                        "Original Founder",
+                        "Conquered By",
+                        "Founded Turn",
+                        "Match",
+                    ],
+                    fill_color=Config.PRIMARY_COLORS[0],
+                    font=dict(color="white", size=12),
+                    align="left",
+                ),
+                cells=dict(
+                    values=[
+                        df["city_name"],
+                        [
+                            f"{name} ({civ})"
+                            for name, civ in zip(
+                                df["original_founder_name"], df["original_founder_civ"]
+                            )
+                        ],
+                        [
+                            f"{name} ({civ})"
+                            for name, civ in zip(
+                                df["conqueror_name"], df["conqueror_civ"]
+                            )
+                        ],
+                        df["founded_turn"],
+                        df["match_id"],
+                    ],
+                    fill_color="white",
+                    font=dict(size=11),
+                    align="left",
+                    height=30,
+                ),
+            )
+        ]
+    )
+
+    fig.update_layout(
+        title="",
+        height=max(200, len(df) * 35 + 50),  # Dynamic height based on rows
+    )
+
+    return fig
