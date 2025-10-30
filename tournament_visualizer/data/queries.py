@@ -2883,10 +2883,9 @@ class TournamentQueries:
             return conn.execute(query).df()
 
     def get_tournament_production_strategies(self) -> pd.DataFrame:
-        """Get unit production strategies for all players across the tournament.
+        """Get production strategies for all players across the tournament.
 
-        Aggregates production from all cities for each player, showing whether
-        they focused on economic units (settlers, workers) or military units.
+        Aggregates all unit production and city projects, showing military vs civilian focus.
 
         Returns:
             DataFrame with columns:
@@ -2895,22 +2894,51 @@ class TournamentQueries:
                 - settlers: Total settler units produced
                 - workers: Total worker units produced
                 - disciples: Total disciple units produced (all religions)
-                - total_units: Total units produced
+                - military: Total military units produced
+                - projects: Total city projects completed
+                - total_production: Total production
         """
         query = """
+        WITH unit_counts AS (
+            SELECT
+                p.player_name,
+                p.civilization,
+                COALESCE(SUM(CASE WHEN u.unit_type = 'UNIT_SETTLER' THEN u.count ELSE 0 END), 0) as settlers,
+                COALESCE(SUM(CASE WHEN u.unit_type = 'UNIT_WORKER' THEN u.count ELSE 0 END), 0) as workers,
+                COALESCE(SUM(CASE WHEN u.unit_type LIKE '%_DISCIPLE' THEN u.count ELSE 0 END), 0) as disciples,
+                COALESCE(SUM(
+                    CASE WHEN u.unit_type NOT IN ('UNIT_SETTLER', 'UNIT_WORKER')
+                         AND u.unit_type NOT LIKE '%_DISCIPLE'
+                    THEN u.count ELSE 0 END
+                ), 0) as military
+            FROM players p
+            LEFT JOIN units_produced u ON p.match_id = u.match_id AND p.player_id = u.player_id
+            GROUP BY p.player_name, p.civilization
+        ),
+        project_counts AS (
+            SELECT
+                p.player_name,
+                p.civilization,
+                COALESCE(COUNT(proj.project_type), 0) as projects
+            FROM players p
+            LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+            LEFT JOIN city_projects proj ON c.match_id = proj.match_id AND c.city_id = proj.city_id
+            GROUP BY p.player_name, p.civilization
+        )
         SELECT
-            p.player_name,
-            p.civilization,
-            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_SETTLER' THEN prod.count ELSE 0 END), 0) as settlers,
-            COALESCE(SUM(CASE WHEN prod.unit_type = 'UNIT_WORKER' THEN prod.count ELSE 0 END), 0) as workers,
-            COALESCE(SUM(CASE WHEN prod.unit_type LIKE '%_DISCIPLE' THEN prod.count ELSE 0 END), 0) as disciples,
-            COALESCE(SUM(prod.count), 0) as total_units
-        FROM players p
-        LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
-        LEFT JOIN city_unit_production prod ON c.match_id = prod.match_id AND c.city_id = prod.city_id
-        GROUP BY p.player_name, p.civilization
-        HAVING COALESCE(SUM(prod.count), 0) > 0
-        ORDER BY total_units DESC
+            COALESCE(u.player_name, pr.player_name) as player_name,
+            COALESCE(u.civilization, pr.civilization) as civilization,
+            COALESCE(u.settlers, 0) as settlers,
+            COALESCE(u.workers, 0) as workers,
+            COALESCE(u.disciples, 0) as disciples,
+            COALESCE(u.military, 0) as military,
+            COALESCE(pr.projects, 0) as projects,
+            COALESCE(u.settlers, 0) + COALESCE(u.workers, 0) + COALESCE(u.disciples, 0) + COALESCE(u.military, 0) + COALESCE(pr.projects, 0) as total_production
+        FROM unit_counts u
+        FULL OUTER JOIN project_counts pr
+            ON u.player_name = pr.player_name AND u.civilization = pr.civilization
+        WHERE COALESCE(u.settlers, 0) + COALESCE(u.workers, 0) + COALESCE(u.disciples, 0) + COALESCE(u.military, 0) + COALESCE(pr.projects, 0) > 0
+        ORDER BY total_production DESC
         """
 
         with self.db.get_connection() as conn:

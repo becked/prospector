@@ -4780,66 +4780,110 @@ def create_tournament_founding_distribution_chart(df: pd.DataFrame) -> go.Figure
 
 
 def create_tournament_production_strategies_chart(df: pd.DataFrame) -> go.Figure:
-    """Create stacked bar chart showing unit production strategies.
+    """Create horizontal stacked bar chart showing production strategies.
 
-    Compares how much each player focused on settlers vs workers vs disciples.
+    Shows unit production (settlers, workers, disciples, military) and city projects.
 
     Args:
         df: DataFrame from get_tournament_production_strategies() with columns:
-            player_name, civilization, settlers, workers, disciples, total_units
+            player_name, civilization, settlers, workers, disciples, military, projects, total_production
 
     Returns:
-        Plotly figure with stacked bar chart
+        Plotly figure with horizontal stacked bar chart
     """
     if df.empty:
         return create_empty_chart_placeholder("No production data available")
 
+    # Sort by total production descending (biggest producers at top)
+    df = df.sort_values("total_production", ascending=True)  # ascending=True for horizontal bars
+
     fig = create_base_figure(
         title="",
         show_legend=True,
-        x_title="Player",
-        y_title="Units Produced",
+        x_title="Production Count",
+        y_title="Player",
     )
 
-    # Create x-axis labels with civilization
-    x_labels = [
-        f"{row['player_name']}<br>({row['civilization']})" for _, row in df.iterrows()
+    # Create y-axis labels with civilization
+    y_labels = [
+        f"{row['player_name']} ({row['civilization']})" for _, row in df.iterrows()
     ]
 
-    # Add traces for each unit type
+    # Add traces for each production category (horizontal bars)
     fig.add_trace(
         go.Bar(
-            x=x_labels,
-            y=df["settlers"],
+            y=y_labels,
+            x=df["settlers"],
             name="Settlers",
+            orientation="h",
             marker_color="#FF6B6B",
-            hovertemplate="Settlers: %{y}<extra></extra>",
+            hovertemplate="Settlers: %{x}<extra></extra>",
         )
     )
 
     fig.add_trace(
         go.Bar(
-            x=x_labels,
-            y=df["workers"],
+            y=y_labels,
+            x=df["workers"],
             name="Workers",
+            orientation="h",
             marker_color="#4ECDC4",
-            hovertemplate="Workers: %{y}<extra></extra>",
+            hovertemplate="Workers: %{x}<extra></extra>",
         )
     )
 
     fig.add_trace(
         go.Bar(
-            x=x_labels,
-            y=df["disciples"],
+            y=y_labels,
+            x=df["disciples"],
             name="Disciples",
+            orientation="h",
             marker_color="#FFE66D",
-            hovertemplate="Disciples: %{y}<extra></extra>",
+            hovertemplate="Disciples: %{x}<extra></extra>",
         )
     )
+
+    fig.add_trace(
+        go.Bar(
+            y=y_labels,
+            x=df["military"],
+            name="Military",
+            orientation="h",
+            marker_color="#E74C3C",
+            hovertemplate="Military: %{x}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            y=y_labels,
+            x=df["projects"],
+            name="Projects",
+            orientation="h",
+            marker_color="#95E1D3",
+            hovertemplate="Projects: %{x}<extra></extra>",
+        )
+    )
+
+    # Calculate dynamic height based on number of players (40px per player for readability)
+    num_players = len(df)
+    chart_height = max(800, num_players * 40)
 
     fig.update_layout(
         barmode="stack",
-        xaxis=dict(tickangle=-45),
+        height=chart_height,
+        yaxis=dict(
+            tickmode="linear",
+            automargin=True,
+        ),
+        margin=dict(l=200, r=50, t=50, b=50),  # Extra left margin for player names
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
     )
 
     return fig

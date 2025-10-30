@@ -32,11 +32,8 @@ from tournament_visualizer.components.charts import (
     create_ruler_trait_performance_chart,
     create_science_progression_chart,
     create_summary_metrics_cards,
-    create_tournament_conquest_summary_chart,
     create_tournament_expansion_timeline_chart,
-    create_tournament_founding_distribution_chart,
     create_tournament_production_strategies_chart,
-    create_tournament_project_priorities_chart,
     create_unit_popularity_sunburst_chart,
 )
 from tournament_visualizer.components.layouts import (
@@ -364,6 +361,22 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
+                        # Production Strategies (full width for readability)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Production Strategies",
+                                            chart_id="overview-production-strategies",
+                                            height="1600px",  # Tall enough for all players
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
                     ],
                 ),
                 # Tab 5: Cities
@@ -386,58 +399,6 @@ layout = html.Div(
                                 ),
                             ],
                             className="mb-4 mt-3",
-                        ),
-                        # Founding Distribution and Production Strategies
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="City Founding Distribution",
-                                            chart_id="overview-founding-distribution",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=6,
-                                ),
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Production Strategies",
-                                            chart_id="overview-production-strategies",
-                                            height="400px",
-                                        )
-                                    ],
-                                    width=6,
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        # Project Priorities and Conquest Summary
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="City Project Priorities",
-                                            chart_id="overview-project-priorities",
-                                            height="450px",
-                                        )
-                                    ],
-                                    width=8,
-                                ),
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="City Conquests",
-                                            chart_id="overview-conquest-summary",
-                                            height="450px",
-                                        )
-                                    ],
-                                    width=4,
-                                ),
-                            ],
-                            className="mb-4",
                         ),
                     ],
                 ),
@@ -1131,29 +1092,6 @@ def update_expansion_timeline_chart(n_intervals: int):
 
 
 @callback(
-    Output("overview-founding-distribution", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_founding_distribution_chart(n_intervals: int):
-    """Update the city founding distribution chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with founding distribution
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_tournament_city_founding_distribution()
-        return create_tournament_founding_distribution_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error updating founding distribution: {e}")
-        return create_empty_chart_placeholder("Error loading founding data")
-
-
-@callback(
     Output("overview-production-strategies", "figure"),
     Input("refresh-interval", "n_intervals"),
 )
@@ -1174,49 +1112,3 @@ def update_production_strategies_chart(n_intervals: int):
     except Exception as e:
         logger.error(f"Error updating production strategies: {e}")
         return create_empty_chart_placeholder("Error loading production data")
-
-
-@callback(
-    Output("overview-project-priorities", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_project_priorities_chart(n_intervals: int):
-    """Update the city project priorities chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with project priorities
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_tournament_project_priorities()
-        return create_tournament_project_priorities_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error updating project priorities: {e}")
-        return create_empty_chart_placeholder("Error loading project data")
-
-
-@callback(
-    Output("overview-conquest-summary", "figure"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_conquest_summary_chart(n_intervals: int):
-    """Update the city conquest summary chart.
-
-    Args:
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with conquest summary
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_tournament_conquest_summary()
-        return create_tournament_conquest_summary_chart(df)
-
-    except Exception as e:
-        logger.error(f"Error updating conquest summary: {e}")
-        return create_empty_chart_placeholder("Error loading conquest data")
