@@ -2726,30 +2726,22 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_player_expansion_stats(self, match_id: int) -> pd.DataFrame:
+        """Get expansion statistics for each player in a match.
 
-# ========================================================================
-# City Data Query Functions (Deprecated - use TournamentQueries methods)
-# ========================================================================
+        Args:
+            match_id: Tournament match ID
 
-
-def get_player_expansion_stats(
-    match_id: int,
-    db_path: str = "data/tournament_data.duckdb"
-) -> List[Dict[str, Any]]:
-    """Get expansion statistics for each player in a match.
-
-    Args:
-        match_id: Tournament match ID
-        db_path: Path to database
-
-    Returns:
-        List of player expansion dictionaries
-    """
-    import duckdb
-
-    conn = duckdb.connect(db_path, read_only=True)
-
-    result = conn.execute("""
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - total_cities: Total number of cities owned
+                - first_city_turn: Turn when first city was founded
+                - last_city_turn: Turn when last city was founded
+                - capital_count: Number of capital cities
+        """
+        query = """
         SELECT
             p.player_id,
             p.player_name,
@@ -2762,22 +2754,15 @@ def get_player_expansion_stats(
         WHERE p.match_id = ?
         GROUP BY p.player_id, p.player_name
         ORDER BY total_cities DESC
-    """, [match_id]).fetchall()
+        """
 
-    conn.close()
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
 
-    stats = []
-    for row in result:
-        stats.append({
-            'player_id': row[0],
-            'player_name': row[1],
-            'total_cities': row[2],
-            'first_city_turn': row[3],
-            'last_city_turn': row[4],
-            'capital_count': row[5]
-        })
 
-    return stats
+# ========================================================================
+# City Data Query Functions (Deprecated - use TournamentQueries methods)
+# ========================================================================
 
 
 def get_production_summary(
