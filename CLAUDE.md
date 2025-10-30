@@ -41,6 +41,158 @@ Use conventional commit format:
 - `perf:` for performance improvements
 - `chore:` for maintenance tasks
 
+## Architecture Overview
+
+This section provides a roadmap to the codebase structure. Use this when planning new features or understanding existing patterns.
+
+### Data Layer
+
+**Core Data Operations:**
+- **Queries**: `tournament_visualizer/data/queries.py`
+  - `TournamentQueries` class with methods returning pandas DataFrames
+  - Access via `get_queries()` singleton or instantiate with custom database
+  - All query methods follow pattern: `get_{entity}_{filters}()`
+
+- **Parser**: `tournament_visualizer/data/parser.py`
+  - `SaveGameParser` class for XML parsing
+  - Extracts game data from `.zip` archives
+  - Returns structured dictionaries ready for database insertion
+
+- **Database**: `tournament_visualizer/data/database.py`
+  - `TournamentDatabase` class wrapping DuckDB
+  - Bulk insert methods: `bulk_insert_{table}()`
+  - Schema management and migrations
+
+- **ETL Pipeline**: `tournament_visualizer/data/etl.py`
+  - `GameImporter` orchestrates parser → database flow
+  - Handles transactions, error recovery, and logging
+
+**Schema Documentation:**
+- `docs/schema.sql` - Exact DDL with types and constraints
+- `docs/database-schema.md` - Table descriptions and relationships
+
+### UI Layer
+
+**Dashboard Structure:**
+- **Application**: `app.py`
+  - Dash app initialization
+  - Multi-page routing via `dash.register_page()`
+  - Global layout wrapper
+
+- **Pages**: `tournament_visualizer/pages/`
+  - `page_overview.py` - Main dashboard with 4 tabs
+  - `page_matches.py` - Match detail view
+  - `page_players.py` - Player rankings and statistics
+  - `page_maps.py` - Map analysis and visualizations
+
+- **Charts**: `tournament_visualizer/charts.py` (~4600 lines)
+  - 60+ chart creation functions
+  - All use `create_base_figure()` for consistency
+  - Support 10+ chart types: bar, line, pie, heatmap, sunburst, scatter, box, etc.
+  - Always handle empty DataFrames with `create_empty_figure()`
+
+- **Layouts**: `tournament_visualizer/layouts.py` (~570 lines)
+  - Reusable UI component functions
+  - `create_chart_card()` - Standard card with header + chart
+  - `create_metric_card()` - Single KPI display
+  - `create_filter_card()` - Collapsible filter sidebar
+  - Bootstrap grid helpers
+
+- **Filters**: `tournament_visualizer/filters.py`
+  - Filter UI components and callbacks
+  - Match/player selection dropdowns
+  - Date range pickers
+
+**Configuration:**
+- `tournament_visualizer/config.py` - Colors, chart settings, feature flags
+
+### UI Conventions
+
+**Critical conventions to follow:**
+
+1. **No Internal Chart Titles**: Charts should NOT have `title_text` - card headers provide context
+   ```python
+   # ✅ CORRECT
+   fig.update_layout(height=400, showlegend=True)
+
+   # ❌ WRONG
+   fig.update_layout(title_text="My Chart", height=400)
+   ```
+
+2. **Component ID Pattern**: `{page}-{component}-{type}`
+   - Example: `overview-player-performance-chart`
+
+3. **Bootstrap Grid**: Use 12-column `dbc.Row` / `dbc.Col` for layouts
+
+4. **Empty State Handling**: Always check for empty DataFrames
+   ```python
+   if df.empty:
+       return create_empty_figure("No data available")
+   ```
+
+5. **Error Handling**: Wrap chart creation in try/except
+   ```python
+   try:
+       # Create chart
+       return fig
+   except Exception as e:
+       logger.error(f"Error creating chart: {e}")
+       return create_empty_figure("Error loading data")
+   ```
+
+6. **Callback Patterns**:
+   - Use type hints on all callbacks
+   - Use `prevent_initial_call=True` when appropriate
+   - Standard pattern: Get data → Check empty → Create chart → Handle errors
+
+7. **Styling**: Use Bootstrap utility classes (`mt-3`, `mb-4`, `px-4`)
+
+**See:** `docs/ui-architecture.md` for comprehensive UI patterns and examples
+
+### Testing Structure
+
+**Test Organization:**
+- `tests/` - Mirror of main package structure
+- Fixtures in `conftest.py` for shared test data
+- Pattern: `test_{module}_{feature}.py`
+
+**Key Test Patterns:**
+```python
+# Database tests use pytest fixtures
+def test_query(test_db):
+    db = TournamentDatabase(test_db)
+    # Test query logic
+
+# Parser tests use sample XML
+def test_parser():
+    parser = SaveGameParser()
+    result = parser.extract_players(sample_xml)
+    assert result["player_id"] == expected_value
+```
+
+**Running Tests:**
+```bash
+uv run pytest -v                              # All tests
+uv run pytest --cov=tournament_visualizer     # With coverage
+uv run pytest tests/test_specific.py -v       # Specific file
+```
+
+### Cross-Cutting Concerns
+
+**Configuration**: `tournament_visualizer/config.py`
+- Color schemes (primary colors, civilization colors)
+- Chart settings (heights, point limits)
+- Feature flags
+
+**Logging**:
+- Use `logging.getLogger(__name__)` in each module
+- Log errors with `logger.error()`, info with `logger.info()`
+
+**Type Hints**:
+- All functions should have type hints (see `~/.claude/CLAUDE.md`)
+- Use `pandas.DataFrame` for query return types
+- Use `plotly.graph_objects.Figure` for chart return types
+
 ## Application Management
 
 Use `manage.py` to control the Dash web application:

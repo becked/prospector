@@ -72,5 +72,3 @@ tournament_attachments/
 
 # Python version management
 .python-version
-# Claude Code configuration (user-specific)
-.claude/
