@@ -38,7 +38,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 369
 
 ### Columns
 
@@ -60,11 +60,15 @@
 
 - CHECK: `cities_city_id_not_null`
 - CHECK: `cities_match_id_not_null`
+- FOREIGN KEY: `cities_match_id_match_id_fkey`
 - CHECK: `cities_player_id_not_null`
+- FOREIGN KEY: `cities_player_id_player_id_fkey`
 - CHECK: `cities_city_name_not_null`
 - CHECK: `cities_tile_id_not_null`
 - CHECK: `cities_founded_turn_not_null`
 - PRIMARY KEY: `cities_match_id_city_id_pkey`
+- CHECK: `cities_founded_turn_check`
+- CHECK: `cities_population_population_check`
 
 ### Relationships
 
@@ -80,13 +84,13 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 459
 
 ### Columns
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
-| `project_id` | INTEGER |  | nextval('city_projects_id_seq') | *TODO* |
+| `project_id` | BIGINT |  |  | *TODO* |
 | `match_id` | BIGINT |  |  | *TODO* |
 | `city_id` | INTEGER |  |  | *TODO* |
 | `project_type` | VARCHAR |  |  | *TODO* |
@@ -96,9 +100,12 @@
 
 - PRIMARY KEY: `city_projects_project_id_pkey`
 - CHECK: `city_projects_match_id_not_null`
+- FOREIGN KEY: `city_projects_match_id_match_id_fkey`
 - CHECK: `city_projects_city_id_not_null`
 - CHECK: `city_projects_project_type_not_null`
 - CHECK: `city_projects_count_not_null`
+- CHECK: `city_projects_count_check`
+- UNIQUE: `city_projects_match_id_city_id_project_type_key`
 - CHECK: `city_projects_project_id_not_null`
 
 ### Relationships
@@ -115,13 +122,13 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 500
 
 ### Columns
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
-| `production_id` | INTEGER |  | nextval('city_unit_production_id_seq') | *TODO* |
+| `production_id` | BIGINT |  |  | *TODO* |
 | `match_id` | BIGINT |  |  | *TODO* |
 | `city_id` | INTEGER |  |  | *TODO* |
 | `unit_type` | VARCHAR |  |  | *TODO* |
@@ -131,9 +138,12 @@
 
 - PRIMARY KEY: `city_unit_production_production_id_pkey`
 - CHECK: `city_unit_production_match_id_not_null`
+- FOREIGN KEY: `city_unit_production_match_id_match_id_fkey`
 - CHECK: `city_unit_production_city_id_not_null`
 - CHECK: `city_unit_production_unit_type_not_null`
 - CHECK: `city_unit_production_count_not_null`
+- CHECK: `city_unit_production_count_check`
+- UNIQUE: `city_unit_production_match_id_city_id_unit_type_key`
 - CHECK: `city_unit_production_production_id_not_null`
 
 ### Relationships
@@ -431,7 +441,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 16
+**Current rows:** 0
 
 ### Columns
 
@@ -949,7 +959,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 30
+**Current rows:** 0
 
 ### Columns
 

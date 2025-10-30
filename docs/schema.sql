@@ -19,7 +19,7 @@ CREATE TABLE cities (
 
 -- Table: city_projects
 CREATE TABLE city_projects (
-    project_id INTEGER NOT NULL DEFAULT nextval('city_projects_id_seq'),
+    project_id BIGINT NOT NULL,
     match_id BIGINT NOT NULL,
     city_id INTEGER NOT NULL,
     project_type VARCHAR NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE city_projects (
 
 -- Table: city_unit_production
 CREATE TABLE city_unit_production (
-    production_id INTEGER NOT NULL DEFAULT nextval('city_unit_production_id_seq'),
+    production_id BIGINT NOT NULL,
     match_id BIGINT NOT NULL,
     city_id INTEGER NOT NULL,
     unit_type VARCHAR NOT NULL,
