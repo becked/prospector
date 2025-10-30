@@ -4,142 +4,141 @@ Test Strategy:
 - Test basic city retrieval
 - Test expansion analysis queries
 - Test production analysis queries
-- Use temporary database with known data
+- Use TournamentDatabase with known data (follows codebase pattern)
 """
 
 import pytest
-import duckdb
-import tempfile
-import shutil
-from pathlib import Path
+
+from tournament_visualizer.data.database import TournamentDatabase
+from tournament_visualizer.data.queries import TournamentQueries
 
 
 class TestCityQueries:
     """Test query functions for city data."""
 
     @pytest.fixture
-    def temp_db_with_city_data(self) -> Path:
-        """Create database with sample city data."""
-        temp_dir = tempfile.mkdtemp()
-        db_path = Path(temp_dir) / "test.duckdb"
+    def city_test_db(self, tmp_path):
+        """Create database with sample city data.
 
+        Follows pattern from test_queries_civilization_performance.py fixture.
+        """
+        db_path = tmp_path / "city_test.duckdb"
+
+        # Create database with schema
+        import duckdb
         conn = duckdb.connect(str(db_path))
-
-        # Create schema
         conn.execute("""
-            CREATE TABLE matches (
-                match_id BIGINT PRIMARY KEY,
-                total_turns INTEGER
-            )
-        """)
-        conn.execute("INSERT INTO matches VALUES (1, 92), (2, 47)")
-
-        conn.execute("""
-            CREATE TABLE players (
-                player_id BIGINT,
-                match_id BIGINT,
-                player_name VARCHAR,
-                PRIMARY KEY (match_id, player_id)
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version VARCHAR(20) PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                description TEXT
             )
         """)
         conn.execute("""
-            INSERT INTO players VALUES
-            (1, 1, 'anarkos'),
-            (2, 1, 'becked'),
-            (1, 2, 'moose'),
-            (2, 2, 'fluffbunny')
+            INSERT INTO schema_migrations (version, description)
+            VALUES ('5', 'Add city tracking tables')
         """)
-
-        conn.execute("""
-            CREATE TABLE cities (
-                city_id INTEGER,
-                match_id BIGINT,
-                player_id BIGINT,
-                city_name VARCHAR,
-                tile_id INTEGER,
-                founded_turn INTEGER,
-                is_capital BOOLEAN,
-                PRIMARY KEY (match_id, city_id)
-            )
-        """)
-        conn.execute("""
-            INSERT INTO cities VALUES
-            (0, 1, 1, 'CITYNAME_NINEVEH', 100, 1, TRUE),
-            (1, 1, 2, 'CITYNAME_PERSEPOLIS', 200, 1, TRUE),
-            (2, 1, 1, 'CITYNAME_SAREISA', 300, 15, FALSE),
-            (3, 1, 2, 'CITYNAME_ARBELA', 400, 22, FALSE),
-            (0, 2, 1, 'CITYNAME_CAPITAL1', 500, 1, TRUE),
-            (1, 2, 2, 'CITYNAME_CAPITAL2', 600, 1, TRUE)
-        """)
-
-        conn.execute("""
-            CREATE TABLE city_unit_production (
-                production_id INTEGER PRIMARY KEY,
-                match_id BIGINT,
-                city_id INTEGER,
-                unit_type VARCHAR,
-                count INTEGER
-            )
-        """)
-        conn.execute("""
-            INSERT INTO city_unit_production VALUES
-            (1, 1, 0, 'UNIT_SETTLER', 4),
-            (2, 1, 0, 'UNIT_WORKER', 1),
-            (3, 1, 0, 'UNIT_SPEARMAN', 3),
-            (4, 1, 1, 'UNIT_SETTLER', 3),
-            (5, 1, 1, 'UNIT_ARCHER', 5)
-        """)
-
         conn.close()
 
-        yield db_path
+        db = TournamentDatabase(str(db_path), read_only=False)
+        db.create_schema()
 
-        shutil.rmtree(temp_dir)
+        with db.get_connection() as conn:
+            # Insert matches
+            conn.execute("""
+                INSERT INTO matches (match_id, challonge_match_id, file_name, file_hash, total_turns)
+                VALUES
+                (1, 100, 'm1.zip', 'h1', 92),
+                (2, 101, 'm2.zip', 'h2', 47)
+            """)
 
-    def test_get_match_cities(self, temp_db_with_city_data: Path) -> None:
+            # Insert players
+            conn.execute("""
+                INSERT INTO players (player_id, match_id, player_name, player_name_normalized)
+                VALUES
+                (1, 1, 'anarkos', 'anarkos'),
+                (2, 1, 'becked', 'becked'),
+                (1, 2, 'moose', 'moose'),
+                (2, 2, 'fluffbunny', 'fluffbunny')
+            """)
+
+            # Insert cities
+            conn.execute("""
+                INSERT INTO cities (city_id, match_id, player_id, city_name, tile_id, founded_turn, is_capital)
+                VALUES
+                (0, 1, 1, 'CITYNAME_NINEVEH', 100, 1, TRUE),
+                (1, 1, 2, 'CITYNAME_PERSEPOLIS', 200, 1, TRUE),
+                (2, 1, 1, 'CITYNAME_SAREISA', 300, 15, FALSE),
+                (3, 1, 2, 'CITYNAME_ARBELA', 400, 22, FALSE),
+                (0, 2, 1, 'CITYNAME_CAPITAL1', 500, 1, TRUE),
+                (1, 2, 2, 'CITYNAME_CAPITAL2', 600, 1, TRUE)
+            """)
+
+            # Insert city unit production
+            conn.execute("""
+                INSERT INTO city_unit_production (match_id, city_id, unit_type, count)
+                VALUES
+                (1, 0, 'UNIT_SETTLER', 4),
+                (1, 0, 'UNIT_WORKER', 1),
+                (1, 0, 'UNIT_SPEARMAN', 3),
+                (1, 1, 'UNIT_SETTLER', 3),
+                (1, 1, 'UNIT_ARCHER', 5)
+            """)
+
+        yield db
+        db.close()
+
+    def test_get_match_cities(self, city_test_db: TournamentDatabase) -> None:
         """Test getting all cities for a match."""
-        from tournament_visualizer.data.queries import get_match_cities
+        queries = TournamentQueries(city_test_db)
 
-        cities = get_match_cities(match_id=1, db_path=str(temp_db_with_city_data))
+        df = queries.get_match_cities(match_id=1)
 
-        assert len(cities) == 4
-        assert cities[0]['city_name'] == 'CITYNAME_NINEVEH'
-        assert cities[0]['founded_turn'] == 1
+        # Should have 4 cities for match 1
+        assert len(df) == 4
 
-    def test_get_player_expansion_stats(self, temp_db_with_city_data: Path) -> None:
+        # Check first city (Nineveh)
+        first_city = df.iloc[0]
+        assert first_city['city_name'] == 'CITYNAME_NINEVEH'
+        assert first_city['founded_turn'] == 1
+        assert first_city['is_capital'] is True
+
+    def test_get_player_expansion_stats(self, city_test_db: TournamentDatabase) -> None:
         """Test expansion statistics for a match."""
-        from tournament_visualizer.data.queries import get_player_expansion_stats
+        queries = TournamentQueries(city_test_db)
 
-        stats = get_player_expansion_stats(match_id=1, db_path=str(temp_db_with_city_data))
+        df = queries.get_player_expansion_stats(match_id=1)
 
         # Should have stats for 2 players
-        assert len(stats) == 2
+        assert len(df) == 2
 
-        # Check player 1 (anarkos)
-        player1 = [s for s in stats if s['player_name'] == 'anarkos'][0]
+        # Check player 1 (anarkos) - should have 2 cities
+        player1 = df[df['player_name'] == 'anarkos'].iloc[0]
         assert player1['total_cities'] == 2
         assert player1['first_city_turn'] == 1
         assert player1['last_city_turn'] == 15
 
-        # Check player 2 (becked)
-        player2 = [s for s in stats if s['player_name'] == 'becked'][0]
+        # Check player 2 (becked) - should have 2 cities
+        player2 = df[df['player_name'] == 'becked'].iloc[0]
         assert player2['total_cities'] == 2
         assert player2['last_city_turn'] == 22
 
-    def test_get_production_summary(self, temp_db_with_city_data: Path) -> None:
+    def test_get_production_summary(self, city_test_db: TournamentDatabase) -> None:
         """Test production summary by player."""
-        from tournament_visualizer.data.queries import get_production_summary
+        queries = TournamentQueries(city_test_db)
 
-        summary = get_production_summary(match_id=1, db_path=str(temp_db_with_city_data))
+        df = queries.get_production_summary(match_id=1)
 
         # Should have summary for 2 players
-        assert len(summary) == 2
+        assert len(df) == 2
 
-        # Check player with Nineveh (city_id=0, player_id=1)
-        player1 = [s for s in summary if s['player_id'] == 1][0]
-
-        # Player 1's cities produced: 4 settlers, 1 worker, 3 spearmen = 8 units
+        # Check player 1 (anarkos) - produced 4+1+3=8 units
+        player1 = df[df['player_id'] == 1].iloc[0]
         assert player1['total_units_produced'] == 8
+        assert player1['settlers'] == 4
+        assert player1['workers'] == 1
 
-        # Check unit breakdown exists
-        assert 'unit_breakdown' in player1 or 'settlers' in player1
+        # Check player 2 (becked) - produced 3+5=8 units
+        player2 = df[df['player_id'] == 2].iloc[0]
+        assert player2['total_units_produced'] == 8
+        assert player2['settlers'] == 3
