@@ -44,6 +44,37 @@ class TestCityQueries:
         db.create_schema()
 
         with db.get_connection() as conn:
+            # Create city tables (not in base schema yet)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cities (
+                    city_id INTEGER NOT NULL,
+                    match_id BIGINT NOT NULL,
+                    player_id BIGINT NOT NULL,
+                    city_name VARCHAR NOT NULL,
+                    tile_id INTEGER NOT NULL,
+                    founded_turn INTEGER NOT NULL,
+                    family_name VARCHAR,
+                    is_capital BOOLEAN DEFAULT FALSE,
+                    population INTEGER,
+                    first_player_id BIGINT,
+                    governor_id INTEGER,
+                    PRIMARY KEY (match_id, city_id)
+                )
+            """)
+
+            # Create sequence for city_unit_production
+            conn.execute("CREATE SEQUENCE IF NOT EXISTS city_unit_production_id_seq START 1")
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS city_unit_production (
+                    production_id INTEGER PRIMARY KEY DEFAULT nextval('city_unit_production_id_seq'),
+                    match_id BIGINT NOT NULL,
+                    city_id INTEGER NOT NULL,
+                    unit_type VARCHAR NOT NULL,
+                    count INTEGER NOT NULL
+                )
+            """)
+
             # Insert matches
             conn.execute("""
                 INSERT INTO matches (match_id, challonge_match_id, file_name, file_hash, total_turns)
@@ -52,14 +83,14 @@ class TestCityQueries:
                 (2, 101, 'm2.zip', 'h2', 47)
             """)
 
-            # Insert players
+            # Insert players (player_id must be globally unique)
             conn.execute("""
                 INSERT INTO players (player_id, match_id, player_name, player_name_normalized)
                 VALUES
                 (1, 1, 'anarkos', 'anarkos'),
                 (2, 1, 'becked', 'becked'),
-                (1, 2, 'moose', 'moose'),
-                (2, 2, 'fluffbunny', 'fluffbunny')
+                (3, 2, 'moose', 'moose'),
+                (4, 2, 'fluffbunny', 'fluffbunny')
             """)
 
             # Insert cities
@@ -70,8 +101,8 @@ class TestCityQueries:
                 (1, 1, 2, 'CITYNAME_PERSEPOLIS', 200, 1, TRUE),
                 (2, 1, 1, 'CITYNAME_SAREISA', 300, 15, FALSE),
                 (3, 1, 2, 'CITYNAME_ARBELA', 400, 22, FALSE),
-                (0, 2, 1, 'CITYNAME_CAPITAL1', 500, 1, TRUE),
-                (1, 2, 2, 'CITYNAME_CAPITAL2', 600, 1, TRUE)
+                (0, 2, 3, 'CITYNAME_CAPITAL1', 500, 1, TRUE),
+                (1, 2, 4, 'CITYNAME_CAPITAL2', 600, 1, TRUE)
             """)
 
             # Insert city unit production
@@ -101,7 +132,7 @@ class TestCityQueries:
         first_city = df.iloc[0]
         assert first_city['city_name'] == 'CITYNAME_NINEVEH'
         assert first_city['founded_turn'] == 1
-        assert first_city['is_capital'] is True
+        assert first_city['is_capital'] == True
 
     def test_get_player_expansion_stats(self, city_test_db: TournamentDatabase) -> None:
         """Test expansion statistics for a match."""
