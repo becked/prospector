@@ -116,6 +116,7 @@ CREATE TABLE matches (
     turn_timer VARCHAR,
     victory_conditions VARCHAR,
     total_turns INTEGER,
+    tournament_round INTEGER,
     winner_player_id BIGINT,
     player1_participant_id BIGINT,
     player2_participant_id BIGINT,

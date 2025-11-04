@@ -38,7 +38,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 369
+**Current rows:** 0
 
 ### Columns
 
@@ -84,7 +84,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 459
+**Current rows:** 0
 
 ### Columns
 
@@ -122,7 +122,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 500
+**Current rows:** 0
 
 ### Columns
 
@@ -160,7 +160,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 7,690
+**Current rows:** 0
 
 ### Columns
 
@@ -203,7 +203,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 149,720
+**Current rows:** 0
 
 ### Columns
 
@@ -244,7 +244,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 27
+**Current rows:** 0
 
 ### Columns
 
@@ -288,7 +288,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 27
+**Current rows:** 0
 
 ### Columns
 
@@ -318,7 +318,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 27
+**Current rows:** 0
 
 ### Columns
 
@@ -351,7 +351,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 27
+**Current rows:** 0
 
 ### Columns
 
@@ -372,6 +372,7 @@
 | `turn_timer` | VARCHAR | ✓ |  | *TODO* |
 | `victory_conditions` | VARCHAR | ✓ |  | *TODO* |
 | `total_turns` | INTEGER | ✓ |  | *TODO* |
+| `tournament_round` | INTEGER | ✓ |  | *TODO* |
 | `winner_player_id` | BIGINT | ✓ |  | *TODO* |
 | `player1_participant_id` | BIGINT | ✓ |  | *TODO* |
 | `player2_participant_id` | BIGINT | ✓ |  | *TODO* |
@@ -491,7 +492,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 3,743
+**Current rows:** 0
 
 ### Columns
 
@@ -531,7 +532,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 3,743
+**Current rows:** 0
 
 ### Columns
 
@@ -571,7 +572,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 54
+**Current rows:** 0
 
 ### Columns
 
@@ -599,7 +600,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 3,743
+**Current rows:** 0
 
 ### Columns
 
@@ -639,7 +640,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 8,851
+**Current rows:** 0
 
 ### Columns
 
@@ -679,7 +680,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 52,402
+**Current rows:** 0
 
 ### Columns
 
@@ -720,7 +721,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 54
+**Current rows:** 0
 
 ### Columns
 
@@ -763,7 +764,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 56,145
+**Current rows:** 0
 
 ### Columns
 
@@ -804,7 +805,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 151
+**Current rows:** 0
 
 ### Columns
 
@@ -848,7 +849,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 3
+**Current rows:** 1
 
 ### Columns
 
@@ -877,7 +878,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 1,112
+**Current rows:** 0
 
 ### Columns
 
@@ -916,7 +917,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 4,222,414
+**Current rows:** 0
 
 ### Columns
 
@@ -1032,7 +1033,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 456
+**Current rows:** 0
 
 ### Columns
 
