@@ -212,6 +212,7 @@ class TournamentDatabase:
             turn_timer VARCHAR(20),
             victory_conditions TEXT,
             total_turns INTEGER,
+            tournament_round INTEGER,
             winner_player_id BIGINT,
             player1_participant_id BIGINT,
             player2_participant_id BIGINT,
@@ -228,6 +229,7 @@ class TournamentDatabase:
         CREATE INDEX IF NOT EXISTS idx_matches_challonge_id ON matches(challonge_match_id);
         CREATE INDEX IF NOT EXISTS idx_matches_save_date ON matches(save_date);
         CREATE INDEX IF NOT EXISTS idx_matches_winner ON matches(winner_player_id);
+        CREATE INDEX IF NOT EXISTS idx_matches_tournament_round ON matches(tournament_round);
         """
         with self.get_connection() as conn:
             conn.execute(query)
