@@ -329,6 +329,43 @@ FROM player_yield_history yh
 - `docs/archive/reports/yield-display-scale-issue.md` - Full investigation
 - `docs/archive/reports/yield-fix-implementation-summary.md` - Implementation guide
 
+### Tournament Round Tracking
+
+**Tournament rounds are fetched from the Challonge API during import.**
+
+**Storage Format:**
+- Stored in `matches.tournament_round` as INTEGER
+- Values are signed: positive = Winners Bracket, negative = Losers Bracket
+- NULL = missing challonge_match_id or API failure
+
+**Examples:**
+- `tournament_round = 1` → Winners Round 1
+- `tournament_round = 3` → Winners Round 3 (Semifinals)
+- `tournament_round = -1` → Losers Round 1
+- `tournament_round = -5` → Losers Round 5
+- `tournament_round = NULL` → Unknown
+
+**Deriving Bracket in Queries:**
+```sql
+SELECT
+  tournament_round,
+  CASE
+    WHEN tournament_round > 0 THEN 'Winners'
+    WHEN tournament_round < 0 THEN 'Losers'
+    ELSE 'Unknown'
+  END as bracket
+FROM matches
+```
+
+**API Integration:**
+- Requires Challonge API credentials in `.env`
+- Fetches all rounds once at import start (cached in memory)
+- Fails gracefully if API unavailable (stores NULL)
+
+**See Also:**
+- `docs/migrations/010_add_tournament_round.md` - Implementation details
+- `scripts/list_matches_without_saves.py` - Example Challonge API usage
+
 ### Memory Event Ownership
 
 **Key Concept**: MemoryData events are stored in a player's MemoryList, representing that player's perspective/memory.
