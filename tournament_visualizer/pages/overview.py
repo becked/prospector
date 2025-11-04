@@ -5,12 +5,12 @@ recent matches, and key performance indicators.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-from dash import Input, Output, callback, html
+from dash import Input, Output, callback, dcc, html
 
 from tournament_visualizer.components.charts import (
     create_aggregated_event_category_timeline_chart,
