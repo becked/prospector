@@ -3008,6 +3008,91 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_matches_by_round(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Get matches filtered by tournament round and/or bracket.
+
+        Args:
+            tournament_round: Specific round number (positive for Winners, negative for Losers)
+            bracket: 'Winners', 'Losers', 'Unknown', or None for all
+
+        Returns:
+            DataFrame with columns:
+                - match_id: Match identifier
+                - game_name: Game name
+                - save_date: Match date
+                - tournament_round: Round number
+                - total_turns: Total turns in match
+                - challonge_match_id: Challonge match ID
+                - bracket: Bracket name (Winners/Losers/Unknown)
+        """
+        query = """
+        SELECT
+            m.match_id,
+            m.game_name,
+            m.save_date,
+            m.tournament_round,
+            m.total_turns,
+            m.challonge_match_id,
+            CASE
+                WHEN m.tournament_round > 0 THEN 'Winners'
+                WHEN m.tournament_round < 0 THEN 'Losers'
+                ELSE 'Unknown'
+            END as bracket
+        FROM matches m
+        WHERE 1=1
+        """
+
+        params = {}
+
+        # Filter by specific round
+        if tournament_round is not None:
+            query += " AND m.tournament_round = $tournament_round"
+            params["tournament_round"] = tournament_round
+
+        # Filter by bracket
+        if bracket == "Winners":
+            query += " AND m.tournament_round > 0"
+        elif bracket == "Losers":
+            query += " AND m.tournament_round < 0"
+        elif bracket == "Unknown":
+            query += " AND m.tournament_round IS NULL"
+        # If bracket is None, don't filter
+
+        query += " ORDER BY m.save_date DESC"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_available_rounds(self) -> pd.DataFrame:
+        """Get list of tournament rounds that have matches.
+
+        Returns:
+            DataFrame with columns:
+                - tournament_round: Round number
+                - bracket: Bracket name (Winners/Losers/Unknown)
+                - match_count: Number of matches in this round
+        """
+        query = """
+        SELECT
+            tournament_round,
+            CASE
+                WHEN tournament_round > 0 THEN 'Winners'
+                WHEN tournament_round < 0 THEN 'Losers'
+                ELSE 'Unknown'
+            END as bracket,
+            COUNT(*) as match_count
+        FROM matches
+        GROUP BY tournament_round
+        ORDER BY tournament_round
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
