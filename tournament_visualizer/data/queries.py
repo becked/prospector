@@ -3028,11 +3028,21 @@ class TournamentQueries:
                 - total_turns: Total turns in match
                 - challonge_match_id: Challonge match ID
                 - bracket: Bracket name (Winners/Losers/Unknown)
+                - winner_name: Winner player name
+                - map_info: Map information
         """
         query = """
+        WITH ranked_players AS (
+            SELECT
+                match_id,
+                player_name,
+                civilization,
+                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as player_rank
+            FROM players
+        )
         SELECT
             m.match_id,
-            m.game_name,
+            COALESCE(m.game_name, 'Unknown Game') as game_name,
             m.save_date,
             m.tournament_round,
             m.total_turns,
@@ -3041,8 +3051,17 @@ class TournamentQueries:
                 WHEN m.tournament_round > 0 THEN 'Winners'
                 WHEN m.tournament_round < 0 THEN 'Losers'
                 ELSE 'Unknown'
-            END as bracket
+            END as bracket,
+            COALESCE(w.player_name, 'Unknown') as winner_name,
+            COALESCE(
+                m.map_size || ' ' || COALESCE(m.map_class, '') || ' ' || COALESCE(m.map_aspect_ratio, ''),
+                'Unknown'
+            ) as map_info
         FROM matches m
+        LEFT JOIN ranked_players p1 ON m.match_id = p1.match_id AND p1.player_rank = 1
+        LEFT JOIN ranked_players p2 ON m.match_id = p2.match_id AND p2.player_rank = 2
+        LEFT JOIN match_winners mw ON m.match_id = mw.match_id
+        LEFT JOIN players w ON mw.match_id = w.match_id AND mw.winner_player_id = w.player_id
         WHERE 1=1
         """
 

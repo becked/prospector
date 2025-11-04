@@ -72,9 +72,29 @@ layout = html.Div(
                     children=[
                         # Summary metrics
                         html.Div(id="overview-metrics", className="mt-3"),
-                        # Event Category Timeline - full width
+                        # Tournament Round Statistics
                         dbc.Row(
                             [
+                                dbc.Col(
+                                    [
+                                        dbc.Card(
+                                            [
+                                                dbc.CardBody(
+                                                    [
+                                                        html.H5(
+                                                            "Tournament Rounds",
+                                                            className="card-title",
+                                                        ),
+                                                        html.Div(
+                                                            id="overview-round-stats-content"
+                                                        ),
+                                                    ]
+                                                )
+                                            ]
+                                        )
+                                    ],
+                                    width=4,
+                                ),
                                 dbc.Col(
                                     [
                                         create_chart_card(
@@ -83,7 +103,7 @@ layout = html.Div(
                                             height="450px",
                                         )
                                     ],
-                                    width=12,
+                                    width=8,
                                 ),
                             ],
                             className="mb-4",
@@ -114,6 +134,83 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
+                        # Tournament Round Filters
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        dbc.Card(
+                                            [
+                                                dbc.CardBody(
+                                                    [
+                                                        html.H5(
+                                                            "Tournament Round Filters",
+                                                            className="card-title",
+                                                        ),
+                                                        dbc.Row(
+                                                            [
+                                                                dbc.Col(
+                                                                    [
+                                                                        html.Label(
+                                                                            "Tournament Bracket",
+                                                                            className="fw-bold mb-2",
+                                                                        ),
+                                                                        dcc.Dropdown(
+                                                                            id="overview-bracket-filter-dropdown",
+                                                                            options=[
+                                                                                {
+                                                                                    "label": "All Brackets",
+                                                                                    "value": "all",
+                                                                                },
+                                                                                {
+                                                                                    "label": "Winners Bracket",
+                                                                                    "value": "Winners",
+                                                                                },
+                                                                                {
+                                                                                    "label": "Losers Bracket",
+                                                                                    "value": "Losers",
+                                                                                },
+                                                                                {
+                                                                                    "label": "Unknown",
+                                                                                    "value": "Unknown",
+                                                                                },
+                                                                            ],
+                                                                            value="all",
+                                                                            clearable=False,
+                                                                            className="mb-3",
+                                                                        ),
+                                                                    ],
+                                                                    width=6,
+                                                                ),
+                                                                dbc.Col(
+                                                                    [
+                                                                        html.Label(
+                                                                            "Tournament Round",
+                                                                            className="fw-bold mb-2",
+                                                                        ),
+                                                                        dcc.Dropdown(
+                                                                            id="overview-round-filter-dropdown",
+                                                                            options=[],
+                                                                            value=None,
+                                                                            placeholder="All Rounds",
+                                                                            clearable=True,
+                                                                            className="mb-3",
+                                                                        ),
+                                                                    ],
+                                                                    width=6,
+                                                                ),
+                                                            ]
+                                                        ),
+                                                    ]
+                                                )
+                                            ]
+                                        )
+                                    ],
+                                    width=12,
+                                )
+                            ],
+                            className="mb-4",
+                        ),
                         # Matches table
                         dbc.Row(
                             [
@@ -132,6 +229,10 @@ layout = html.Div(
                                                     "name": "Date",
                                                     "id": "save_date",
                                                     "type": "datetime",
+                                                },
+                                                {
+                                                    "name": "Round",
+                                                    "id": "round_display",
                                                 },
                                                 {
                                                     "name": "Turns",
@@ -411,6 +512,147 @@ layout = html.Div(
 
 
 @callback(
+    Output("overview-round-filter-dropdown", "options"),
+    Input("overview-bracket-filter-dropdown", "value"),
+)
+def update_round_options(bracket: str) -> List[dict]:
+    """Update round dropdown options based on selected bracket.
+
+    Args:
+        bracket: Selected bracket ('all', 'Winners', 'Losers', 'Unknown')
+
+    Returns:
+        List of options for round dropdown
+    """
+    from tournament_visualizer.components.layouts import format_round_display
+
+    try:
+        queries = get_queries()
+        available_rounds = queries.get_available_rounds()
+
+        if available_rounds.empty:
+            return []
+
+        # Filter rounds based on bracket selection
+        if bracket == "Winners":
+            filtered = available_rounds[available_rounds["tournament_round"] > 0]
+        elif bracket == "Losers":
+            filtered = available_rounds[available_rounds["tournament_round"] < 0]
+        elif bracket == "Unknown":
+            filtered = available_rounds[available_rounds["tournament_round"].isna()]
+        else:  # 'all'
+            filtered = available_rounds
+
+        # Create options
+        options = [
+            {
+                "label": f"{format_round_display(row['tournament_round'])} ({int(row['match_count'])} matches)",
+                "value": int(row["tournament_round"])
+                if pd.notna(row["tournament_round"])
+                else None,
+            }
+            for _, row in filtered.iterrows()
+        ]
+
+        return options
+
+    except Exception as e:
+        logger.error(f"Error updating round options: {e}")
+        return []
+
+
+@callback(
+    Output("overview-round-stats-content", "children"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_round_statistics(n_intervals: int) -> List[Any]:
+    """Display tournament round distribution statistics.
+
+    Returns:
+        List of HTML components showing round stats
+    """
+    from tournament_visualizer.components.layouts import format_round_display
+
+    try:
+        queries = get_queries()
+        rounds_df = queries.get_available_rounds()
+
+        if rounds_df.empty:
+            return [html.P("No round data available", className="text-muted")]
+
+        # Calculate totals
+        total_matches = int(rounds_df["match_count"].sum())
+        winners_df = rounds_df[rounds_df["bracket"] == "Winners"]
+        losers_df = rounds_df[rounds_df["bracket"] == "Losers"]
+        unknown_df = rounds_df[rounds_df["bracket"] == "Unknown"]
+
+        winners_matches = int(winners_df["match_count"].sum()) if not winners_df.empty else 0
+        losers_matches = int(losers_df["match_count"].sum()) if not losers_df.empty else 0
+        unknown_matches = int(unknown_df["match_count"].sum()) if not unknown_df.empty else 0
+
+        # Create summary
+        stats = [
+            html.P(
+                [html.Strong("Total Matches: "), f"{total_matches}"], className="mb-2"
+            ),
+            html.P(
+                [
+                    html.Strong("Winners Bracket: "),
+                    html.Span(f"{winners_matches}", className="text-success"),
+                ],
+                className="mb-2",
+            ),
+            html.P(
+                [
+                    html.Strong("Losers Bracket: "),
+                    html.Span(f"{losers_matches}", className="text-warning"),
+                ],
+                className="mb-2",
+            ),
+        ]
+
+        if unknown_matches > 0:
+            stats.append(
+                html.P(
+                    [
+                        html.Strong("Unknown: "),
+                        html.Span(f"{unknown_matches}", className="text-muted"),
+                    ],
+                    className="mb-2",
+                )
+            )
+
+        # Add horizontal rule
+        stats.append(html.Hr())
+
+        # Add breakdown by round
+        stats.append(
+            html.P(html.Strong("Breakdown by Round:"), className="mb-2")
+        )
+
+        for _, row in rounds_df.iterrows():
+            round_display = format_round_display(row["tournament_round"])
+            match_count = int(row["match_count"])
+            stats.append(
+                html.P(
+                    [
+                        f"{round_display}: ",
+                        html.Span(
+                            f"{match_count} matches", className="text-muted"
+                        ),
+                    ],
+                    className="mb-1 ms-3",
+                )
+            )
+
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error loading round statistics: {e}")
+        return [html.P(f"Error: {str(e)}", className="text-danger")]
+
+
+@callback(
     Output("overview-metrics", "children"), Input("refresh-interval", "n_intervals")
 )
 def update_overview_metrics(n_intervals: int) -> html.Div:
@@ -568,20 +810,36 @@ def update_map_chart(n_intervals: int):
 
 
 @callback(
-    Output("overview-matches-table", "data"), Input("refresh-interval", "n_intervals")
+    Output("overview-matches-table", "data"),
+    Input("overview-bracket-filter-dropdown", "value"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_matches_table(n_intervals: int) -> List[Dict[str, Any]]:
-    """Update the matches table.
+def update_matches_table(
+    bracket: str, round_num: Optional[int], n_intervals: int
+) -> List[Dict[str, Any]]:
+    """Update the matches table based on filters.
 
     Args:
+        bracket: Selected bracket filter
+        round_num: Selected round number
         n_intervals: Number of interval triggers
 
     Returns:
         List of dictionaries for table data
     """
+    from tournament_visualizer.components.layouts import format_round_display
+
     try:
         queries = get_queries()
-        df = queries.get_recent_matches(limit=None)
+
+        # Build bracket parameter for query
+        bracket_param = None if bracket == "all" else bracket
+
+        # Get filtered matches
+        df = queries.get_matches_by_round(
+            tournament_round=round_num, bracket=bracket_param
+        )
 
         if df.empty:
             return []
@@ -590,16 +848,18 @@ def update_matches_table(n_intervals: int) -> List[Dict[str, Any]]:
         table_data = []
         for _, row in df.iterrows():
             match_id = row.get("match_id")
-            players = (
-                f"{row.get('player1', 'Unknown')} vs {row.get('player2', 'Unknown')}"
-            )
+            game_name = row.get("game_name", "Unknown")
+
             table_data.append(
                 {
-                    "match_link": f"[{players}](/matches?match_id={match_id})",
+                    "match_link": f"[{game_name}](/matches?match_id={match_id})",
                     "save_date": (
                         row.get("save_date", "").strftime("%Y-%m-%d")
                         if pd.notna(row.get("save_date"))
                         else ""
+                    ),
+                    "round_display": format_round_display(
+                        row.get("tournament_round")
                     ),
                     "total_turns": row.get("total_turns", 0),
                     "winner_name": row.get("winner_name", "Unknown"),
