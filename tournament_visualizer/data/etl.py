@@ -11,22 +11,73 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from chyllonge.api import ChallongeApi
+from dotenv import load_dotenv
+
 from .database import TournamentDatabase, get_database
 from .parser import OldWorldSaveParser, parse_tournament_file
 
 logger = logging.getLogger(__name__)
 
 
+def fetch_tournament_rounds(tournament_url: str = "owduels2025") -> Dict[int, int]:
+    """Fetch tournament round numbers from Challonge API.
+
+    Args:
+        tournament_url: Challonge tournament URL identifier
+
+    Returns:
+        Dictionary mapping challonge_match_id to round number.
+        Returns empty dict if API call fails.
+
+    Note:
+        Round numbers are signed integers:
+        - Positive (1, 2, 3, ...) = Winners Bracket
+        - Negative (-1, -2, -3, ...) = Losers Bracket
+    """
+    load_dotenv()
+
+    # Check for API credentials
+    if not os.getenv("CHALLONGE_KEY"):
+        logger.warning(
+            "Challonge API credentials not configured. "
+            "tournament_round will be NULL for all matches."
+        )
+        return {}
+
+    try:
+        logger.info(f"Fetching tournament structure from Challonge: {tournament_url}")
+        api = ChallongeApi()
+        matches = api.matches.get_all(tournament_url)
+
+        # Build cache: challonge_match_id -> round_number
+        round_cache = {match["id"]: match["round"] for match in matches}
+
+        logger.info(f"Cached {len(round_cache)} match rounds from Challonge")
+        return round_cache
+
+    except Exception as e:
+        logger.error(f"Failed to fetch Challonge tournament data: {e}")
+        logger.warning("Continuing import without round data (will be NULL)")
+        return {}
+
+
 class TournamentETL:
     """ETL pipeline for processing tournament save files."""
 
-    def __init__(self, database: Optional[TournamentDatabase] = None) -> None:
+    def __init__(
+        self,
+        database: Optional[TournamentDatabase] = None,
+        round_cache: Optional[Dict[int, int]] = None,
+    ) -> None:
         """Initialize ETL pipeline.
 
         Args:
             database: Database instance to use (defaults to global instance)
+            round_cache: Optional cache of challonge_match_id -> round_number
         """
         self.db = database or get_database()
+        self.round_cache = round_cache or {}
 
     def calculate_file_hash(self, file_path: str) -> str:
         """Calculate SHA256 hash of a file.
@@ -91,6 +142,15 @@ class TournamentETL:
             match_metadata["file_hash"] = file_hash
             if challonge_match_id:
                 match_metadata["challonge_match_id"] = challonge_match_id
+
+                # Add tournament round from cache
+                tournament_round = self.round_cache.get(challonge_match_id)
+                if tournament_round is not None:
+                    match_metadata["tournament_round"] = tournament_round
+                else:
+                    logger.warning(
+                        f"No round data found for challonge_match_id {challonge_match_id}"
+                    )
 
             # Transform and load data
             self._load_tournament_data(parsed_data, file_path)
@@ -873,8 +933,12 @@ def process_tournament_directory(
     # Initialize database if needed
     db = initialize_database()
 
+    # Fetch tournament round data once at start
+    logger.info("Fetching tournament structure from Challonge API...")
+    round_cache = fetch_tournament_rounds()
+
     # Create ETL instance
-    etl = TournamentETL(db)
+    etl = TournamentETL(db, round_cache=round_cache)
 
     # Process all files
     successful_count, total_count, skipped_duplicates = etl.process_directory(
