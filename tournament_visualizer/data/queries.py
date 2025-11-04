@@ -3652,6 +3652,9 @@ class TournamentQueries:
     ) -> pd.DataFrame:
         """Get matches filtered by tournament round and/or bracket.
 
+        This method uses _get_filtered_match_ids() internally to avoid
+        duplicating filtering logic.
+
         Args:
             tournament_round: Specific round number (positive for Winners, negative for Losers)
             bracket: 'Winners', 'Losers', 'Unknown', or None for all
@@ -3675,6 +3678,24 @@ class TournamentQueries:
                 - winner_name: Winner player name
                 - map_info: Map information
         """
+        # Use the helper to get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # Return empty if no matches
+        if not match_ids:
+            return pd.DataFrame()
+
+        # Get full match details for those IDs
         query = """
         WITH ranked_players AS (
             SELECT
@@ -3706,66 +3727,12 @@ class TournamentQueries:
         LEFT JOIN ranked_players p2 ON m.match_id = p2.match_id AND p2.player_rank = 2
         LEFT JOIN match_winners mw ON m.match_id = mw.match_id
         LEFT JOIN players w ON mw.match_id = w.match_id AND mw.winner_player_id = w.player_id
-        WHERE 1=1
+        WHERE m.match_id = ANY($match_ids)
+        ORDER BY m.save_date DESC
         """
 
-        params = {}
-
-        # Filter by specific round
-        if tournament_round is not None:
-            query += " AND m.tournament_round = $tournament_round"
-            params["tournament_round"] = tournament_round
-
-        # Filter by bracket
-        if bracket == "Winners":
-            query += " AND m.tournament_round > 0"
-        elif bracket == "Losers":
-            query += " AND m.tournament_round < 0"
-        elif bracket == "Unknown":
-            query += " AND m.tournament_round IS NULL"
-        # If bracket is None, don't filter
-
-        # Filter by turn range
-        if min_turns is not None:
-            query += " AND m.total_turns >= $min_turns"
-            params["min_turns"] = min_turns
-        if max_turns is not None:
-            query += " AND m.total_turns <= $max_turns"
-            params["max_turns"] = max_turns
-
-        # Filter by map properties
-        if map_size:
-            query += " AND m.map_size = $map_size"
-            params["map_size"] = map_size
-        if map_class:
-            query += " AND m.map_class = $map_class"
-            params["map_class"] = map_class
-        if map_aspect:
-            query += " AND m.map_aspect_ratio = $map_aspect"
-            params["map_aspect"] = map_aspect
-
-        # Filter by nations (civilizations)
-        if nations and len(nations) > 0:
-            query += """ AND EXISTS (
-                SELECT 1 FROM players p
-                WHERE p.match_id = m.match_id
-                AND p.civilization = ANY($nations)
-            )"""
-            params["nations"] = nations
-
-        # Filter by players
-        if players and len(players) > 0:
-            query += """ AND EXISTS (
-                SELECT 1 FROM players p
-                WHERE p.match_id = m.match_id
-                AND p.player_name = ANY($players)
-            )"""
-            params["players"] = players
-
-        query += " ORDER BY m.save_date DESC"
-
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            return conn.execute(query, {"match_ids": match_ids}).df()
 
     def get_available_rounds(self) -> pd.DataFrame:
         """Get list of tournament rounds that have matches.
