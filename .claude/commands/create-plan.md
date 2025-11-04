@@ -7,38 +7,64 @@ I need your help to write out a comprehensive implementation plan
 
 **Before writing any code examples or implementation tasks, you MUST:**
 
-### 1. Review Project Architecture
+### 1. Determine Feature Type
 
-**Read `CLAUDE.md` - "Architecture Overview" section** to understand:
+**First, identify what type of feature you're planning:**
+
+- **Data Feature**: Adding/modifying data extraction, queries, database schema, ETL
+- **UI Feature**: Adding/modifying charts, pages, layouts, dashboards
+- **Full-Stack Feature**: Requires both data and UI changes
+
+**The feature type determines which files you need to read in the next steps.**
+
+### 2. Review Project Architecture (Conditional)
+
+Read the Architecture Overview section of `CLAUDE.md`, focusing on relevant sections:
+
+**For Data Features:**
 - Data layer structure (queries, parser, database, ETL)
+- Testing patterns
+- Cross-cutting concerns (config, logging, type hints)
+
+**For UI Features:**
 - UI layer structure (pages, charts, layouts, callbacks)
 - UI conventions (no chart titles, component IDs, empty states, etc.)
 - Testing patterns
 - Cross-cutting concerns (config, logging, type hints)
 
+**For Full-Stack Features:**
+- Read all sections - you need to understand both data and UI layers
+
 This provides the roadmap for where different types of code belong.
 
-### 2. Explore Existing Patterns
+### 3. Explore Existing Patterns (Conditional)
 
-Search the codebase for similar functionality and document what you find:
+Search the codebase for similar functionality and document what you find.
 
-**For Data Features:**
-- Query patterns in `tournament_visualizer/data/queries.py`
-- Parser patterns in `tournament_visualizer/data/parser.py`
-- Database operations in `tournament_visualizer/data/database.py`
-- ETL pipeline in `tournament_visualizer/data/etl.py`
+**For Data Features - READ THESE FILES:**
+- `tournament_visualizer/data/queries.py` - Study TournamentQueries class methods, return types (DataFrames)
+- `tournament_visualizer/data/parser.py` - Study SaveGameParser methods, XML extraction patterns
+- `tournament_visualizer/data/database.py` - Study bulk insert methods, transaction patterns
+- `tournament_visualizer/data/etl.py` - Study ETL pipeline orchestration
+- `docs/schema.sql` - Understand database schema
+- `tests/test_queries.py`, `tests/test_parser.py` - Study test patterns
 
-**For UI Features:**
-- Chart patterns in `tournament_visualizer/charts.py` (60+ examples)
-- Layout patterns in `tournament_visualizer/layouts.py` (reusable components)
-- Page patterns in `tournament_visualizer/pages/*.py` (callbacks, routing)
-- Existing similar charts or pages
+**For UI Features - READ THESE FILES:**
+- `tournament_visualizer/charts.py` - Study 3-5 similar chart examples (CRITICAL: find charts similar to what you're building)
+- `tournament_visualizer/layouts.py` - Study reusable component functions
+- `tournament_visualizer/pages/page_*.py` - Find and study the most similar page/tab
+- `tournament_visualizer/config.py` - Review color schemes and chart settings
+- `CLAUDE.md` "UI Conventions" section - Review no-title rule, empty states, component IDs
+- `tests/test_charts.py`, `tests/test_layouts.py` - Study test patterns
+
+**For Full-Stack Features:**
+- Read files from BOTH sections above
 
 **For All Features:**
-- Test patterns in `tests/` (mirror package structure)
-- Configuration in `tournament_visualizer/config.py`
+- `tests/conftest.py` - Shared test fixtures
+- `CLAUDE.md` "Development Principles" - YAGNI, DRY, commit practices
 
-### 3. Document Findings in Task 0
+### 4. Document Findings in Task 0
 
 Your plan MUST start with **Task 0: Discovery & Pattern Analysis** that documents what you found:
 
@@ -77,7 +103,7 @@ Your plan MUST start with **Task 0: Discovery & Pattern Analysis** that document
 - **UI Conventions**: [Confirm following conventions from CLAUDE.md or justify deviation]
 ```
 
-### 4. Follow Existing Patterns (Default Behavior)
+### 5. Follow Existing Patterns (Default Behavior)
 
 **Default**: Match the existing codebase architecture and style.
 
@@ -87,7 +113,7 @@ Your plan MUST start with **Task 0: Discovery & Pattern Analysis** that document
 - Why deviation is justified
 - What new pattern you're using instead
 
-### 5. Reference Existing Code Explicitly
+### 6. Reference Existing Code Explicitly
 
 Show the engineer examples with specific locations:
 - ✅ "Follow the pattern from `extract_players()` at parser.py:456"
@@ -95,7 +121,7 @@ Show the engineer examples with specific locations:
 - ✅ "Add chart to Overview page Performance tab like `create_player_comparison()` at charts.py:234"
 - ❌ "Follow existing patterns" (too vague)
 
-### 6. Code Examples Must Match Existing Style
+### 7. Code Examples Must Match Existing Style
 
 All code examples in your plan must:
 - Use the same architectural patterns (class methods vs functions)
