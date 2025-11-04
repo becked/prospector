@@ -3253,11 +3253,33 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
-    def get_tournament_expansion_timeline(self) -> pd.DataFrame:
+    def get_tournament_expansion_timeline(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """Get cumulative city count over time for all players across the tournament.
 
         Analyzes expansion strategies by showing how quickly players founded cities.
         Returns cumulative count at each city founding event.
+
+        Args:
+            tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
 
         Returns:
             DataFrame with columns:
@@ -3267,6 +3289,23 @@ class TournamentQueries:
                 - cities_this_turn: Cities founded on this specific turn
                 - cumulative_cities: Total cities founded up to this turn
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH city_foundings AS (
             SELECT
@@ -3276,6 +3315,7 @@ class TournamentQueries:
                 COUNT(*) as cities_this_turn
             FROM cities c
             JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+            WHERE c.match_id = ANY($match_ids)
             GROUP BY p.player_name, p.civilization, c.founded_turn
         )
         SELECT
@@ -3292,8 +3332,10 @@ class TournamentQueries:
         ORDER BY player_name, civilization, founded_turn
         """
 
+        params = {"match_ids": match_ids}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, params).df()
 
     def get_tournament_city_founding_distribution(self) -> pd.DataFrame:
         """Get distribution of city foundings across turn ranges.
