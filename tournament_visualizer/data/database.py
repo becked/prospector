@@ -1300,8 +1300,8 @@ class TournamentDatabase:
             INSERT INTO matches (
                 match_id, challonge_match_id, file_name, file_hash, game_name, save_date,
                 game_mode, map_size, map_class, map_aspect_ratio, turn_style, turn_timer,
-                victory_conditions, total_turns, winner_player_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                victory_conditions, total_turns, tournament_round, winner_player_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             conn.execute(
@@ -1321,6 +1321,7 @@ class TournamentDatabase:
                     match_data.get("turn_timer"),
                     match_data.get("victory_conditions"),
                     match_data.get("total_turns"),
+                    match_data.get("tournament_round"),
                     match_data.get("winner_player_id"),
                 ],
             )
