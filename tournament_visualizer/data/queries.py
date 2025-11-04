@@ -2312,19 +2312,58 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
-    def get_ruler_archetype_win_rates(self) -> pd.DataFrame:
-        """Get win rates by starting ruler archetype.
+    def get_ruler_archetype_win_rates(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get win rates by starting ruler archetype, optionally filtered.
 
         Analyzes starting rulers only (succession_order = 0) to show which
         archetypes correlate with victory.
 
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
+
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - archetype: Ruler archetype name
             - games: Total games played with this archetype
             - wins: Number of wins
             - win_rate: Win percentage (0-100)
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             r.archetype,
@@ -2336,31 +2375,72 @@ class TournamentQueries:
             ) as win_rate
         FROM rulers r
         JOIN match_winners mw ON r.match_id = mw.match_id
-        WHERE r.succession_order = 0
+        WHERE r.match_id = ANY($match_ids)
+        AND r.succession_order = 0
         AND r.archetype IS NOT NULL
         GROUP BY r.archetype
         ORDER BY win_rate DESC
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+        params = {"match_ids": match_ids}
 
-    def get_ruler_trait_win_rates(self, min_games: int = 2) -> pd.DataFrame:
-        """Get win rates by starting ruler trait.
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_ruler_trait_win_rates(
+        self,
+        min_games: int = 2,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get win rates by starting ruler trait, optionally filtered.
 
         Analyzes starting traits chosen at game initialization to show which
         traits correlate with victory.
 
         Args:
             min_games: Minimum number of games required to include trait (default 2)
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - starting_trait: Trait name
             - games: Total games played with this trait
             - wins: Number of wins
             - win_rate: Win percentage (0-100)
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             r.starting_trait,
@@ -2372,15 +2452,18 @@ class TournamentQueries:
             ) as win_rate
         FROM rulers r
         JOIN match_winners mw ON r.match_id = mw.match_id
-        WHERE r.succession_order = 0
+        WHERE r.match_id = ANY($match_ids)
+        AND r.succession_order = 0
         AND r.starting_trait IS NOT NULL
         GROUP BY r.starting_trait
-        HAVING COUNT(*) >= ?
+        HAVING COUNT(*) >= $min_games
         ORDER BY win_rate DESC
         """
 
+        params = {"match_ids": match_ids, "min_games": min_games}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query, [min_games]).df()
+            return conn.execute(query, params).df()
 
     def get_ruler_succession_impact(self) -> pd.DataFrame:
         """Get correlation between ruler succession count and victory.
@@ -2435,20 +2518,59 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
-    def get_ruler_archetype_matchups(self) -> pd.DataFrame:
-        """Get win rates for archetype vs archetype matchups.
+    def get_ruler_archetype_matchups(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get win rates for archetype vs archetype matchups, optionally filtered.
 
         Analyzes head-to-head performance between starting ruler archetypes
         to identify favorable and unfavorable matchups.
 
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
+
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - archetype: The archetype (row in matrix)
             - opponent_archetype: The opposing archetype (column in matrix)
             - games: Number of games with this matchup
             - wins: Number of wins for archetype
             - win_rate: Win percentage for archetype (0-100)
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH matchups AS (
             -- Get all matchups in both directions
@@ -2459,7 +2581,8 @@ class TournamentQueries:
             FROM rulers r1
             JOIN rulers r2 ON r1.match_id = r2.match_id AND r1.player_id != r2.player_id
             JOIN match_winners mw ON r1.match_id = mw.match_id
-            WHERE r1.succession_order = 0 AND r2.succession_order = 0
+            WHERE r1.match_id = ANY($match_ids)
+            AND r1.succession_order = 0 AND r2.succession_order = 0
             AND r1.archetype IS NOT NULL AND r2.archetype IS NOT NULL
         )
         SELECT
@@ -2473,37 +2596,80 @@ class TournamentQueries:
         ORDER BY archetype, opponent_archetype
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+        params = {"match_ids": match_ids}
 
-    def get_ruler_archetype_trait_combinations(self, limit: int = 10) -> pd.DataFrame:
-        """Get most popular archetype + trait combinations for starting rulers.
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_ruler_archetype_trait_combinations(
+        self,
+        limit: int = 10,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get most popular archetype + trait combinations for starting rulers, optionally filtered.
 
         Args:
             limit: Maximum number of combinations to return (default 10)
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - archetype: Ruler archetype name
             - starting_trait: Starting trait name
             - count: Number of times this combo was chosen
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             r.archetype,
             r.starting_trait,
             COUNT(*) as count
         FROM rulers r
-        WHERE r.succession_order = 0
+        WHERE r.match_id = ANY($match_ids)
+        AND r.succession_order = 0
         AND r.archetype IS NOT NULL
         AND r.starting_trait IS NOT NULL
         GROUP BY r.archetype, r.starting_trait
         ORDER BY count DESC
-        LIMIT ?
+        LIMIT $limit
         """
 
+        params = {"match_ids": match_ids, "limit": limit}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query, [limit]).df()
+            return conn.execute(query, params).df()
 
     def get_nation_counter_pick_matrix(
         self,
