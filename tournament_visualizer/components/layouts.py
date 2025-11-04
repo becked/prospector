@@ -4,12 +4,90 @@ This module provides reusable layout components including cards, grids,
 and common page structures for the dashboard.
 """
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
 from ..config import LAYOUT_CONSTANTS, MODEBAR_CONFIG
+
+
+# Tournament Round Formatting Helpers
+
+
+def format_round_display(round_num: Optional[int]) -> str:
+    """Convert tournament round number to human-readable format.
+
+    Args:
+        round_num: Round number (positive=Winners, negative=Losers, None=Unknown)
+
+    Returns:
+        Formatted string like "Winners Round 1" or "Unknown"
+
+    Examples:
+        >>> format_round_display(1)
+        'Winners Round 1'
+        >>> format_round_display(-2)
+        'Losers Round 2'
+        >>> format_round_display(None)
+        'Unknown'
+    """
+    if round_num is None:
+        return "Unknown"
+    elif round_num > 0:
+        return f"Winners Round {round_num}"
+    elif round_num < 0:
+        return f"Losers Round {abs(round_num)}"
+    else:
+        return "Unknown"
+
+
+def get_round_badge_color(round_num: Optional[int]) -> str:
+    """Get Bootstrap color class for round badge.
+
+    Args:
+        round_num: Round number
+
+    Returns:
+        Bootstrap color class name
+
+    Examples:
+        >>> get_round_badge_color(1)
+        'success'
+        >>> get_round_badge_color(-1)
+        'warning'
+        >>> get_round_badge_color(None)
+        'secondary'
+    """
+    if round_num is None:
+        return "secondary"  # Gray for unknown
+    elif round_num > 0:
+        return "success"  # Green for winners
+    else:
+        return "warning"  # Yellow for losers
+
+
+def create_round_badge(round_num: Optional[int]) -> html.Span:
+    """Create a Bootstrap badge showing tournament round.
+
+    Args:
+        round_num: Round number
+
+    Returns:
+        Dash HTML component for badge
+
+    Example:
+        badge = create_round_badge(1)
+        # Returns: <span class="badge bg-success">Winners Round 1</span>
+    """
+    return html.Span(
+        format_round_display(round_num),
+        className=f"badge bg-{get_round_badge_color(round_num)}",
+        style={"marginLeft": "8px", "fontSize": "0.9em"},
+    )
+
+
+# Card Creation Functions
 
 
 def create_metric_card(
