@@ -3008,16 +3008,113 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def _get_filtered_match_ids(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> list[int]:
+        """Get list of match IDs that match the given filters.
+
+        This is a helper method to avoid duplicating filter logic across queries.
+        Returns all match IDs if no filters are provided.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
+
+        Returns:
+            List of match_id integers
+        """
+        query = "SELECT DISTINCT m.match_id FROM matches m WHERE 1=1"
+        params = {}
+
+        # Apply filters (reuse logic from get_matches_by_round)
+        if tournament_round is not None:
+            query += " AND m.tournament_round = $tournament_round"
+            params["tournament_round"] = tournament_round
+
+        if bracket == "Winners":
+            query += " AND m.tournament_round > 0"
+        elif bracket == "Losers":
+            query += " AND m.tournament_round < 0"
+        elif bracket == "Unknown":
+            query += " AND m.tournament_round IS NULL"
+
+        if min_turns is not None:
+            query += " AND m.total_turns >= $min_turns"
+            params["min_turns"] = min_turns
+        if max_turns is not None:
+            query += " AND m.total_turns <= $max_turns"
+            params["max_turns"] = max_turns
+
+        if map_size:
+            query += " AND m.map_size = $map_size"
+            params["map_size"] = map_size
+        if map_class:
+            query += " AND m.map_class = $map_class"
+            params["map_class"] = map_class
+        if map_aspect:
+            query += " AND m.map_aspect_ratio = $map_aspect"
+            params["map_aspect"] = map_aspect
+
+        if nations and len(nations) > 0:
+            query += """ AND EXISTS (
+                SELECT 1 FROM players p
+                WHERE p.match_id = m.match_id
+                AND p.civilization = ANY($nations)
+            )"""
+            params["nations"] = nations
+
+        if players and len(players) > 0:
+            query += """ AND EXISTS (
+                SELECT 1 FROM players p
+                WHERE p.match_id = m.match_id
+                AND p.player_name = ANY($players)
+            )"""
+            params["players"] = players
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+            return df["match_id"].tolist() if not df.empty else []
+
     def get_matches_by_round(
         self,
         tournament_round: Optional[int] = None,
         bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         """Get matches filtered by tournament round and/or bracket.
 
         Args:
             tournament_round: Specific round number (positive for Winners, negative for Losers)
             bracket: 'Winners', 'Losers', 'Unknown', or None for all
+            min_turns: Minimum number of turns
+            max_turns: Maximum number of turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilization names to filter by
+            players: List of player names to filter by
 
         Returns:
             DataFrame with columns:
@@ -3081,6 +3178,43 @@ class TournamentQueries:
             query += " AND m.tournament_round IS NULL"
         # If bracket is None, don't filter
 
+        # Filter by turn range
+        if min_turns is not None:
+            query += " AND m.total_turns >= $min_turns"
+            params["min_turns"] = min_turns
+        if max_turns is not None:
+            query += " AND m.total_turns <= $max_turns"
+            params["max_turns"] = max_turns
+
+        # Filter by map properties
+        if map_size:
+            query += " AND m.map_size = $map_size"
+            params["map_size"] = map_size
+        if map_class:
+            query += " AND m.map_class = $map_class"
+            params["map_class"] = map_class
+        if map_aspect:
+            query += " AND m.map_aspect_ratio = $map_aspect"
+            params["map_aspect"] = map_aspect
+
+        # Filter by nations (civilizations)
+        if nations and len(nations) > 0:
+            query += """ AND EXISTS (
+                SELECT 1 FROM players p
+                WHERE p.match_id = m.match_id
+                AND p.civilization = ANY($nations)
+            )"""
+            params["nations"] = nations
+
+        # Filter by players
+        if players and len(players) > 0:
+            query += """ AND EXISTS (
+                SELECT 1 FROM players p
+                WHERE p.match_id = m.match_id
+                AND p.player_name = ANY($players)
+            )"""
+            params["players"] = players
+
         query += " ORDER BY m.save_date DESC"
 
         with self.db.get_connection() as conn:
@@ -3111,6 +3245,105 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
+
+    def get_available_map_sizes(self) -> list[str]:
+        """Get list of unique map sizes from matches.
+
+        Returns:
+            List of map size strings
+        """
+        query = """
+        SELECT DISTINCT map_size
+        FROM matches
+        WHERE map_size IS NOT NULL
+        ORDER BY map_size
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            return df["map_size"].tolist() if not df.empty else []
+
+    def get_available_map_classes(self) -> list[str]:
+        """Get list of unique map classes from matches.
+
+        Returns:
+            List of map class strings
+        """
+        query = """
+        SELECT DISTINCT map_class
+        FROM matches
+        WHERE map_class IS NOT NULL
+        ORDER BY map_class
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            return df["map_class"].tolist() if not df.empty else []
+
+    def get_available_map_aspects(self) -> list[str]:
+        """Get list of unique map aspect ratios from matches.
+
+        Returns:
+            List of map aspect ratio strings
+        """
+        query = """
+        SELECT DISTINCT map_aspect_ratio
+        FROM matches
+        WHERE map_aspect_ratio IS NOT NULL
+        ORDER BY map_aspect_ratio
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            return df["map_aspect_ratio"].tolist() if not df.empty else []
+
+    def get_available_nations(self) -> list[str]:
+        """Get list of unique civilizations from players.
+
+        Returns:
+            List of civilization names
+        """
+        query = """
+        SELECT DISTINCT civilization
+        FROM players
+        WHERE civilization IS NOT NULL
+        ORDER BY civilization
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            return df["civilization"].tolist() if not df.empty else []
+
+    def get_available_players(self) -> list[str]:
+        """Get list of unique player names.
+
+        Returns:
+            List of player names
+        """
+        query = """
+        SELECT DISTINCT player_name
+        FROM players
+        WHERE player_name IS NOT NULL
+        ORDER BY player_name
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            return df["player_name"].tolist() if not df.empty else []
+
+    def get_turn_range(self) -> tuple[int, int]:
+        """Get the minimum and maximum turn counts across all matches.
+
+        Returns:
+            Tuple of (min_turns, max_turns)
+        """
+        query = """
+        SELECT
+            MIN(total_turns) as min_turns,
+            MAX(total_turns) as max_turns
+        FROM matches
+        WHERE total_turns IS NOT NULL
+        """
+        with self.db.get_connection() as conn:
+            df = conn.execute(query).df()
+            if df.empty or df["min_turns"].iloc[0] is None:
+                return (0, 200)
+            return (int(df["min_turns"].iloc[0]), int(df["max_turns"].iloc[0]))
 
 
 # Global queries instance
