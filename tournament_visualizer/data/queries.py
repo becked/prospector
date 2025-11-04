@@ -1168,12 +1168,51 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
-    def get_nation_win_stats(self) -> pd.DataFrame:
-        """Get win statistics by nation/civilization.
+    def get_nation_win_stats(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get win statistics by nation/civilization, optionally filtered.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with nation, wins, total_matches, win_percentage
+            DataFrame with nation, wins, total_matches, win_percentage from filtered matches
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             COALESCE(p.civilization, 'Unknown') as nation,
@@ -1185,20 +1224,62 @@ class TournamentQueries:
             ) as win_percentage
         FROM players p
         LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE p.match_id = ANY($match_ids)
         GROUP BY p.civilization
         HAVING COUNT(*) > 0
         ORDER BY wins DESC
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+        params = {"match_ids": match_ids}
 
-    def get_nation_loss_stats(self) -> pd.DataFrame:
-        """Get loss statistics by nation/civilization.
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_nation_loss_stats(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get loss statistics by nation/civilization, optionally filtered.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with nation, losses, total_matches, loss_percentage
+            DataFrame with nation, losses, total_matches, loss_percentage from filtered matches
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             COALESCE(p.civilization, 'Unknown') as nation,
@@ -1210,32 +1291,77 @@ class TournamentQueries:
             ) as loss_percentage
         FROM players p
         LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE p.match_id = ANY($match_ids)
         GROUP BY p.civilization
         HAVING COUNT(*) > 0
         ORDER BY losses DESC
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+        params = {"match_ids": match_ids}
 
-    def get_nation_popularity(self) -> pd.DataFrame:
-        """Get nation popularity statistics based on total matches played.
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_nation_popularity(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get nation popularity statistics based on total matches played, optionally filtered.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with nation, total_matches
+            DataFrame with nation, total_matches from filtered matches
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             COALESCE(p.civilization, 'Unknown') as nation,
             COUNT(DISTINCT p.match_id) as total_matches
         FROM players p
+        WHERE p.match_id = ANY($match_ids)
         GROUP BY p.civilization
         HAVING COUNT(DISTINCT p.match_id) > 0
         ORDER BY total_matches DESC
         """
 
+        params = {"match_ids": match_ids}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, params).df()
 
     def get_map_breakdown(self) -> pd.DataFrame:
         """Get map breakdown statistics by map type, aspect ratio, and size.
@@ -2379,8 +2505,20 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [limit]).df()
 
-    def get_nation_counter_pick_matrix(self, min_games: int = 1) -> pd.DataFrame:
-        """Get counter-pick matchup matrix showing nation performance by pick order.
+    def get_nation_counter_pick_matrix(
+        self,
+        min_games: int = 1,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get counter-pick matchup matrix showing nation performance by pick order, optionally filtered.
 
         Returns win rates for each first_pick_nation vs second_pick_nation combination
         from the pick_order_games data. This shows which nations are effective
@@ -2388,9 +2526,18 @@ class TournamentQueries:
 
         Args:
             min_games: Minimum number of games required to include a matchup (default 1)
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
 
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - first_pick_nation: Nation picked first
             - second_pick_nation: Nation picked second (counter-pick)
             - games: Number of games with this matchup
@@ -2402,6 +2549,23 @@ class TournamentQueries:
             If "Assyria vs Egypt" has 70% second_picker_win_rate, Egypt is a strong
             counter to Assyria when picked second.
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH matchups AS (
             SELECT
@@ -2416,6 +2580,7 @@ class TournamentQueries:
             LEFT JOIN match_winners mw ON pog.matched_match_id = mw.match_id
             LEFT JOIN players p_winner ON mw.winner_player_id = p_winner.player_id
             WHERE pog.matched_match_id IS NOT NULL
+                AND pog.matched_match_id = ANY($match_ids)
                 AND pog.first_picker_participant_id IS NOT NULL
                 AND pog.second_picker_participant_id IS NOT NULL
                 AND pog.first_pick_nation IS NOT NULL
@@ -2438,21 +2603,45 @@ class TournamentQueries:
             ) as second_picker_win_rate
         FROM matchups
         GROUP BY first_pick_nation, second_pick_nation
-        HAVING COUNT(*) >= ?
+        HAVING COUNT(*) >= $min_games
         ORDER BY first_pick_nation, second_pick_nation
         """
 
-        with self.db.get_connection() as conn:
-            return conn.execute(query, [min_games]).df()
+        params = {"match_ids": match_ids, "min_games": min_games}
 
-    def get_pick_order_win_rates(self) -> pd.DataFrame:
-        """Get overall win rates by pick order (first picker vs second picker).
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_pick_order_win_rates(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get overall win rates by pick order (first picker vs second picker), optionally filtered.
 
         Returns win rates for first and second pickers with confidence intervals
         and statistical significance testing using Wilson score interval.
 
+        Args:
+            tournament_round: Specific round number
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations
+            players: List of player names
+
         Returns:
-            DataFrame with columns:
+            DataFrame with columns from filtered matches:
             - pick_position: 'First Pick' or 'Second Pick'
             - games: Number of games
             - wins: Number of wins
@@ -2461,6 +2650,23 @@ class TournamentQueries:
             - ci_upper: Upper bound of 95% confidence interval (0-100)
             - standard_error: Standard error of the proportion
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH pick_results AS (
             SELECT
@@ -2473,6 +2679,7 @@ class TournamentQueries:
             LEFT JOIN match_winners mw ON pog.matched_match_id = mw.match_id
             LEFT JOIN players p_winner ON mw.winner_player_id = p_winner.player_id
             WHERE pog.matched_match_id IS NOT NULL
+                AND pog.matched_match_id = ANY($match_ids)
                 AND pog.first_picker_participant_id IS NOT NULL
                 AND pog.second_picker_participant_id IS NOT NULL
         ),
@@ -2521,8 +2728,10 @@ class TournamentQueries:
         ORDER BY pick_position
         """
 
+        params = {"match_ids": match_ids}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, params).df()
 
     def get_metric_progression_stats(self) -> Dict[str, pd.DataFrame]:
         """Get metric progression statistics across all matches.
