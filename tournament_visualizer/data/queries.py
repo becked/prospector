@@ -1407,16 +1407,35 @@ class TournamentQueries:
             return conn.execute(query).df()
 
     def get_law_progression_by_match(
-        self, match_id: Optional[int] = None
+        self,
+        match_id: Optional[int] = None,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         """Get law progression for players, showing when they reached 4 and 7 laws.
 
-        Groups by tournament participant when available. When called without match_id,
+        Groups by tournament participant when available. When called without filters,
         aggregates across all matches to show how people (not player instances)
         progress through laws.
 
         Args:
             match_id: Optional match_id to filter (None for all matches)
+            tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
 
         Returns:
             DataFrame with columns:
@@ -1430,9 +1449,27 @@ class TournamentQueries:
                 - turn_to_7_laws: Turn number when 7th law adopted (NULL if <7 laws)
                 - total_laws: Total laws adopted in this match
         """
-        match_filter = "AND e.match_id = ?" if match_id else ""
+        # If match_id specified, use that directly; otherwise use filter helper
+        if match_id is not None:
+            match_ids = [match_id]
+        else:
+            match_ids = self._get_filtered_match_ids(
+                tournament_round=tournament_round,
+                bracket=bracket,
+                min_turns=min_turns,
+                max_turns=max_turns,
+                map_size=map_size,
+                map_class=map_class,
+                map_aspect=map_aspect,
+                nations=nations,
+                players=players,
+            )
 
-        query = f"""
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
+        query = """
         WITH law_events AS (
             SELECT
                 e.match_id,
@@ -1445,7 +1482,7 @@ class TournamentQueries:
             FROM events e
             WHERE e.event_type = 'LAW_ADOPTED'
                 AND e.player_id IS NOT NULL
-                {match_filter}
+                AND e.match_id = ANY($match_ids)
         ),
         milestones AS (
             SELECT
@@ -1474,7 +1511,7 @@ class TournamentQueries:
         ORDER BY m.match_id, m.player_id
         """
 
-        params = [match_id] if match_id else []
+        params = {"match_ids": match_ids}
 
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
@@ -2899,7 +2936,18 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
 
-    def get_metric_progression_stats(self) -> Dict[str, pd.DataFrame]:
+    def get_metric_progression_stats(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> Dict[str, pd.DataFrame]:
         """Get metric progression statistics across all matches.
 
         Calculates median and percentile bands (25th, 75th) for:
@@ -2907,6 +2955,17 @@ class TournamentQueries:
         - Orders per turn
         - Military score per turn
         - Legitimacy per turn
+
+        Args:
+            tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
 
         Returns:
             Dictionary with keys 'science', 'orders', 'military', 'legitimacy',
@@ -2917,6 +2976,28 @@ class TournamentQueries:
             - percentile_75: 75th percentile
             - sample_size: Number of games contributing data at this turn
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return dict of empty DataFrames
+        if not match_ids:
+            return {
+                "science": pd.DataFrame(),
+                "orders": pd.DataFrame(),
+                "military": pd.DataFrame(),
+                "legitimacy": pd.DataFrame(),
+            }
+
         # Science per turn (YIELD_SCIENCE)
         science_query = """
         SELECT
@@ -2927,6 +3008,7 @@ class TournamentQueries:
             COUNT(*) as sample_size
         FROM player_yield_history
         WHERE resource_type = 'YIELD_SCIENCE'
+            AND match_id = ANY($match_ids)
         GROUP BY turn_number
         ORDER BY turn_number
         """
@@ -2941,6 +3023,7 @@ class TournamentQueries:
             COUNT(*) as sample_size
         FROM player_yield_history
         WHERE resource_type = 'YIELD_ORDERS'
+            AND match_id = ANY($match_ids)
         GROUP BY turn_number
         ORDER BY turn_number
         """
@@ -2954,6 +3037,7 @@ class TournamentQueries:
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY military_power) as percentile_75,
             COUNT(*) as sample_size
         FROM player_military_history
+        WHERE match_id = ANY($match_ids)
         GROUP BY turn_number
         ORDER BY turn_number
         """
@@ -2967,16 +3051,19 @@ class TournamentQueries:
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY legitimacy) as percentile_75,
             COUNT(*) as sample_size
         FROM player_legitimacy_history
+        WHERE match_id = ANY($match_ids)
         GROUP BY turn_number
         ORDER BY turn_number
         """
 
+        params = {"match_ids": match_ids}
+
         with self.db.get_connection() as conn:
             return {
-                "science": conn.execute(science_query).df(),
-                "orders": conn.execute(orders_query).df(),
-                "military": conn.execute(military_query).df(),
-                "legitimacy": conn.execute(legitimacy_query).df(),
+                "science": conn.execute(science_query, params).df(),
+                "orders": conn.execute(orders_query, params).df(),
+                "military": conn.execute(military_query, params).df(),
+                "legitimacy": conn.execute(legitimacy_query, params).df(),
             }
 
     def get_territory_map(self, match_id: int, turn_number: int) -> pd.DataFrame:
@@ -3257,10 +3344,32 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
-    def get_tournament_production_strategies(self) -> pd.DataFrame:
+    def get_tournament_production_strategies(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """Get production strategies for all players across the tournament.
 
         Aggregates all unit production and city projects, showing military vs civilian focus.
+
+        Args:
+            tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
 
         Returns:
             DataFrame with columns:
@@ -3273,6 +3382,23 @@ class TournamentQueries:
                 - projects: Total city projects completed
                 - total_production: Total production
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # If no matches, return empty DataFrame
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH unit_counts AS (
             SELECT
@@ -3288,6 +3414,7 @@ class TournamentQueries:
                 ), 0) as military
             FROM players p
             LEFT JOIN units_produced u ON p.match_id = u.match_id AND p.player_id = u.player_id
+            WHERE p.match_id = ANY($match_ids)
             GROUP BY p.player_name, p.civilization
         ),
         project_counts AS (
@@ -3298,6 +3425,7 @@ class TournamentQueries:
             FROM players p
             LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
             LEFT JOIN city_projects proj ON c.match_id = proj.match_id AND c.city_id = proj.city_id
+            WHERE p.match_id = ANY($match_ids)
             GROUP BY p.player_name, p.civilization
         )
         SELECT
@@ -3316,8 +3444,10 @@ class TournamentQueries:
         ORDER BY total_production DESC
         """
 
+        params = {"match_ids": match_ids}
+
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, params).df()
 
     def get_tournament_project_priorities(self) -> pd.DataFrame:
         """Get city project priorities for all players across the tournament.
