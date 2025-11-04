@@ -1363,12 +1363,51 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
 
-    def get_map_breakdown(self) -> pd.DataFrame:
+    def get_map_breakdown(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """Get map breakdown statistics by map type, aspect ratio, and size.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: 'Winners', 'Losers', 'Unknown', or None for all
+            min_turns: Minimum number of turns
+            max_turns: Maximum number of turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilization names to filter by
+            players: List of player names to filter by
 
         Returns:
             DataFrame with map_class, map_aspect_ratio, map_size, count
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # Return empty if no matches
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             COALESCE(map_class, 'Unknown') as map_class,
@@ -1376,20 +1415,60 @@ class TournamentQueries:
             COALESCE(map_size, 'Unknown') as map_size,
             COUNT(*) as count
         FROM matches
+        WHERE match_id = ANY($match_ids)
         GROUP BY map_class, map_aspect_ratio, map_size
         HAVING COUNT(*) > 0
         ORDER BY count DESC
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, {"match_ids": match_ids}).df()
 
-    def get_unit_popularity(self) -> pd.DataFrame:
+    def get_unit_popularity(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """Get unit popularity statistics with category and role classification.
+
+        Args:
+            tournament_round: Specific round number
+            bracket: 'Winners', 'Losers', 'Unknown', or None for all
+            min_turns: Minimum number of turns
+            max_turns: Maximum number of turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilization names to filter by
+            players: List of player names to filter by
 
         Returns:
             DataFrame with category, role, unit_type, total_count
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # Return empty if no matches
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         SELECT
             COALESCE(uc.category, 'Unknown') as category,
@@ -1398,13 +1477,14 @@ class TournamentQueries:
             SUM(up.count) as total_count
         FROM units_produced up
         LEFT JOIN unit_classifications uc ON up.unit_type = uc.unit_type
+        WHERE up.match_id = ANY($match_ids)
         GROUP BY uc.category, uc.role, up.unit_type
         HAVING SUM(up.count) > 0
         ORDER BY uc.category, uc.role, total_count DESC
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            return conn.execute(query, {"match_ids": match_ids}).df()
 
     def get_law_progression_by_match(
         self,
@@ -2186,7 +2266,19 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id, milestone]).df()
 
-    def get_aggregated_event_timeline(self, max_turn: int = 150) -> pd.DataFrame:
+    def get_aggregated_event_timeline(
+        self,
+        max_turn: int = 150,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """Get aggregated event timeline across all matches.
 
         Returns average event counts by turn and event type, normalized
@@ -2194,10 +2286,36 @@ class TournamentQueries:
 
         Args:
             max_turn: Maximum turn number to include (default 150)
+            tournament_round: Specific round number
+            bracket: 'Winners', 'Losers', 'Unknown', or None for all
+            min_turns: Minimum number of turns
+            max_turns: Maximum number of turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilization names to filter by
+            players: List of player names to filter by
 
         Returns:
             DataFrame with columns: turn_number, event_type, avg_event_count
         """
+        # Get filtered match IDs
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        # Return empty if no matches
+        if not match_ids:
+            return pd.DataFrame()
+
         query = """
         WITH all_events AS (
             SELECT
@@ -2205,8 +2323,9 @@ class TournamentQueries:
                 e.turn_number,
                 e.event_type
             FROM events e
-            WHERE e.turn_number <= ?
+            WHERE e.turn_number <= $max_turn
                 AND e.event_type NOT LIKE 'MEMORYPLAYER_%'
+                AND e.match_id = ANY($match_ids)
         ),
         match_turn_combinations AS (
             SELECT DISTINCT
@@ -2218,6 +2337,7 @@ class TournamentQueries:
                 FROM all_events
             ) t
             WHERE t.turn_number <= m.total_turns
+                AND m.match_id = ANY($match_ids)
         ),
         event_counts_per_match_turn AS (
             SELECT
@@ -2242,7 +2362,7 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, [max_turn]).df()
+            return conn.execute(query, {"match_ids": match_ids, "max_turn": max_turn}).df()
 
     def get_ambition_timeline(self, match_id: int) -> pd.DataFrame:
         """Get ambition/goal timeline for a specific match.

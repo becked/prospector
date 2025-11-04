@@ -48,6 +48,21 @@ from tournament_visualizer.data.queries import get_queries
 
 logger = logging.getLogger(__name__)
 
+
+def parse_turn_length(turn_length: Optional[int]) -> tuple[Optional[int], Optional[int]]:
+    """Parse turn length slider value into min and max turns.
+
+    Args:
+        turn_length: Maximum turn number cutoff (None means no filter)
+
+    Returns:
+        Tuple of (min_turns, max_turns)
+    """
+    if turn_length is None:
+        return (None, None)
+    return (None, turn_length)
+
+
 # Register this page
 dash.register_page(__name__, path="/", name="Overview")
 
@@ -62,201 +77,184 @@ layout = html.Div(
         ),
         # Alert area
         html.Div(id="overview-alerts"),
-        # Filters (above tabs)
+        # Summary metrics (above filters)
+        html.Div(id="overview-metrics", className="mb-4"),
+        # Filters (above tabs) - Collapsible
         dbc.Row(
             [
                 dbc.Col(
                     [
                         dbc.Card(
                             [
-                                dbc.CardBody(
-                                    [
-                                        html.H5(
+                                dbc.CardHeader(
+                                    dbc.Button(
+                                        [
+                                            html.I(
+                                                id="overview-filter-toggle-icon",
+                                                className="bi bi-chevron-right me-2",
+                                            ),
                                             "Filters",
-                                            className="card-title mb-3",
-                                        ),
-                                        # Row 1: Tournament filters
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Tournament Bracket",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-bracket-filter-dropdown",
-                                                            options=[
-                                                                {
-                                                                    "label": "All Brackets",
-                                                                    "value": "all",
-                                                                },
-                                                                {
-                                                                    "label": "Winners Bracket",
-                                                                    "value": "Winners",
-                                                                },
-                                                                {
-                                                                    "label": "Losers Bracket",
-                                                                    "value": "Losers",
-                                                                },
-                                                                {
-                                                                    "label": "Unknown",
-                                                                    "value": "Unknown",
-                                                                },
-                                                            ],
-                                                            value="all",
-                                                            clearable=False,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=3,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Tournament Round",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-round-filter-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Rounds",
-                                                            clearable=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=3,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Min Turns",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Input(
-                                                            id="overview-min-turns-input",
-                                                            type="number",
-                                                            placeholder="Min",
-                                                            className="form-control mb-3",
-                                                        ),
-                                                    ],
-                                                    width=3,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Max Turns",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Input(
-                                                            id="overview-max-turns-input",
-                                                            type="number",
-                                                            placeholder="Max",
-                                                            className="form-control mb-3",
-                                                        ),
-                                                    ],
-                                                    width=3,
-                                                ),
-                                            ]
-                                        ),
-                                        # Row 2: Map filters
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Map Size",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-map-size-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Sizes",
-                                                            clearable=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=4,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Map Class",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-map-class-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Classes",
-                                                            clearable=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=4,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Map Aspect",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-map-aspect-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Aspects",
-                                                            clearable=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=4,
-                                                ),
-                                            ]
-                                        ),
-                                        # Row 3: Player and Nation filters
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Nations",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-nations-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Nations",
-                                                            multi=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=6,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Players",
-                                                            className="fw-bold mb-2",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="overview-players-dropdown",
-                                                            options=[],
-                                                            value=None,
-                                                            placeholder="All Players",
-                                                            multi=True,
-                                                            className="mb-3",
-                                                        ),
-                                                    ],
-                                                    width=6,
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                )
+                                        ],
+                                        id="overview-filter-toggle",
+                                        color="link",
+                                        className="text-decoration-none text-dark fw-bold w-100 text-start p-0",
+                                    ),
+                                    className="py-2",
+                                ),
+                                dbc.Collapse(
+                                    dbc.CardBody(
+                                        [
+                                            # Two column layout
+                                            dbc.Row(
+                                                [
+                                                    # Column 1: Tournament Round + Map Filters
+                                                    dbc.Col(
+                                                        [
+                                                            html.Label(
+                                                                "Tournament Round",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-round-filter-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Rounds",
+                                                                clearable=True,
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Map Size",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-map-size-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Sizes",
+                                                                clearable=True,
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Map Class",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-map-class-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Classes",
+                                                                clearable=True,
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Map Aspect",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-map-aspect-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Aspects",
+                                                                clearable=True,
+                                                                className="mb-3",
+                                                            ),
+                                                        ],
+                                                        width=6,
+                                                    ),
+                                                    # Column 2: Game Length + Nations + Players
+                                                    dbc.Col(
+                                                        [
+                                                            html.Label(
+                                                                "Game Length (Max Turns)",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            html.Div(
+                                                                [
+                                                                    dcc.Slider(
+                                                                        id="overview-turn-length-slider",
+                                                                        min=10,
+                                                                        max=200,
+                                                                        step=5,
+                                                                        value=200,
+                                                                        marks={
+                                                                            10: "10",
+                                                                            50: "50",
+                                                                            100: "100",
+                                                                            150: "150",
+                                                                            200: "200",
+                                                                        },
+                                                                        tooltip={
+                                                                            "placement": "bottom",
+                                                                            "always_visible": False,
+                                                                        },
+                                                                        className="mb-1",
+                                                                    ),
+                                                                    html.Div(
+                                                                        id="overview-turn-length-label",
+                                                                        className="text-center text-muted small",
+                                                                        children="Max 200 turns",
+                                                                    ),
+                                                                ],
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Nations",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-nations-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Nations",
+                                                                multi=True,
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Players",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-players-dropdown",
+                                                                options=[],
+                                                                value=None,
+                                                                placeholder="All Players",
+                                                                multi=True,
+                                                                className="mb-3",
+                                                            ),
+                                                        ],
+                                                        width=6,
+                                                    ),
+                                                ]
+                                            ),
+                                            # Clear Filters Button Row
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        [
+                                                            dbc.Button(
+                                                                [
+                                                                    html.I(
+                                                                        className="bi bi-arrow-counterclockwise me-2"
+                                                                    ),
+                                                                    "Clear All Filters",
+                                                                ],
+                                                                id="overview-clear-filters-btn",
+                                                                color="secondary",
+                                                                outline=True,
+                                                                size="sm",
+                                                                className="mt-2",
+                                                            ),
+                                                        ],
+                                                        width=12,
+                                                        className="text-end",
+                                                    ),
+                                                ]
+                                            ),
+                                        ]
+                                    ),
+                                    id="overview-filter-collapse",
+                                    is_open=False,
+                                ),
                             ]
                         )
                     ],
@@ -273,31 +271,9 @@ layout = html.Div(
                     label="Summary",
                     tab_id="summary-tab",
                     children=[
-                        # Summary metrics
-                        html.Div(id="overview-metrics", className="mt-3"),
-                        # Tournament Round Statistics
+                        # Event Category Timeline
                         dbc.Row(
                             [
-                                dbc.Col(
-                                    [
-                                        dbc.Card(
-                                            [
-                                                dbc.CardBody(
-                                                    [
-                                                        html.H5(
-                                                            "Tournament Rounds",
-                                                            className="card-title",
-                                                        ),
-                                                        html.Div(
-                                                            id="overview-round-stats-content"
-                                                        ),
-                                                    ]
-                                                )
-                                            ]
-                                        )
-                                    ],
-                                    width=4,
-                                ),
                                 dbc.Col(
                                     [
                                         create_chart_card(
@@ -306,10 +282,10 @@ layout = html.Div(
                                             height="450px",
                                         )
                                     ],
-                                    width=8,
+                                    width=12,
                                 ),
                             ],
-                            className="mb-4",
+                            className="mb-4 mt-3",
                         ),
                         # Unit and Map breakdown charts
                         dbc.Row(
@@ -638,14 +614,39 @@ layout = html.Div(
 
 
 @callback(
-    Output("overview-round-filter-dropdown", "options"),
-    Input("overview-bracket-filter-dropdown", "value"),
+    Output("overview-filter-collapse", "is_open"),
+    Output("overview-filter-toggle-icon", "className"),
+    Input("overview-filter-toggle", "n_clicks"),
+    prevent_initial_call=True,
 )
-def update_round_options(bracket: str) -> List[dict]:
-    """Update round dropdown options based on selected bracket.
+def toggle_filter_collapse(n_clicks: Optional[int]) -> tuple[bool, str]:
+    """Toggle the filter section collapse state.
 
     Args:
-        bracket: Selected bracket ('all', 'Winners', 'Losers', 'Unknown')
+        n_clicks: Number of times the toggle button has been clicked
+
+    Returns:
+        Tuple of (is_open, icon_class)
+    """
+    # Get current state from callback context
+    from dash import callback_context
+
+    # Toggle state based on clicks
+    is_open = n_clicks % 2 == 1 if n_clicks else False
+    icon_class = "bi bi-chevron-down me-2" if is_open else "bi bi-chevron-right me-2"
+
+    return is_open, icon_class
+
+
+@callback(
+    Output("overview-round-filter-dropdown", "options"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_round_options(n_intervals: int) -> List[dict]:
+    """Update round dropdown options.
+
+    Args:
+        n_intervals: Number of interval triggers
 
     Returns:
         List of options for round dropdown
@@ -659,25 +660,17 @@ def update_round_options(bracket: str) -> List[dict]:
         if available_rounds.empty:
             return []
 
-        # Filter rounds based on bracket selection
-        if bracket == "Winners":
-            filtered = available_rounds[available_rounds["tournament_round"] > 0]
-        elif bracket == "Losers":
-            filtered = available_rounds[available_rounds["tournament_round"] < 0]
-        elif bracket == "Unknown":
-            filtered = available_rounds[available_rounds["tournament_round"].isna()]
-        else:  # 'all'
-            filtered = available_rounds
-
-        # Create options
+        # Create options for all rounds
         options = [
             {
                 "label": f"{format_round_display(row['tournament_round'])} ({int(row['match_count'])} matches)",
-                "value": int(row["tournament_round"])
-                if pd.notna(row["tournament_round"])
-                else None,
+                "value": (
+                    int(row["tournament_round"])
+                    if pd.notna(row["tournament_round"])
+                    else None
+                ),
             }
-            for _, row in filtered.iterrows()
+            for _, row in available_rounds.iterrows()
         ]
 
         return options
@@ -798,94 +791,52 @@ def update_players_options(n_intervals: int) -> List[dict]:
 
 
 @callback(
-    Output("overview-round-stats-content", "children"),
-    Input("refresh-interval", "n_intervals"),
+    Output("overview-turn-length-label", "children"),
+    Input("overview-turn-length-slider", "value"),
 )
-def update_round_statistics(n_intervals: int) -> List[Any]:
-    """Display tournament round distribution statistics.
+def update_turn_length_label(turn_length: Optional[int]) -> str:
+    """Update the label below the slider to show current value.
+
+    Args:
+        turn_length: Current slider value
 
     Returns:
-        List of HTML components showing round stats
+        Label text
     """
-    from tournament_visualizer.components.layouts import format_round_display
+    if turn_length is None:
+        return "All Lengths"
+    return f"Max {turn_length} turns"
 
-    try:
-        queries = get_queries()
-        rounds_df = queries.get_available_rounds()
 
-        if rounds_df.empty:
-            return [html.P("No round data available", className="text-muted")]
+@callback(
+    Output("overview-round-filter-dropdown", "value"),
+    Output("overview-turn-length-slider", "value"),
+    Output("overview-map-size-dropdown", "value"),
+    Output("overview-map-class-dropdown", "value"),
+    Output("overview-map-aspect-dropdown", "value"),
+    Output("overview-nations-dropdown", "value"),
+    Output("overview-players-dropdown", "value"),
+    Input("overview-clear-filters-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def clear_all_filters(n_clicks: Optional[int]) -> tuple:
+    """Clear all filter selections and reset to defaults.
 
-        # Calculate totals
-        total_matches = int(rounds_df["match_count"].sum())
-        winners_df = rounds_df[rounds_df["bracket"] == "Winners"]
-        losers_df = rounds_df[rounds_df["bracket"] == "Losers"]
-        unknown_df = rounds_df[rounds_df["bracket"] == "Unknown"]
+    Args:
+        n_clicks: Number of times the button has been clicked
 
-        winners_matches = int(winners_df["match_count"].sum()) if not winners_df.empty else 0
-        losers_matches = int(losers_df["match_count"].sum()) if not losers_df.empty else 0
-        unknown_matches = int(unknown_df["match_count"].sum()) if not unknown_df.empty else 0
-
-        # Create summary
-        stats = [
-            html.P(
-                [html.Strong("Total Matches: "), f"{total_matches}"], className="mb-2"
-            ),
-            html.P(
-                [
-                    html.Strong("Winners Bracket: "),
-                    html.Span(f"{winners_matches}", className="text-success"),
-                ],
-                className="mb-2",
-            ),
-            html.P(
-                [
-                    html.Strong("Losers Bracket: "),
-                    html.Span(f"{losers_matches}", className="text-warning"),
-                ],
-                className="mb-2",
-            ),
-        ]
-
-        if unknown_matches > 0:
-            stats.append(
-                html.P(
-                    [
-                        html.Strong("Unknown: "),
-                        html.Span(f"{unknown_matches}", className="text-muted"),
-                    ],
-                    className="mb-2",
-                )
-            )
-
-        # Add horizontal rule
-        stats.append(html.Hr())
-
-        # Add breakdown by round
-        stats.append(
-            html.P(html.Strong("Breakdown by Round:"), className="mb-2")
-        )
-
-        for _, row in rounds_df.iterrows():
-            round_display = format_round_display(row["tournament_round"])
-            match_count = int(row["match_count"])
-            stats.append(
-                html.P(
-                    [
-                        f"{round_display}: ",
-                        html.Span(
-                            f"{match_count} matches", className="text-muted"
-                        ),
-                    ],
-                    className="mb-1 ms-3",
-                )
-            )
-
-        return stats
-
-    except Exception as e:
-        logger.error(f"Error loading round statistics: {e}")
-        return [html.P(f"Error: {str(e)}", className="text-danger")]
+    Returns:
+        Tuple of default values for all filter dropdowns
+    """
+    return (
+        None,  # round
+        200,  # turn_length (slider) - reset to max
+        None,  # map_size
+        None,  # map_class
+        None,  # map_aspect
+        None,  # nations
+        None,  # players
+    )
 
 
 @callback(
@@ -919,10 +870,8 @@ def update_overview_metrics(n_intervals: int) -> html.Div:
 
 @callback(
     Output("overview-nation-win-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -931,10 +880,8 @@ def update_overview_metrics(n_intervals: int) -> html.Div:
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_win_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -945,10 +892,8 @@ def update_nation_win_chart(
     """Update the nation win percentage chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -961,11 +906,11 @@ def update_nation_win_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_nation_win_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -986,10 +931,8 @@ def update_nation_win_chart(
 
 @callback(
     Output("overview-nation-loss-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -998,10 +941,8 @@ def update_nation_win_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_loss_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1012,10 +953,8 @@ def update_nation_loss_chart(
     """Update the nation loss percentage chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1028,11 +967,11 @@ def update_nation_loss_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_nation_loss_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1053,10 +992,8 @@ def update_nation_loss_chart(
 
 @callback(
     Output("overview-nation-popularity-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1065,10 +1002,8 @@ def update_nation_loss_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_popularity_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1079,10 +1014,8 @@ def update_nation_popularity_chart(
     """Update the nation popularity chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1095,11 +1028,11 @@ def update_nation_popularity_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_nation_popularity(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1119,12 +1052,36 @@ def update_nation_popularity_chart(
 
 
 @callback(
-    Output("overview-units-chart", "figure"), Input("refresh-interval", "n_intervals")
+    Output("overview-units-chart", "figure"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_units_chart(n_intervals: int):
-    """Update the unit popularity sunburst chart.
+def update_units_chart(
+    round_num: Optional[int],
+    turn_length: Optional[int],
+    map_size: Optional[str],
+    map_class: Optional[str],
+    map_aspect: Optional[str],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    n_intervals: int,
+):
+    """Update the unit popularity sunburst chart with filters.
 
     Args:
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff (None means no filter)
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1132,10 +1089,22 @@ def update_units_chart(n_intervals: int):
     """
     try:
         queries = get_queries()
-        df = queries.get_unit_popularity()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_unit_popularity(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
 
         if df.empty:
-            return create_empty_chart_placeholder("No unit data available")
+            return create_empty_chart_placeholder("No data for selected filters")
 
         return create_unit_popularity_sunburst_chart(df)
 
@@ -1144,12 +1113,36 @@ def update_units_chart(n_intervals: int):
 
 
 @callback(
-    Output("overview-map-chart", "figure"), Input("refresh-interval", "n_intervals")
+    Output("overview-map-chart", "figure"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("refresh-interval", "n_intervals"),
 )
-def update_map_chart(n_intervals: int):
-    """Update the map breakdown sunburst chart.
+def update_map_chart(
+    round_num: Optional[int],
+    turn_length: Optional[int],
+    map_size: Optional[str],
+    map_class: Optional[str],
+    map_aspect: Optional[str],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    n_intervals: int,
+):
+    """Update the map breakdown sunburst chart with filters.
 
     Args:
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff (None means no filter)
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1157,10 +1150,22 @@ def update_map_chart(n_intervals: int):
     """
     try:
         queries = get_queries()
-        df = queries.get_map_breakdown()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_map_breakdown(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
 
         if df.empty:
-            return create_empty_chart_placeholder("No map data available")
+            return create_empty_chart_placeholder("No data for selected filters")
 
         return create_map_breakdown_actual_sunburst_chart(df)
 
@@ -1170,10 +1175,8 @@ def update_map_chart(n_intervals: int):
 
 @callback(
     Output("overview-matches-table", "data"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1182,10 +1185,8 @@ def update_map_chart(n_intervals: int):
     Input("refresh-interval", "n_intervals"),
 )
 def update_matches_table(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1196,10 +1197,8 @@ def update_matches_table(
     """Update the matches table based on filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1215,13 +1214,13 @@ def update_matches_table(
     try:
         queries = get_queries()
 
-        # Build bracket parameter for query
-        bracket_param = None if bracket == "all" else bracket
+        # Parse turn length filter
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         # Get filtered matches
         df = queries.get_matches_by_round(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1248,9 +1247,7 @@ def update_matches_table(
                         if pd.notna(row.get("save_date"))
                         else ""
                     ),
-                    "round_display": format_round_display(
-                        row.get("tournament_round")
-                    ),
+                    "round_display": format_round_display(row.get("tournament_round")),
                     "total_turns": row.get("total_turns", 0),
                     "winner_name": row.get("winner_name", "Unknown"),
                     "map_info": row.get("map_info", "Unknown").strip(),
@@ -1334,10 +1331,8 @@ def check_data_status(n_intervals: int) -> html.Div:
 
 @callback(
     Output("overview-law-distribution", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1346,10 +1341,8 @@ def check_data_status(n_intervals: int) -> html.Div:
     Input("refresh-interval", "n_intervals"),
 )
 def update_law_distribution(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1360,10 +1353,8 @@ def update_law_distribution(
     """Update law milestone distribution chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1376,13 +1367,13 @@ def update_law_distribution(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         # Get ALL matches data with filters
         df = queries.get_law_progression_by_match(
             match_id=None,
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1404,10 +1395,8 @@ def update_law_distribution(
 
 @callback(
     Output("overview-law-efficiency", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1416,10 +1405,8 @@ def update_law_distribution(
     Input("refresh-interval", "n_intervals"),
 )
 def update_law_efficiency(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1430,10 +1417,8 @@ def update_law_efficiency(
     """Update law efficiency scatter plot with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1446,12 +1431,12 @@ def update_law_efficiency(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_law_progression_by_match(
             match_id=None,
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1473,14 +1458,37 @@ def update_law_efficiency(
 
 @callback(
     Output("overview-event-timeline", "figure"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
-def update_event_timeline(n_intervals: int):
-    """Update aggregated event category timeline chart.
+def update_event_timeline(
+    round_num: Optional[int],
+    turn_length: Optional[int],
+    map_size: Optional[str],
+    map_class: Optional[str],
+    map_aspect: Optional[str],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    n_intervals: int,
+):
+    """Update aggregated event category timeline chart with filters.
 
-    Shows typical event patterns across ALL matches.
+    Shows typical event patterns across filtered matches.
 
     Args:
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff (None means no filter)
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1488,10 +1496,23 @@ def update_event_timeline(n_intervals: int):
     """
     try:
         queries = get_queries()
-        df = queries.get_aggregated_event_timeline(max_turn=150)
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_aggregated_event_timeline(
+            max_turn=150,
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
 
         if df.empty:
-            return create_empty_chart_placeholder("No event timeline data available")
+            return create_empty_chart_placeholder("No data for selected filters")
 
         return create_aggregated_event_category_timeline_chart(df)
 
@@ -1502,10 +1523,8 @@ def update_event_timeline(n_intervals: int):
 
 @callback(
     Output("overview-ruler-archetype-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1514,10 +1533,8 @@ def update_event_timeline(n_intervals: int):
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_archetype_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1528,10 +1545,8 @@ def update_ruler_archetype_chart(
     """Update ruler archetype win rates chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1544,11 +1559,11 @@ def update_ruler_archetype_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_ruler_archetype_win_rates(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1570,10 +1585,8 @@ def update_ruler_archetype_chart(
 
 @callback(
     Output("overview-ruler-trait-performance-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1582,10 +1595,8 @@ def update_ruler_archetype_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_trait_performance_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1596,10 +1607,8 @@ def update_ruler_trait_performance_chart(
     """Update ruler trait performance chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1612,12 +1621,12 @@ def update_ruler_trait_performance_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_ruler_trait_win_rates(
             min_games=1,
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1639,10 +1648,8 @@ def update_ruler_trait_performance_chart(
 
 @callback(
     Output("overview-ruler-matchup-matrix-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1651,10 +1658,8 @@ def update_ruler_trait_performance_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_matchup_matrix_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1665,10 +1670,8 @@ def update_ruler_matchup_matrix_chart(
     """Update ruler archetype matchup matrix chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1681,11 +1684,11 @@ def update_ruler_matchup_matrix_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_ruler_archetype_matchups(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1707,10 +1710,8 @@ def update_ruler_matchup_matrix_chart(
 
 @callback(
     Output("overview-ruler-combinations-chart", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1719,10 +1720,8 @@ def update_ruler_matchup_matrix_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_combinations_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1733,10 +1732,8 @@ def update_ruler_combinations_chart(
     """Update ruler archetype + trait combinations chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1749,12 +1746,12 @@ def update_ruler_combinations_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_ruler_archetype_trait_combinations(
             limit=10,
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1776,10 +1773,8 @@ def update_ruler_combinations_chart(
 
 @callback(
     Output("overview-counter-pick-heatmap", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1788,10 +1783,8 @@ def update_ruler_combinations_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_counter_pick_heatmap(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1802,10 +1795,8 @@ def update_counter_pick_heatmap(
     """Update nation counter-pick effectiveness heatmap with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1818,12 +1809,12 @@ def update_counter_pick_heatmap(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_nation_counter_pick_matrix(
             min_games=1,
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1845,10 +1836,8 @@ def update_counter_pick_heatmap(
 
 @callback(
     Output("overview-pick-order-win-rate", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1857,10 +1846,8 @@ def update_counter_pick_heatmap(
     Input("refresh-interval", "n_intervals"),
 )
 def update_pick_order_win_rate(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1871,10 +1858,8 @@ def update_pick_order_win_rate(
     """Update pick order win rate bar chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1887,11 +1872,11 @@ def update_pick_order_win_rate(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_pick_order_win_rates(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1913,10 +1898,8 @@ def update_pick_order_win_rate(
 
 @callback(
     Output("overview-science-progression", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1925,10 +1908,8 @@ def update_pick_order_win_rate(
     Input("refresh-interval", "n_intervals"),
 )
 def update_science_progression(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -1939,10 +1920,8 @@ def update_science_progression(
     """Update science progression chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -1955,11 +1934,11 @@ def update_science_progression(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         stats = queries.get_metric_progression_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -1981,10 +1960,8 @@ def update_science_progression(
 
 @callback(
     Output("overview-orders-progression", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -1993,10 +1970,8 @@ def update_science_progression(
     Input("refresh-interval", "n_intervals"),
 )
 def update_orders_progression(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -2007,10 +1982,8 @@ def update_orders_progression(
     """Update orders progression chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -2023,11 +1996,11 @@ def update_orders_progression(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         stats = queries.get_metric_progression_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -2049,10 +2022,8 @@ def update_orders_progression(
 
 @callback(
     Output("overview-military-progression", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -2061,10 +2032,8 @@ def update_orders_progression(
     Input("refresh-interval", "n_intervals"),
 )
 def update_military_progression(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -2075,10 +2044,8 @@ def update_military_progression(
     """Update military progression chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -2091,11 +2058,11 @@ def update_military_progression(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         stats = queries.get_metric_progression_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -2117,10 +2084,8 @@ def update_military_progression(
 
 @callback(
     Output("overview-legitimacy-progression", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -2129,10 +2094,8 @@ def update_military_progression(
     Input("refresh-interval", "n_intervals"),
 )
 def update_legitimacy_progression(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -2143,10 +2106,8 @@ def update_legitimacy_progression(
     """Update legitimacy progression chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -2159,11 +2120,11 @@ def update_legitimacy_progression(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         stats = queries.get_metric_progression_stats(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -2188,10 +2149,8 @@ def update_legitimacy_progression(
 
 @callback(
     Output("overview-expansion-timeline", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -2200,10 +2159,8 @@ def update_legitimacy_progression(
     Input("refresh-interval", "n_intervals"),
 )
 def update_expansion_timeline_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -2214,10 +2171,8 @@ def update_expansion_timeline_chart(
     """Update the city expansion timeline chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -2230,11 +2185,11 @@ def update_expansion_timeline_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_tournament_expansion_timeline(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
@@ -2256,10 +2211,8 @@ def update_expansion_timeline_chart(
 
 @callback(
     Output("overview-production-strategies", "figure"),
-    Input("overview-bracket-filter-dropdown", "value"),
     Input("overview-round-filter-dropdown", "value"),
-    Input("overview-min-turns-input", "value"),
-    Input("overview-max-turns-input", "value"),
+    Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
     Input("overview-map-class-dropdown", "value"),
     Input("overview-map-aspect-dropdown", "value"),
@@ -2268,10 +2221,8 @@ def update_expansion_timeline_chart(
     Input("refresh-interval", "n_intervals"),
 )
 def update_production_strategies_chart(
-    bracket: str,
     round_num: Optional[int],
-    min_turns: Optional[int],
-    max_turns: Optional[int],
+    turn_length: Optional[int],
     map_size: Optional[str],
     map_class: Optional[str],
     map_aspect: Optional[str],
@@ -2282,10 +2233,8 @@ def update_production_strategies_chart(
     """Update the production strategies chart with filters.
 
     Args:
-        bracket: Selected bracket filter
         round_num: Selected round number
-        min_turns: Minimum number of turns
-        max_turns: Maximum number of turns
+        turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
         map_class: Map class filter
         map_aspect: Map aspect ratio filter
@@ -2298,11 +2247,11 @@ def update_production_strategies_chart(
     """
     try:
         queries = get_queries()
-        bracket_param = None if bracket == "all" else bracket
+        min_turns, max_turns = parse_turn_length(turn_length)
 
         df = queries.get_tournament_production_strategies(
             tournament_round=round_num,
-            bracket=bracket_param,
+            bracket=None,
             min_turns=min_turns,
             max_turns=max_turns,
             map_size=map_size,
