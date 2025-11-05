@@ -3723,7 +3723,9 @@ def create_pick_order_win_rate_chart(df: pd.DataFrame) -> go.Figure:
         Plotly figure with grouped bar chart showing pick order win rates
     """
     if df.empty:
-        return create_empty_chart_placeholder("No pick order data available")
+        return create_empty_chart_placeholder(
+            "No pick order data available. Pick order data needs to be synced."
+        )
 
     fig = create_base_figure(
         x_title="Pick Position",

@@ -1824,9 +1824,7 @@ def update_counter_pick_heatmap(
             players=players if players else None,
         )
 
-        if df.empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
+        # Let the chart function handle empty data with a proper message
         return create_nation_counter_pick_heatmap(df)
 
     except Exception as e:
@@ -1886,9 +1884,7 @@ def update_pick_order_win_rate(
             players=players if players else None,
         )
 
-        if df.empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
+        # Let the chart function handle empty data with a proper message
         return create_pick_order_win_rate_chart(df)
 
     except Exception as e:
