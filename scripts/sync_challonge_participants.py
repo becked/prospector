@@ -115,6 +115,37 @@ def insert_participants(
     print(f"Inserting {len(participants)} participants...")
 
     with db.get_connection() as conn:
+        # Clear all participant foreign keys before deleting
+        # (must be done due to FK constraints)
+
+        # Clear FKs in matches table
+        conn.execute(
+            """
+            UPDATE matches
+            SET player1_participant_id = NULL,
+                player2_participant_id = NULL,
+                winner_participant_id = NULL,
+                first_picker_participant_id = NULL,
+                second_picker_participant_id = NULL
+            """
+        )
+
+        # Clear FKs in pick_order_games table
+        conn.execute(
+            """
+            UPDATE pick_order_games
+            SET first_picker_participant_id = NULL,
+                second_picker_participant_id = NULL
+            """
+        )
+
+        # Clear FKs in participant_name_overrides table
+        conn.execute(
+            """
+            DELETE FROM participant_name_overrides
+            """
+        )
+
         # Clear existing participants (full refresh)
         conn.execute("DELETE FROM tournament_participants")
 
