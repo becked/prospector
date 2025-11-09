@@ -1,12 +1,13 @@
 #!/bin/bash
-# Script to sync tournament data by processing LOCALLY and uploading to Fly.io
-# This is much faster than processing on Fly.io due to better CPU/disk performance
+# Script to sync tournament data by processing locally
+# Optionally deploys to Fly.io with --deploy flag
 #
-# Usage: ./scripts/sync_tournament_data_local.sh [options] [app-name]
+# Usage: ./scripts/sync_tournament_data.sh [options] [app-name]
 # Options:
 #   --force                Force full rebuild (clears database, re-imports all files,
 #                          and runs participant/pick order enrichment)
 #   --generate-narratives  Generate AI match narratives (requires ANTHROPIC_API_KEY)
+#   --deploy               Deploy to Fly.io after processing (requires flyctl)
 #
 # Without --force: Only imports new save files (skips participant/pick order sync)
 # Default app name: prospector
@@ -30,6 +31,7 @@ NC='\033[0m' # No Color
 # Parse arguments
 FORCE_FLAG=""
 GENERATE_NARRATIVES=false
+DEPLOY_TO_FLY=false
 APP_NAME="prospector"
 
 while [[ $# -gt 0 ]]; do
@@ -42,9 +44,13 @@ while [[ $# -gt 0 ]]; do
             GENERATE_NARRATIVES=true
             shift
             ;;
+        --deploy)
+            DEPLOY_TO_FLY=true
+            shift
+            ;;
         -*)
             echo -e "${RED}Error: Unknown option $1${NC}"
-            echo "Usage: ./scripts/sync_tournament_data_local.sh [--force] [--generate-narratives] [app-name]"
+            echo "Usage: ./scripts/sync_tournament_data.sh [--force] [--generate-narratives] [--deploy] [app-name]"
             exit 1
             ;;
         *)
@@ -55,9 +61,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "======================================"
-echo "Tournament Data Sync (Local Processing)"
+echo "Tournament Data Sync"
 echo "======================================"
-echo -e "${BLUE}App: ${APP_NAME}${NC}"
+if [ "$DEPLOY_TO_FLY" = true ]; then
+    echo -e "${BLUE}Mode: Local processing + Fly.io deployment${NC}"
+    echo -e "${BLUE}App: ${APP_NAME}${NC}"
+else
+    echo -e "${BLUE}Mode: Local processing only${NC}"
+fi
 if [ -n "$FORCE_FLAG" ]; then
     echo -e "${YELLOW}Mode: Full rebuild (database cleared, all files reimported, enrichment enabled)${NC}"
 else
@@ -68,13 +79,6 @@ if [ "$GENERATE_NARRATIVES" = true ]; then
 fi
 echo ""
 
-# Check if flyctl is installed
-if ! command -v fly &> /dev/null; then
-    echo -e "${RED}Error: flyctl is not installed${NC}"
-    echo "Install it from: https://fly.io/docs/hands-on/install-flyctl/"
-    exit 1
-fi
-
 # Check if uv is installed (for running Python scripts)
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}Error: uv is not installed${NC}"
@@ -82,16 +86,26 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-# Verify we can access the app
-echo -e "${YELLOW}Verifying app access...${NC}"
-if ! fly status -a "${APP_NAME}" &> /dev/null; then
-    echo -e "${RED}Error: Cannot access app '${APP_NAME}'${NC}"
-    echo "Make sure you're logged in: fly auth login"
-    echo "Or specify a different app: ./scripts/sync_tournament_data_local.sh [--force] <app-name>"
-    exit 1
+# Only check Fly.io requirements if deploying
+if [ "$DEPLOY_TO_FLY" = true ]; then
+    # Check if flyctl is installed
+    if ! command -v fly &> /dev/null; then
+        echo -e "${RED}Error: flyctl is not installed${NC}"
+        echo "Install it from: https://fly.io/docs/hands-on/install-flyctl/"
+        exit 1
+    fi
+
+    # Verify we can access the app
+    echo -e "${YELLOW}Verifying Fly.io app access...${NC}"
+    if ! fly status -a "${APP_NAME}" &> /dev/null; then
+        echo -e "${RED}Error: Cannot access app '${APP_NAME}'${NC}"
+        echo "Make sure you're logged in: fly auth login"
+        echo "Or specify a different app: ./scripts/sync_tournament_data.sh --deploy <app-name>"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ App accessible${NC}"
+    echo ""
 fi
-echo -e "${GREEN}✓ App accessible${NC}"
-echo ""
 
 # Step 1: Download attachments from Challonge (locally)
 echo -e "${YELLOW}[1/6] Downloading attachments from Challonge (local)...${NC}"
@@ -198,8 +212,24 @@ else
     echo ""
 fi
 
+# Exit here if not deploying to Fly.io
+if [ "$DEPLOY_TO_FLY" = false ]; then
+    echo ""
+    echo "======================================"
+    echo -e "${GREEN}Local Sync Complete!${NC}"
+    echo "======================================"
+    echo ""
+    echo "Tournament data has been processed and stored in the local database."
+    echo ""
+    echo "Database location: data/tournament_data.duckdb"
+    echo ""
+    echo "To deploy to production, run: ./scripts/sync_tournament_data.sh --deploy"
+    echo ""
+    exit 0
+fi
+
 # Step 3: Upload new database via atomic replacement
-echo -e "${YELLOW}[3/8] Uploading new database...${NC}"
+echo -e "${YELLOW}[3/8] Uploading new database to Fly.io...${NC}"
 DB_PATH="data/tournament_data.duckdb"
 REMOTE_PATH="/data/tournament_data.duckdb"
 REMOTE_TEMP_PATH="/data/tournament_data.duckdb.new"
@@ -319,7 +349,7 @@ fi
 
 echo ""
 echo "======================================"
-echo -e "${GREEN}Sync Complete!${NC}"
+echo -e "${GREEN}Deployment Complete!${NC}"
 echo "======================================"
 echo ""
 echo "The production database has been updated with the latest tournament data."

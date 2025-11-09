@@ -45,6 +45,8 @@ This installs Dash, Plotly, DuckDB, and all required packages.
 
 ### 2. Import Tournament Data
 
+#### Basic Import (Local Save Files Only)
+
 Place your Old World save files (`.zip` format) in the `saves/` directory, then:
 
 ```bash
@@ -62,6 +64,82 @@ uv run python scripts/import_attachments.py --force
 # Dry run (preview without importing)
 uv run python scripts/import_attachments.py --dry-run
 ```
+
+#### Full Sync (All Data Sources)
+
+For complete tournament data including Challonge participants, Google Drive saves, and pick order data:
+
+**Automated sync script** - Recommended approach:
+```bash
+# Incremental sync (new save files only, faster)
+./scripts/sync_tournament_data.sh
+
+# Full rebuild (clear DB, re-import everything, update participants/pick order)
+./scripts/sync_tournament_data.sh --force
+
+# Deploy incremental update to production
+./scripts/sync_tournament_data.sh --deploy
+
+# Full rebuild + deploy to production
+./scripts/sync_tournament_data.sh --force --deploy
+
+# With AI-generated match narratives
+./scripts/sync_tournament_data.sh --generate-narratives
+
+# Everything: full rebuild + deploy + narratives
+./scripts/sync_tournament_data.sh --force --deploy --generate-narratives
+```
+
+**When to use `--force`:**
+- First time setup
+- Participant data changed (new players, name corrections)
+- Pick order data updated
+- Need to rebuild from scratch
+
+**Manual workflow** - Run individual scripts in order:
+```bash
+# 1. Download save files from Challonge/GDrive
+uv run python scripts/download_attachments.py
+
+# 2. Generate Google Drive mapping (if using GDrive)
+uv run python scripts/generate_gdrive_mapping.py
+
+# 3. Import save files into database
+uv run python scripts/import_attachments.py --directory saves --force --verbose
+
+# 4. Sync tournament participants from Challonge
+uv run python scripts/sync_challonge_participants.py
+
+# 5. Link in-game players to participants
+uv run python scripts/link_players_to_participants.py
+
+# 6. Sync pick order data from Google Sheets
+uv run python scripts/sync_pick_order_data.py
+
+# 7. Match pick order games to database matches
+uv run python scripts/match_pick_order_games.py
+
+# 8. (Optional) Generate AI match narratives
+uv run python scripts/generate_match_narratives.py
+```
+
+**Required environment variables** (in `.env` file):
+```bash
+# Challonge API (required for participant sync)
+CHALLONGE_KEY=your_api_key
+CHALLONGE_USER=your_username
+challonge_tournament_id=your_tournament_id
+
+# Google Drive & Sheets (for GDrive saves + pick order)
+GOOGLE_DRIVE_API_KEY=your_api_key
+GOOGLE_DRIVE_FOLDER_ID=folder_id
+GOOGLE_SHEETS_SPREADSHEET_ID=spreadsheet_id
+
+# AI Narratives (optional)
+ANTHROPIC_API_KEY=your_api_key
+```
+
+See [Developer Guide § Data Integration](docs/developer-guide.md#data-integration) for setup details.
 
 ### 3. Launch the Dashboard
 
