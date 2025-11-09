@@ -1004,37 +1004,70 @@ class TournamentQueries:
             return conn.execute(query, [match_id]).df()
 
     def get_total_laws_by_player(self, match_id: Optional[int] = None) -> pd.DataFrame:
-        """Get total law counts by player, optionally filtered by match.
+        """Get law counts by player, optionally filtered by match.
+
+        Uses events table as source of truth for actual law adoptions.
+        Also provides unique law pairs and calculated law switches.
 
         Args:
             match_id: Optional match ID to filter by
 
         Returns:
-            DataFrame with total law counts per player
+            DataFrame with columns:
+                - player_name: Player display name
+                - civilization: Civilization played
+                - match_id: Match ID
+                - game_name: Match name
+                - total_turns: Total turns in match
+                - total_laws_adopted: Total law adoptions from events (includes switches)
+                - unique_law_pairs: Unique law categories adopted from statistics
+                - law_switches: Number of times player switched laws (derived)
         """
         base_query = """
+        WITH law_events AS (
+            -- Count actual law adoptions from event log (source of truth)
+            SELECT
+                match_id,
+                player_id,
+                COUNT(*) as total_laws_adopted
+            FROM events
+            WHERE event_type = 'LAW_ADOPTED'
+            GROUP BY match_id, player_id
+        ),
+        law_pairs AS (
+            -- Count unique law pairs adopted
+            SELECT
+                match_id,
+                player_id,
+                COUNT(*) as unique_law_pairs
+            FROM player_statistics
+            WHERE stat_category = 'law_changes'
+            GROUP BY match_id, player_id
+        )
         SELECT
             p.player_name,
             p.civilization,
             m.match_id,
             m.game_name,
             m.total_turns,
-            SUM(ps.value) as total_laws
-        FROM player_statistics ps
-        JOIN players p ON ps.player_id = p.player_id
-        JOIN matches m ON ps.match_id = m.match_id
-        WHERE ps.stat_category = 'law_changes'
+            le.total_laws_adopted,
+            lp.unique_law_pairs,
+            (le.total_laws_adopted - COALESCE(lp.unique_law_pairs, 0)) as law_switches
+        FROM players p
+        JOIN matches m ON p.match_id = m.match_id
+        INNER JOIN law_events le ON p.match_id = le.match_id AND p.player_id = le.player_id
+        LEFT JOIN law_pairs lp ON p.match_id = lp.match_id AND p.player_id = lp.player_id
+        WHERE 1=1
         """
 
         params: List[Any] = []
 
         if match_id:
-            base_query += " AND ps.match_id = ?"
+            base_query += " AND p.match_id = ?"
             params.append(match_id)
 
         base_query += """
-        GROUP BY p.player_name, p.civilization, m.match_id, m.game_name, m.total_turns
-        ORDER BY total_laws DESC
+        ORDER BY le.total_laws_adopted DESC
         """
 
         with self.db.get_connection() as conn:
@@ -1044,48 +1077,43 @@ class TournamentQueries:
         """Get timing analysis for law milestones across all matches.
 
         Calculates when players reach 4 laws and 7 laws based on
-        turns per law ratio.
+        actual law adoption events from the events table.
 
         Returns:
             DataFrame with estimated milestone timing
         """
         query = """
         WITH law_totals AS (
+            -- Count actual law adoptions from events
             SELECT
-                ps.match_id,
-                ps.player_id,
-                p.player_name,
-                p.civilization,
-                m.total_turns,
-                m.game_name,
-                SUM(ps.value) as total_laws
-            FROM player_statistics ps
-            JOIN players p ON ps.player_id = p.player_id
-            JOIN matches m ON ps.match_id = m.match_id
-            WHERE ps.stat_category = 'law_changes'
-            GROUP BY ps.match_id, ps.player_id, p.player_name, p.civilization,
-                     m.total_turns, m.game_name
-            HAVING SUM(ps.value) > 0
+                e.match_id,
+                e.player_id,
+                COUNT(*) as total_laws_adopted
+            FROM events e
+            WHERE e.event_type = 'LAW_ADOPTED'
+            GROUP BY e.match_id, e.player_id
         )
         SELECT
-            player_name,
-            civilization,
-            game_name,
-            total_turns,
-            total_laws,
-            CAST(total_turns AS FLOAT) / total_laws as turns_per_law,
+            p.player_name,
+            p.civilization,
+            m.game_name,
+            m.total_turns,
+            lt.total_laws_adopted as total_laws,
+            CAST(m.total_turns AS FLOAT) / lt.total_laws_adopted as turns_per_law,
             CASE
-                WHEN total_laws >= 4
-                    THEN CAST((4.0 * total_turns / total_laws) AS INTEGER)
+                WHEN lt.total_laws_adopted >= 4
+                    THEN CAST((4.0 * m.total_turns / lt.total_laws_adopted) AS INTEGER)
                 ELSE NULL
             END as estimated_turn_to_4_laws,
             CASE
-                WHEN total_laws >= 7
-                    THEN CAST((7.0 * total_turns / total_laws) AS INTEGER)
+                WHEN lt.total_laws_adopted >= 7
+                    THEN CAST((7.0 * m.total_turns / lt.total_laws_adopted) AS INTEGER)
                 ELSE NULL
             END as estimated_turn_to_7_laws
-        FROM law_totals
-        WHERE total_laws > 0
+        FROM law_totals lt
+        JOIN players p ON lt.player_id = p.player_id AND lt.match_id = p.match_id
+        JOIN matches m ON lt.match_id = m.match_id
+        WHERE lt.total_laws_adopted > 0
         ORDER BY turns_per_law ASC
         """
 
@@ -1097,6 +1125,7 @@ class TournamentQueries:
 
         Groups by tournament participant when available, ensuring consistent
         aggregation across matches even if in-game names vary.
+        Uses events table as source of truth for law adoption counts.
 
         Returns:
             DataFrame with average law counts and milestone estimates per person:
@@ -1112,16 +1141,26 @@ class TournamentQueries:
                 - avg_turn_to_7_laws: Average turn when 7th law reached
         """
         query = """
-        WITH player_grouping AS (
+        WITH law_event_counts AS (
+            -- Count actual law adoptions from events
+            SELECT
+                match_id,
+                player_id,
+                COUNT(*) as total_laws_adopted
+            FROM events
+            WHERE event_type = 'LAW_ADOPTED'
+            GROUP BY match_id, player_id
+        ),
+        player_grouping AS (
             -- Create smart grouping key: participant_id if linked, else normalized name
             SELECT
-                ps.match_id,
+                lec.match_id,
                 p.player_id,
                 p.player_name,
                 tp.participant_id,
                 tp.display_name as participant_display_name,
                 m.total_turns,
-                SUM(ps.value) as total_laws,
+                lec.total_laws_adopted as total_laws,
                 -- Grouping key: use participant_id if available, else normalized name
                 COALESCE(
                     CAST(tp.participant_id AS VARCHAR),
@@ -1131,14 +1170,11 @@ class TournamentQueries:
                 COALESCE(tp.display_name, p.player_name) as display_name,
                 -- Flag for unlinked players
                 CASE WHEN tp.participant_id IS NULL THEN TRUE ELSE FALSE END as is_unlinked
-            FROM player_statistics ps
-            JOIN players p ON ps.player_id = p.player_id
+            FROM law_event_counts lec
+            JOIN players p ON lec.player_id = p.player_id AND lec.match_id = p.match_id
             LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
-            JOIN matches m ON ps.match_id = m.match_id
-            WHERE ps.stat_category = 'law_changes'
-            GROUP BY ps.match_id, p.player_id, p.player_name, p.player_name_normalized,
-                     tp.participant_id, tp.display_name, m.total_turns
-            HAVING SUM(ps.value) > 0
+            JOIN matches m ON lec.match_id = m.match_id
+            WHERE lec.total_laws_adopted > 0
         )
         SELECT
             MAX(display_name) as player_name,

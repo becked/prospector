@@ -1394,16 +1394,17 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                 law_list_str = row.get("law_list", "")
                 if law_list_str and pd.notna(law_list_str):
                     laws = [law.strip() for law in str(law_list_str).split(",")]
-                    # Remove LAW_ prefix, quotes, humanize, and sort
+                    # Remove LAW_ prefix, quotes, humanize, deduplicate, and sort
+                    # Use set() to get unique laws (removes duplicates from switches)
                     player_data[player_id]["laws"] = sorted(
-                        [
+                        set([
                             law.replace("LAW_", "")
                             .replace("_", " ")
                             .strip('"')
                             .strip("'")
                             .title()
                             for law in laws
-                        ]
+                        ])
                     )
 
         if not techs_df.empty:

@@ -958,7 +958,8 @@ def create_law_progression_chart(df: pd.DataFrame) -> go.Figure:
     """Create a bar chart showing total laws enacted by each player.
 
     Args:
-        df: DataFrame with columns: player_name, civilization, total_laws, total_turns
+        df: DataFrame with columns: player_name, civilization,
+            total_laws_adopted (or legacy 'total_laws'), total_turns
 
     Returns:
         Plotly figure with grouped bar chart
@@ -966,21 +967,24 @@ def create_law_progression_chart(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return create_empty_chart_placeholder("No law progression data available")
 
+    # Support both old and new column names for backwards compatibility
+    laws_col = 'total_laws_adopted' if 'total_laws_adopted' in df.columns else 'total_laws'
+
     fig = create_base_figure(
         title="Law Progression by Player",
         x_title="Player",
-        y_title="Total Laws Enacted",
+        y_title="Total Laws Adopted",
         height=400,
     )
 
     # Sort by total laws descending
-    df_sorted = df.sort_values("total_laws", ascending=False)
+    df_sorted = df.sort_values(laws_col, ascending=False)
 
     # Create hover text with additional info
     hover_text = [
         f"Player: {row['player_name']}<br>"
         + f"Civilization: {row.get('civilization', 'Unknown')}<br>"
-        + f"Total Laws: {row['total_laws']}<br>"
+        + f"Laws Adopted: {row[laws_col]}<br>"
         + f"Total Turns: {row.get('total_turns', 'N/A')}"
         for _, row in df_sorted.iterrows()
     ]
@@ -988,8 +992,8 @@ def create_law_progression_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_trace(
         go.Bar(
             x=df_sorted["player_name"],
-            y=df_sorted["total_laws"],
-            text=df_sorted["total_laws"],
+            y=df_sorted[laws_col],
+            text=df_sorted[laws_col],
             textposition="auto",
             hovertext=hover_text,
             hoverinfo="text",
