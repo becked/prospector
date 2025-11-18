@@ -555,7 +555,7 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
-                        # Law Progression Analysis - 2 charts side by side
+                        # Law Progression Analysis - each chart on its own row
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -566,8 +566,13 @@ layout = html.Div(
                                             height="450px",
                                         )
                                     ],
-                                    width=6,
+                                    width=12,
                                 ),
+                            ],
+                            className="mb-4",
+                        ),
+                        dbc.Row(
+                            [
                                 dbc.Col(
                                     [
                                         create_chart_card(
@@ -576,7 +581,7 @@ layout = html.Div(
                                             height="450px",
                                         )
                                     ],
-                                    width=6,
+                                    width=12,
                                 ),
                             ],
                             className="mb-4",
