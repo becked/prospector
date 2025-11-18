@@ -4015,7 +4015,18 @@ class TournamentQueries:
                 return (0, 200)
             return (int(df["min_turns"].iloc[0]), int(df["max_turns"].iloc[0]))
 
-    def get_science_win_correlation(self) -> pd.DataFrame:
+    def get_science_win_correlation(
+        self,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[List[str]] = None,
+        players: Optional[List[str]] = None,
+    ) -> pd.DataFrame:
         """Get turn-by-turn science progression for winners vs losers.
 
         Returns one row per turn number with:
@@ -4032,10 +4043,58 @@ class TournamentQueries:
         All science values are divided by 10 to convert from internal storage format
         to display-ready values (see docs/archive/reports/yield-display-scale-issue.md).
 
+        Args:
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket ('Winners' or 'Losers')
+            min_turns: Minimum game length filter
+            max_turns: Maximum game length filter
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations (list of nation names)
+            players: Filter by player names (list)
+
         Returns:
             DataFrame with turn-by-turn science progression for winners vs losers
         """
-        query = """
+        # Build filter conditions
+        filters = ["yh.resource_type = 'YIELD_SCIENCE'"]
+
+        if tournament_round is not None:
+            filters.append(f"m.tournament_round = {tournament_round}")
+
+        if bracket:
+            if bracket == "Winners":
+                filters.append("m.tournament_round > 0")
+            elif bracket == "Losers":
+                filters.append("m.tournament_round < 0")
+
+        if min_turns is not None:
+            filters.append(f"m.total_turns >= {min_turns}")
+
+        if max_turns is not None:
+            filters.append(f"m.total_turns <= {max_turns}")
+
+        if map_size:
+            filters.append(f"m.map_size = '{map_size}'")
+
+        if map_class:
+            filters.append(f"m.map_class = '{map_class}'")
+
+        if map_aspect:
+            filters.append(f"m.map_aspect = '{map_aspect}'")
+
+        if nations:
+            nations_list = "', '".join(nations)
+            filters.append(f"p.civilization IN ('{nations_list}')")
+
+        if players:
+            players_list = "', '".join(players)
+            filters.append(f"tp.display_name IN ('{players_list}')")
+
+        where_clause = " AND ".join(filters)
+
+        query = f"""
         WITH player_outcomes AS (
             SELECT
                 yh.match_id,
@@ -4045,8 +4104,10 @@ class TournamentQueries:
                 CASE WHEN mw.winner_player_id = yh.player_id THEN 1 ELSE 0 END as won
             FROM player_yield_history yh
             JOIN matches m ON yh.match_id = m.match_id
+            JOIN players p ON yh.match_id = p.match_id AND yh.player_id = p.player_id
+            LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
             LEFT JOIN match_winners mw ON yh.match_id = mw.match_id
-            WHERE yh.resource_type = 'YIELD_SCIENCE'
+            WHERE {where_clause}
         )
         SELECT
             turn_number,

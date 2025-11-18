@@ -2286,12 +2286,35 @@ def update_production_strategies_chart(
 
 @callback(
     Output("overview-science-per-turn-correlation", "figure"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
-def update_science_correlation_chart(n_intervals: int):
-    """Update the science per turn correlation chart.
+def update_science_correlation_chart(
+    round_num: Optional[int],
+    turn_length: Optional[int],
+    map_size: Optional[str],
+    map_class: Optional[str],
+    map_aspect: Optional[str],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    n_intervals: int,
+):
+    """Update the science per turn correlation chart with filters.
 
     Args:
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff (None means no filter)
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
         n_intervals: Number of interval triggers
 
     Returns:
@@ -2299,10 +2322,22 @@ def update_science_correlation_chart(n_intervals: int):
     """
     try:
         queries = get_queries()
-        df = queries.get_science_win_correlation()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_science_win_correlation(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
 
         if df.empty:
-            return create_empty_chart_placeholder("No science data available")
+            return create_empty_chart_placeholder("No data for selected filters")
 
         return create_science_per_turn_correlation_chart(df)
 
