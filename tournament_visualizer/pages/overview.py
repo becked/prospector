@@ -30,6 +30,7 @@ from tournament_visualizer.components.charts import (
     create_ruler_archetype_trait_combinations_chart,
     create_ruler_archetype_win_rates_chart,
     create_ruler_trait_performance_chart,
+    create_science_per_turn_correlation_chart,
     create_science_progression_chart,
     create_summary_metrics_cards,
     create_tournament_expansion_timeline_chart,
@@ -309,6 +310,22 @@ layout = html.Div(
                                         )
                                     ],
                                     width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Science correlation chart
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Average Science Per Turn vs Win Rate",
+                                            chart_id="overview-science-per-turn-correlation",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=12,
                                 ),
                             ],
                             className="mb-4",
@@ -2265,3 +2282,30 @@ def update_production_strategies_chart(
     except Exception as e:
         logger.error(f"Error updating production strategies: {e}")
         return create_empty_chart_placeholder("Error loading production data")
+
+
+@callback(
+    Output("overview-science-per-turn-correlation", "figure"),
+    Input("refresh-interval", "n_intervals"),
+)
+def update_science_correlation_chart(n_intervals: int):
+    """Update the science per turn correlation chart.
+
+    Args:
+        n_intervals: Number of interval triggers
+
+    Returns:
+        Plotly figure for science per turn vs win rate
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_science_win_correlation()
+
+        if df.empty:
+            return create_empty_chart_placeholder("No science data available")
+
+        return create_science_per_turn_correlation_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error creating science correlation chart: {e}")
+        return create_empty_chart_placeholder("Error loading correlation data")

@@ -4015,6 +4015,58 @@ class TournamentQueries:
                 return (0, 200)
             return (int(df["min_turns"].iloc[0]), int(df["max_turns"].iloc[0]))
 
+    def get_science_win_correlation(self) -> pd.DataFrame:
+        """Get turn-by-turn science progression for winners vs losers.
+
+        Returns one row per turn number with:
+        - turn_number: Turn in the game (1-based)
+        - avg_science_winners: Average science production for winners at this turn
+        - avg_science_losers: Average science production for losers at this turn
+        - p25_winners: 25th percentile for winners
+        - p75_winners: 75th percentile for winners
+        - p25_losers: 25th percentile for losers
+        - p75_losers: 75th percentile for losers
+        - winner_count: Number of winner data points at this turn
+        - loser_count: Number of loser data points at this turn
+
+        All science values are divided by 10 to convert from internal storage format
+        to display-ready values (see docs/archive/reports/yield-display-scale-issue.md).
+
+        Returns:
+            DataFrame with turn-by-turn science progression for winners vs losers
+        """
+        query = """
+        WITH player_outcomes AS (
+            SELECT
+                yh.match_id,
+                yh.player_id,
+                yh.turn_number,
+                yh.amount / 10.0 as science,
+                CASE WHEN mw.winner_player_id = yh.player_id THEN 1 ELSE 0 END as won
+            FROM player_yield_history yh
+            JOIN matches m ON yh.match_id = m.match_id
+            LEFT JOIN match_winners mw ON yh.match_id = mw.match_id
+            WHERE yh.resource_type = 'YIELD_SCIENCE'
+        )
+        SELECT
+            turn_number,
+            AVG(CASE WHEN won = 1 THEN science END) as avg_science_winners,
+            AVG(CASE WHEN won = 0 THEN science END) as avg_science_losers,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN won = 1 THEN science END) as p25_winners,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN won = 1 THEN science END) as p75_winners,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN won = 0 THEN science END) as p25_losers,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN won = 0 THEN science END) as p75_losers,
+            COUNT(CASE WHEN won = 1 THEN 1 END) as winner_count,
+            COUNT(CASE WHEN won = 0 THEN 1 END) as loser_count
+        FROM player_outcomes
+        GROUP BY turn_number
+        HAVING winner_count > 0 AND loser_count > 0
+        ORDER BY turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
 
 # Global queries instance
 queries = TournamentQueries()
