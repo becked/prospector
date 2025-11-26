@@ -7,6 +7,10 @@ Rincewind:
 
 Siontific
 * Actual time played of matches: https://github.com/becked/prospector/blob/main/docs/plans/youtube-playtime-tracking-implementation-plan.md 
+* Win rate by religious founding
 
 Becked
 * Fix the integration with the spreadsheet
+
+Auro
+* Some way to click through the tech tree to see the order players researched techs visually. Perhaps an overlay similar to the Maps section?
