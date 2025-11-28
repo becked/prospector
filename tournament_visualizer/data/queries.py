@@ -3421,10 +3421,11 @@ class TournamentQueries:
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
-        """Get cumulative city count over time for all players across the tournament.
+        """Get average cumulative city count over time for all players.
 
         Analyzes expansion strategies by showing how quickly players founded cities.
-        Returns cumulative count at each city founding event.
+        For players who played multiple matches as the same civilization, returns
+        the average cumulative count at each founding turn.
 
         Args:
             tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
@@ -3442,8 +3443,7 @@ class TournamentQueries:
                 - player_name: Player name
                 - civilization: Player's civilization
                 - founded_turn: Turn when city was founded
-                - cities_this_turn: Cities founded on this specific turn
-                - cumulative_cities: Total cities founded up to this turn
+                - cumulative_cities: Average cities founded up to this turn
         """
         # Get filtered match IDs
         match_ids = self._get_filtered_match_ids(
@@ -3462,29 +3462,42 @@ class TournamentQueries:
         if not match_ids:
             return pd.DataFrame()
 
+        # Calculate cumulative cities per match, then average across matches
+        # for players who played multiple games as the same civilization
         query = """
-        WITH city_foundings AS (
+        WITH per_match_cumulative AS (
+            -- Calculate cumulative count within each match
             SELECT
+                c.match_id,
                 p.player_name,
                 p.civilization,
                 c.founded_turn,
-                COUNT(*) as cities_this_turn
+                COUNT(*) OVER (
+                    PARTITION BY c.match_id, p.player_id
+                    ORDER BY c.founded_turn
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as cumulative_cities
             FROM cities c
             JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
             WHERE c.match_id = ANY($match_ids)
-            GROUP BY p.player_name, p.civilization, c.founded_turn
+        ),
+        -- Deduplicate: multiple cities on same turn create duplicate rows
+        per_match_per_turn AS (
+            SELECT DISTINCT
+                match_id,
+                player_name,
+                civilization,
+                founded_turn,
+                cumulative_cities
+            FROM per_match_cumulative
         )
         SELECT
             player_name,
             civilization,
             founded_turn,
-            cities_this_turn,
-            SUM(cities_this_turn) OVER (
-                PARTITION BY player_name, civilization
-                ORDER BY founded_turn
-                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-            ) as cumulative_cities
-        FROM city_foundings
+            ROUND(AVG(cumulative_cities), 1) as cumulative_cities
+        FROM per_match_per_turn
+        GROUP BY player_name, civilization, founded_turn
         ORDER BY player_name, civilization, founded_turn
         """
 

@@ -188,7 +188,7 @@ class TestTournamentCityAnalytics:
         return db
 
     def test_get_tournament_expansion_timeline(self, test_db_with_city_data):
-        """Test expansion timeline returns cumulative city counts."""
+        """Test expansion timeline returns average cumulative city counts."""
         # Arrange
         queries = TournamentQueries(test_db_with_city_data)
 
@@ -202,7 +202,6 @@ class TestTournamentCityAnalytics:
             "player_name",
             "civilization",
             "founded_turn",
-            "cities_this_turn",
             "cumulative_cities",
         ]
 
@@ -213,14 +212,14 @@ class TestTournamentCityAnalytics:
                 cumulative[i] <= cumulative[i + 1] for i in range(len(cumulative) - 1)
             ), f"{player}'s cumulative cities should never decrease"
 
-        # Verify specific data points
+        # Verify specific data points (single match per player = average equals actual)
         alice_data = result[result["player_name"] == "Alice"].sort_values(
             "founded_turn"
         )
         assert len(alice_data) == 3
-        assert alice_data.iloc[0]["cumulative_cities"] == 1  # Turn 1
-        assert alice_data.iloc[1]["cumulative_cities"] == 2  # Turn 10
-        assert alice_data.iloc[2]["cumulative_cities"] == 3  # Turn 20
+        assert alice_data.iloc[0]["cumulative_cities"] == 1.0  # Turn 1
+        assert alice_data.iloc[1]["cumulative_cities"] == 2.0  # Turn 10
+        assert alice_data.iloc[2]["cumulative_cities"] == 3.0  # Turn 20
 
     def test_get_tournament_city_founding_distribution(self, test_db_with_city_data):
         """Test founding distribution groups cities into turn ranges."""
