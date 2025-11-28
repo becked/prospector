@@ -99,6 +99,18 @@ class TestTournamentCityAnalytics:
             """
             )
 
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS units_produced (
+                    unit_produced_id BIGINT PRIMARY KEY,
+                    match_id BIGINT NOT NULL,
+                    player_id BIGINT NOT NULL,
+                    unit_type VARCHAR NOT NULL,
+                    count INTEGER NOT NULL
+                )
+            """
+            )
+
             # Insert test matches
             conn.execute(
                 """
@@ -143,7 +155,7 @@ class TestTournamentCityAnalytics:
             """
             )
 
-            # Insert unit production
+            # Insert unit production (city-level)
             conn.execute(
                 """
                 INSERT INTO city_unit_production (production_id, match_id, city_id, unit_type, count)
@@ -162,6 +174,26 @@ class TestTournamentCityAnalytics:
                     (9, 2, 6, 'UNIT_WORKER', 2),
                     (10, 2, 7, 'UNIT_CHRISTIANITY_DISCIPLE', 3),
                     (11, 2, 8, 'UNIT_ZOROASTRIANISM_DISCIPLE', 2)
+            """
+            )
+
+            # Insert unit production (player-level, aggregated from city data)
+            conn.execute(
+                """
+                INSERT INTO units_produced (unit_produced_id, match_id, player_id, unit_type, count)
+                VALUES
+                    -- Alice (player 1, match 1): settlers=5, workers=8
+                    (1, 1, 1, 'UNIT_SETTLER', 5),
+                    (2, 1, 1, 'UNIT_WORKER', 8),
+                    -- Bob (player 2, match 1): settlers=1, workers=2, disciples=1
+                    (3, 1, 2, 'UNIT_SETTLER', 1),
+                    (4, 1, 2, 'UNIT_WORKER', 2),
+                    (5, 1, 2, 'UNIT_JUDAISM_DISCIPLE', 1),
+                    -- Charlie (player 3, match 2): settlers=1, workers=2, disciples=5
+                    (6, 2, 3, 'UNIT_SETTLER', 1),
+                    (7, 2, 3, 'UNIT_WORKER', 2),
+                    (8, 2, 3, 'UNIT_CHRISTIANITY_DISCIPLE', 3),
+                    (9, 2, 3, 'UNIT_ZOROASTRIANISM_DISCIPLE', 2)
             """
             )
 
@@ -249,7 +281,7 @@ class TestTournamentCityAnalytics:
         assert early_game.iloc[0]["city_count"] == 8  # 8 cities founded in turns 1-20
 
     def test_get_tournament_production_strategies(self, test_db_with_city_data):
-        """Test production strategies aggregates unit production per player."""
+        """Test production strategies returns average production per player per match."""
         # Arrange
         queries = TournamentQueries(test_db_with_city_data)
 
@@ -265,23 +297,23 @@ class TestTournamentCityAnalytics:
             "settlers",
             "workers",
             "disciples",
-            "total_units",
+            "military",
+            "projects",
+            "total_production",
         ]
 
-        # Verify specific player data
+        # Verify specific player data (single match per player = average equals actual)
         alice_data = result[result["player_name"] == "Alice"]
         assert len(alice_data) == 1
-        assert alice_data.iloc[0]["settlers"] == 5  # 3 + 2
-        assert alice_data.iloc[0]["workers"] == 8  # 5 + 3
-        assert alice_data.iloc[0]["disciples"] == 0
-        assert alice_data.iloc[0]["total_units"] == 13
+        assert alice_data.iloc[0]["settlers"] == 5.0  # 3 + 2
+        assert alice_data.iloc[0]["workers"] == 8.0  # 5 + 3
+        assert alice_data.iloc[0]["disciples"] == 0.0
 
         charlie_data = result[result["player_name"] == "Charlie"]
         assert len(charlie_data) == 1
-        assert charlie_data.iloc[0]["settlers"] == 1
-        assert charlie_data.iloc[0]["workers"] == 2
-        assert charlie_data.iloc[0]["disciples"] == 5  # 3 + 2
-        assert charlie_data.iloc[0]["total_units"] == 8
+        assert charlie_data.iloc[0]["settlers"] == 1.0
+        assert charlie_data.iloc[0]["workers"] == 2.0
+        assert charlie_data.iloc[0]["disciples"] == 5.0  # 3 + 2
 
     def test_get_tournament_project_priorities(self, test_db_with_city_data):
         """Test project priorities aggregates projects per player."""

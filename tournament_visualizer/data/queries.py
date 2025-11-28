@@ -3567,9 +3567,10 @@ class TournamentQueries:
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
-        """Get production strategies for all players across the tournament.
+        """Get average production strategies for all players across the tournament.
 
-        Aggregates all unit production and city projects, showing military vs civilian focus.
+        Calculates production per match first, then averages across matches for
+        players who played multiple games as the same civilization.
 
         Args:
             tournament_round: Filter by tournament round number (e.g., 1, 2, -1, -2)
@@ -3586,12 +3587,12 @@ class TournamentQueries:
             DataFrame with columns:
                 - player_name: Player name
                 - civilization: Player's civilization
-                - settlers: Total settler units produced
-                - workers: Total worker units produced
-                - disciples: Total disciple units produced (all religions)
-                - military: Total military units produced
-                - projects: Total city projects completed
-                - total_production: Total production
+                - settlers: Average settler units produced per match
+                - workers: Average worker units produced per match
+                - disciples: Average disciple units produced per match
+                - military: Average military units produced per match
+                - projects: Average city projects completed per match
+                - total_production: Average total production per match
         """
         # Get filtered match IDs
         match_ids = self._get_filtered_match_ids(
@@ -3610,9 +3611,12 @@ class TournamentQueries:
         if not match_ids:
             return pd.DataFrame()
 
+        # Calculate production per match, then average across matches
         query = """
-        WITH unit_counts AS (
+        WITH per_match_units AS (
+            -- Calculate unit production per match per player
             SELECT
+                p.match_id,
                 p.player_name,
                 p.civilization,
                 COALESCE(SUM(CASE WHEN u.unit_type = 'UNIT_SETTLER' THEN u.count ELSE 0 END), 0) as settlers,
@@ -3626,32 +3630,50 @@ class TournamentQueries:
             FROM players p
             LEFT JOIN units_produced u ON p.match_id = u.match_id AND p.player_id = u.player_id
             WHERE p.match_id = ANY($match_ids)
-            GROUP BY p.player_name, p.civilization
+            GROUP BY p.match_id, p.player_name, p.civilization
         ),
-        project_counts AS (
+        per_match_projects AS (
+            -- Calculate project count per match per player
             SELECT
+                p.match_id,
                 p.player_name,
                 p.civilization,
-                COALESCE(COUNT(proj.project_type), 0) as projects
+                COALESCE(SUM(proj.count), 0) as projects
             FROM players p
             LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
             LEFT JOIN city_projects proj ON c.match_id = proj.match_id AND c.city_id = proj.city_id
             WHERE p.match_id = ANY($match_ids)
-            GROUP BY p.player_name, p.civilization
+            GROUP BY p.match_id, p.player_name, p.civilization
+        ),
+        per_match_combined AS (
+            -- Combine units and projects per match
+            SELECT
+                COALESCE(u.match_id, pr.match_id) as match_id,
+                COALESCE(u.player_name, pr.player_name) as player_name,
+                COALESCE(u.civilization, pr.civilization) as civilization,
+                COALESCE(u.settlers, 0) as settlers,
+                COALESCE(u.workers, 0) as workers,
+                COALESCE(u.disciples, 0) as disciples,
+                COALESCE(u.military, 0) as military,
+                COALESCE(pr.projects, 0) as projects
+            FROM per_match_units u
+            FULL OUTER JOIN per_match_projects pr
+                ON u.match_id = pr.match_id
+                AND u.player_name = pr.player_name
+                AND u.civilization = pr.civilization
         )
         SELECT
-            COALESCE(u.player_name, pr.player_name) as player_name,
-            COALESCE(u.civilization, pr.civilization) as civilization,
-            COALESCE(u.settlers, 0) as settlers,
-            COALESCE(u.workers, 0) as workers,
-            COALESCE(u.disciples, 0) as disciples,
-            COALESCE(u.military, 0) as military,
-            COALESCE(pr.projects, 0) as projects,
-            COALESCE(u.settlers, 0) + COALESCE(u.workers, 0) + COALESCE(u.disciples, 0) + COALESCE(u.military, 0) + COALESCE(pr.projects, 0) as total_production
-        FROM unit_counts u
-        FULL OUTER JOIN project_counts pr
-            ON u.player_name = pr.player_name AND u.civilization = pr.civilization
-        WHERE COALESCE(u.settlers, 0) + COALESCE(u.workers, 0) + COALESCE(u.disciples, 0) + COALESCE(u.military, 0) + COALESCE(pr.projects, 0) > 0
+            player_name,
+            civilization,
+            ROUND(AVG(settlers), 1) as settlers,
+            ROUND(AVG(workers), 1) as workers,
+            ROUND(AVG(disciples), 1) as disciples,
+            ROUND(AVG(military), 1) as military,
+            ROUND(AVG(projects), 1) as projects,
+            ROUND(AVG(settlers + workers + disciples + military + projects), 1) as total_production
+        FROM per_match_combined
+        GROUP BY player_name, civilization
+        HAVING AVG(settlers + workers + disciples + military + projects) > 0
         ORDER BY total_production DESC
         """
 
