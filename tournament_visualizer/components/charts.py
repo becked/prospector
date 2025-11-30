@@ -2863,6 +2863,122 @@ def create_yield_chart(
     return fig
 
 
+def create_match_yield_stacked_chart(
+    df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    yield_type: str = "YIELD_FOOD",
+    display_name: Optional[str] = None,
+) -> go.Figure:
+    """Create stacked subplots showing per-player yield rate and cumulative.
+
+    Top chart shows yield per turn for each player, bottom shows cumulative total.
+    Both share the x-axis for synchronized zoom/pan.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, amount, resource_type
+            (from get_yield_history_by_match() filtered to specific yield type)
+        total_turns: Optional total turns in the match to extend lines to the end
+        yield_type: The yield type being displayed (e.g., "YIELD_FOOD")
+        display_name: Optional human-readable name (e.g., "Food")
+
+    Returns:
+        Plotly figure with two vertically stacked subplots
+    """
+    if display_name is None:
+        display_name = yield_type.replace("YIELD_", "").replace("_", " ").title()
+
+    if df.empty:
+        return create_empty_chart_placeholder(
+            f"No {display_name} yield data available for this match"
+        )
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.5, 0.5],
+        subplot_titles=("Per Turn", "Cumulative Total"),
+    )
+
+    players = df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player].sort_values("turn_number")
+        color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
+        turns = player_data["turn_number"].tolist()
+        yields = player_data["amount"].tolist()
+
+        # Calculate cumulative yields
+        cumulative = []
+        running_total = 0.0
+        for y in yields:
+            running_total += y
+            cumulative.append(running_total)
+
+        # Extend lines to match end if total_turns provided
+        if total_turns and turns and turns[-1] < total_turns:
+            turns = turns + [total_turns]
+            yields = yields + [yields[-1]]
+            cumulative = cumulative + [cumulative[-1]]
+
+        # Rate chart (top)
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=yields,
+                mode="lines+markers",
+                name=player,
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate=f"<b>{player}</b><br>Turn %{{x}}: %{{y:.1f}}/turn<extra></extra>",
+                legendgroup=player,
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Cumulative chart (bottom)
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=cumulative,
+                mode="lines+markers",
+                name=player,
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate=f"<b>{player}</b><br>Turn %{{x}}: %{{y:,.0f}} total<extra></extra>",
+                legendgroup=player,
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig.update_layout(
+        height=500,
+        margin=dict(t=30, b=40, l=60, r=20),
+        hovermode="closest",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+    )
+
+    for annotation in fig["layout"]["annotations"]:
+        annotation["font"] = dict(size=11, color="#666")
+
+    fig.update_xaxes(title_text="Turn Number", row=2, col=1)
+    fig.update_yaxes(title_text=f"{display_name}/Turn", row=1, col=1)
+    fig.update_yaxes(title_text=f"Total {display_name}", row=2, col=1)
+
+    return fig
+
+
 def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     """Create an actual sunburst chart showing map breakdown by Size → Class → Aspect.
 
@@ -4069,6 +4185,256 @@ def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     fig.update_layout(height=400)
+
+    return fig
+
+
+def create_yield_stacked_chart(
+    rate_df: pd.DataFrame,
+    cumulative_df: pd.DataFrame,
+    yield_name: str,
+    rate_color: str,
+    cumulative_color: str,
+    cumulative_log_scale: bool = False,
+) -> go.Figure:
+    """Create stacked subplots showing yield rate and cumulative production.
+
+    Top chart shows yield per turn (rate), bottom shows cumulative total.
+    Both share the x-axis for synchronized zoom/pan.
+
+    Args:
+        rate_df: DataFrame with columns: turn_number, median, percentile_25, percentile_75
+        cumulative_df: DataFrame with same columns for cumulative data
+        yield_name: Display name for the yield (e.g., "Science", "Food")
+        rate_color: Hex color for rate line (e.g., "#1f77b4")
+        cumulative_color: Hex color for cumulative line (e.g., "#2ca02c")
+        cumulative_log_scale: If True, use log scale for the cumulative (bottom) chart
+
+    Returns:
+        Plotly figure with two vertically stacked subplots
+    """
+    if rate_df.empty and cumulative_df.empty:
+        return create_empty_chart_placeholder(f"No {yield_name.lower()} data available")
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.5, 0.5],
+        subplot_titles=("Per Turn", "Cumulative Total"),
+        specs=[[{"secondary_y": True}], [{"secondary_y": True}]],
+    )
+
+    # Convert hex to rgba for fill
+    def hex_to_rgba(hex_color: str, alpha: float) -> str:
+        hex_color = hex_color.lstrip("#")
+        r, g, b = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+        return f"rgba({r}, {g}, {b}, {alpha})"
+
+    # --- Top subplot: Rate ---
+    if not rate_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=rate_df["turn_number"],
+                y=rate_df["percentile_75"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=rate_df["turn_number"],
+                y=rate_df["percentile_25"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor=hex_to_rgba(rate_color, 0.2),
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=1,
+            col=1,
+        )
+        # Build customdata for rich tooltips
+        rate_customdata = list(zip(
+            rate_df["percentile_25"],
+            rate_df["percentile_75"],
+            rate_df.get("min_value", [None] * len(rate_df)),
+            rate_df.get("max_value", [None] * len(rate_df)),
+            rate_df.get("avg_value", [None] * len(rate_df)),
+            rate_df.get("std_dev", [None] * len(rate_df)),
+            rate_df.get("sample_size", [None] * len(rate_df)),
+        ))
+        fig.add_trace(
+            go.Scatter(
+                x=rate_df["turn_number"],
+                y=rate_df["median"],
+                mode="lines",
+                line=dict(color=rate_color, width=2),
+                name="Per Turn",
+                customdata=rate_customdata,
+                hovertemplate=(
+                    "<b>Turn %{x}</b><br>"
+                    "Median: %{y:.1f}/turn<br>"
+                    "IQR: %{customdata[0]:.1f} - %{customdata[1]:.1f}<br>"
+                    "Range: %{customdata[2]:.1f} - %{customdata[3]:.1f}<br>"
+                    "Mean: %{customdata[4]:.1f} (±%{customdata[5]:.1f})<br>"
+                    "Games: %{customdata[6]}"
+                    "<extra></extra>"
+                ),
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Add sample size dashed line on secondary y-axis
+        if "sample_size" in rate_df.columns:
+            # Filter out early turns with incomplete data
+            sample_df = rate_df[rate_df["turn_number"] >= 2].copy()
+            fig.add_trace(
+                go.Scatter(
+                    x=sample_df["turn_number"],
+                    y=sample_df["sample_size"],
+                    mode="lines",
+                    name="Sample Size",
+                    line=dict(color="rgba(128, 128, 128, 0.5)", width=1, dash="dot"),
+                    hovertemplate="Turn %{x}<br>Games: %{y}<extra></extra>",
+                ),
+                row=1,
+                col=1,
+                secondary_y=True,
+            )
+
+    # --- Bottom subplot: Cumulative ---
+    if not cumulative_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=cumulative_df["turn_number"],
+                y=cumulative_df["percentile_75"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=cumulative_df["turn_number"],
+                y=cumulative_df["percentile_25"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor=hex_to_rgba(cumulative_color, 0.2),
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=2,
+            col=1,
+        )
+        # Build customdata for rich tooltips
+        cumulative_customdata = list(zip(
+            cumulative_df["percentile_25"],
+            cumulative_df["percentile_75"],
+            cumulative_df.get("min_value", [None] * len(cumulative_df)),
+            cumulative_df.get("max_value", [None] * len(cumulative_df)),
+            cumulative_df.get("avg_value", [None] * len(cumulative_df)),
+            cumulative_df.get("std_dev", [None] * len(cumulative_df)),
+            cumulative_df.get("sample_size", [None] * len(cumulative_df)),
+        ))
+        fig.add_trace(
+            go.Scatter(
+                x=cumulative_df["turn_number"],
+                y=cumulative_df["median"],
+                mode="lines",
+                line=dict(color=cumulative_color, width=2),
+                name="Cumulative",
+                customdata=cumulative_customdata,
+                hovertemplate=(
+                    "<b>Turn %{x}</b><br>"
+                    "Median: %{y:,.0f}<br>"
+                    "IQR: %{customdata[0]:,.0f} - %{customdata[1]:,.0f}<br>"
+                    "Range: %{customdata[2]:,.0f} - %{customdata[3]:,.0f}<br>"
+                    "Mean: %{customdata[4]:,.0f} (±%{customdata[5]:,.0f})<br>"
+                    "Games: %{customdata[6]}"
+                    "<extra></extra>"
+                ),
+            ),
+            row=2,
+            col=1,
+        )
+
+        # Add sample size dashed line on secondary y-axis
+        if "sample_size" in cumulative_df.columns:
+            sample_df = cumulative_df[cumulative_df["turn_number"] >= 2].copy()
+            fig.add_trace(
+                go.Scatter(
+                    x=sample_df["turn_number"],
+                    y=sample_df["sample_size"],
+                    mode="lines",
+                    name="Sample Size",
+                    line=dict(color="rgba(128, 128, 128, 0.5)", width=1, dash="dot"),
+                    hovertemplate="Turn %{x}<br>Games: %{y}<extra></extra>",
+                ),
+                row=2,
+                col=1,
+                secondary_y=True,
+            )
+
+    fig.update_layout(
+        height=500,
+        showlegend=False,
+        margin=dict(t=30, b=40, l=60, r=60),
+    )
+
+    for annotation in fig["layout"]["annotations"]:
+        annotation["font"] = dict(size=11, color="#666")
+
+    fig.update_xaxes(title_text="Turn Number", row=2, col=1)
+    fig.update_yaxes(title_text=f"{yield_name}/Turn", row=1, col=1)
+
+    # Apply log scale to cumulative chart if requested (primary y-axis only)
+    if cumulative_log_scale:
+        fig.update_yaxes(
+            title_text=f"Total {yield_name} (log)",
+            type="log",
+            row=2,
+            col=1,
+            secondary_y=False,
+        )
+    else:
+        fig.update_yaxes(title_text=f"Total {yield_name}", row=2, col=1, secondary_y=False)
+
+    # Configure secondary y-axes for sample size (both subplots use same scale)
+    max_sample = 0
+    if not rate_df.empty and "sample_size" in rate_df.columns:
+        max_sample = max(max_sample, rate_df["sample_size"].max())
+    if not cumulative_df.empty and "sample_size" in cumulative_df.columns:
+        max_sample = max(max_sample, cumulative_df["sample_size"].max())
+
+    if max_sample > 0:
+        fig.update_yaxes(
+            title_text="Games",
+            showgrid=False,
+            range=[0, max_sample * 1.1],
+            row=1,
+            col=1,
+            secondary_y=True,
+        )
+        fig.update_yaxes(
+            title_text="Games",
+            showgrid=False,
+            range=[0, max_sample * 1.1],
+            row=2,
+            col=1,
+            secondary_y=True,
+        )
 
     return fig
 

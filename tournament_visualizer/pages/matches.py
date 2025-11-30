@@ -25,7 +25,7 @@ from tournament_visualizer.components.charts import (
     create_law_adoption_timeline_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
-    create_yield_chart,  # NEW: Generic yield chart function
+    create_match_yield_stacked_chart,
 )
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
@@ -565,7 +565,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                         1
                                                     ],  # Display name
                                                     chart_id=f"match-{YIELD_TYPES[i][0].lower().replace('_', '-')}-chart",
-                                                    height="400px",
+                                                    height="520px",
                                                 )
                                             ],
                                             width=6,
@@ -584,7 +584,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                             if i + 1 < len(YIELD_TYPES)
                                                             else "match-empty-chart"
                                                         ),
-                                                        height="400px",
+                                                        height="520px",
                                                     )
                                                 ],
                                                 width=6,
@@ -1608,8 +1608,8 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
             # Filter to this specific yield type
             df_yield = all_yields_df[all_yields_df["resource_type"] == yield_type]
 
-            # Create chart using generic function
-            chart = create_yield_chart(
+            # Create stacked chart with rate + cumulative
+            chart = create_match_yield_stacked_chart(
                 df_yield,
                 total_turns=total_turns,
                 yield_type=yield_type,

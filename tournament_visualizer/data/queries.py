@@ -3222,6 +3222,122 @@ class TournamentQueries:
                 "legitimacy": conn.execute(legitimacy_query, params).df(),
             }
 
+    def get_yield_with_cumulative(
+        self,
+        yield_type: str,
+        tournament_round: Optional[int] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[str] = None,
+        map_class: Optional[str] = None,
+        map_aspect: Optional[str] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> Dict[str, pd.DataFrame]:
+        """Get yield progression with both rate and cumulative statistics.
+
+        Calculates median and percentile bands (25th, 75th) for:
+        - Yield per turn (rate)
+        - Cumulative yield produced (running total)
+
+        Args:
+            yield_type: The yield type (e.g., 'YIELD_SCIENCE', 'YIELD_FOOD')
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
+
+        Returns:
+            Dictionary with keys 'rate' and 'cumulative',
+            each containing a DataFrame with columns:
+            - turn_number: Game turn
+            - median: Median value at this turn
+            - percentile_25: 25th percentile
+            - percentile_75: 75th percentile
+            - sample_size: Number of data points at this turn
+        """
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        if not match_ids:
+            return {
+                "rate": pd.DataFrame(),
+                "cumulative": pd.DataFrame(),
+            }
+
+        # Yield rate per turn
+        rate_query = """
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
+            MIN(amount / 10.0) as min_value,
+            MAX(amount / 10.0) as max_value,
+            AVG(amount / 10.0) as avg_value,
+            STDDEV(amount / 10.0) as std_dev,
+            COUNT(*) as sample_size
+        FROM player_yield_history
+        WHERE resource_type = $yield_type
+            AND match_id = ANY($match_ids)
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        # Cumulative yield: first compute running sum per player/match,
+        # then aggregate across all to get percentiles
+        cumulative_query = """
+        WITH cumulative_per_player AS (
+            SELECT
+                match_id,
+                player_id,
+                turn_number,
+                SUM(amount / 10.0) OVER (
+                    PARTITION BY match_id, player_id
+                    ORDER BY turn_number
+                ) as cumulative_yield
+            FROM player_yield_history
+            WHERE resource_type = $yield_type
+                AND match_id = ANY($match_ids)
+        )
+        SELECT
+            turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cumulative_yield) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY cumulative_yield) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY cumulative_yield) as percentile_75,
+            MIN(cumulative_yield) as min_value,
+            MAX(cumulative_yield) as max_value,
+            AVG(cumulative_yield) as avg_value,
+            STDDEV(cumulative_yield) as std_dev,
+            COUNT(*) as sample_size
+        FROM cumulative_per_player
+        GROUP BY turn_number
+        ORDER BY turn_number
+        """
+
+        params = {"match_ids": match_ids, "yield_type": yield_type}
+
+        with self.db.get_connection() as conn:
+            return {
+                "rate": conn.execute(rate_query, params).df(),
+                "cumulative": conn.execute(cumulative_query, params).df(),
+            }
+
     def get_territory_map(self, match_id: int, turn_number: int) -> pd.DataFrame:
         """Get territory map snapshot for a specific match and turn.
 

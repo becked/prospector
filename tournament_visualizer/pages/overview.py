@@ -11,6 +11,7 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, callback, dcc, html
+from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
     create_aggregated_event_category_timeline_chart,
@@ -32,6 +33,7 @@ from tournament_visualizer.components.charts import (
     create_ruler_trait_performance_chart,
     create_science_per_turn_correlation_chart,
     create_science_progression_chart,
+    create_yield_stacked_chart,
     create_summary_metrics_cards,
     create_tournament_expansion_timeline_chart,
     create_tournament_production_strategies_chart,
@@ -44,7 +46,7 @@ from tournament_visualizer.components.layouts import (
     create_metric_grid,
     create_page_header,
 )
-from tournament_visualizer.config import PAGE_CONFIG
+from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG
 from tournament_visualizer.data.queries import get_queries
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,25 @@ def parse_turn_length(turn_length: Optional[int]) -> tuple[Optional[int], Option
     if turn_length is None:
         return (None, None)
     return (None, turn_length)
+
+
+# Yield chart configuration: (yield_type, display_name, rate_color, cumulative_color)
+YIELD_CHARTS = [
+    ("YIELD_SCIENCE", "Science", "#1f77b4", "#2ca02c"),
+    ("YIELD_ORDERS", "Orders", "#ff7f0e", "#9467bd"),
+    ("YIELD_FOOD", "Food", "#8c564b", "#e377c2"),
+    ("YIELD_GROWTH", "Growth", "#7f7f7f", "#bcbd22"),
+    ("YIELD_CULTURE", "Culture", "#17becf", "#1f77b4"),
+    ("YIELD_CIVICS", "Civics", "#d62728", "#ff7f0e"),
+    ("YIELD_TRAINING", "Training", "#2ca02c", "#d62728"),
+    ("YIELD_MONEY", "Money", "#ffbb00", "#8c564b"),
+    ("YIELD_HAPPINESS", "Happiness", "#98df8a", "#aec7e8"),
+    ("YIELD_DISCONTENT", "Discontent", "#ff9896", "#c49c94"),
+    ("YIELD_IRON", "Iron", "#636363", "#969696"),
+    ("YIELD_STONE", "Stone", "#bdbdbd", "#d9d9d9"),
+    ("YIELD_WOOD", "Wood", "#8c6d31", "#bd9e39"),
+    ("YIELD_MAINTENANCE", "Maintenance", "#843c39", "#ad494a"),
+]
 
 
 # Register this page
@@ -498,20 +519,56 @@ layout = html.Div(
                         ),
                     ],
                 ),
-                # Tab 4: Economy
+                # Tab 4: Yields
                 dbc.Tab(
-                    label="Economy",
-                    tab_id="economy-tab",
+                    label="Yields",
+                    tab_id="yields-tab",
                     children=[
-                        # Economic progression - Science and Orders
+                        # First row: Science (with scale toggle) and Orders
                         dbc.Row(
                             [
                                 dbc.Col(
                                     [
-                                        create_chart_card(
-                                            title="Average Science Per Turn",
-                                            chart_id="overview-science-progression",
-                                            height="400px",
+                                        dbc.Card(
+                                            [
+                                                dbc.CardHeader(
+                                                    [
+                                                        html.Span(
+                                                            "Science Production",
+                                                            className="fw-bold",
+                                                        ),
+                                                        html.Span(
+                                                            [
+                                                                html.Small("Cumulative:", className="text-muted me-3"),
+                                                                dbc.RadioItems(
+                                                                    id="overview-science-scale-toggle",
+                                                                    options=[
+                                                                        {"label": "Linear", "value": "linear"},
+                                                                        {"label": "Log", "value": "log"},
+                                                                    ],
+                                                                    value="linear",
+                                                                    inline=True,
+                                                                    inputClassName="me-1",
+                                                                    labelClassName="small",
+                                                                    style={"gap": "0.25rem"},
+                                                                ),
+                                                            ],
+                                                            className="d-flex align-items-center",
+                                                        ),
+                                                    ],
+                                                    className="d-flex justify-content-between align-items-center",
+                                                ),
+                                                dbc.CardBody(
+                                                    [
+                                                        dcc.Graph(
+                                                            id="overview-yield-science",
+                                                            config=MODEBAR_CONFIG,
+                                                            style={"height": "500px"},
+                                                        )
+                                                    ],
+                                                    style={"height": "520px"},
+                                                ),
+                                            ]
                                         )
                                     ],
                                     width=6,
@@ -519,9 +576,9 @@ layout = html.Div(
                                 dbc.Col(
                                     [
                                         create_chart_card(
-                                            title="Average Orders Per Turn",
-                                            chart_id="overview-orders-progression",
-                                            height="400px",
+                                            title="Orders Production",
+                                            chart_id="overview-yield-orders",
+                                            height="520px",
                                         )
                                     ],
                                     width=6,
@@ -529,7 +586,36 @@ layout = html.Div(
                             ],
                             className="mb-4 mt-3",
                         ),
-                        # Military and Legitimacy progression
+                        # Remaining yield chart rows (skip Science and Orders, start at index 2)
+                        *[
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title=f"{YIELD_CHARTS[i][1]} Production",
+                                                chart_id=f"overview-yield-{YIELD_CHARTS[i][0].lower().replace('yield_', '')}",
+                                                height="520px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title=f"{YIELD_CHARTS[i + 1][1]} Production",
+                                                chart_id=f"overview-yield-{YIELD_CHARTS[i + 1][0].lower().replace('yield_', '')}",
+                                                height="520px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-4",
+                            )
+                            for i in range(2, len(YIELD_CHARTS), 2)
+                        ],
+                        # Military and Legitimacy progression (not yield types)
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -555,7 +641,13 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
-                        # Law Progression Analysis - each chart on its own row
+                    ],
+                ),
+                # Tab 5: Laws
+                dbc.Tab(
+                    label="Laws",
+                    tab_id="laws-tab",
+                    children=[
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -569,7 +661,7 @@ layout = html.Div(
                                     width=12,
                                 ),
                             ],
-                            className="mb-4",
+                            className="mb-4 mt-3",
                         ),
                         dbc.Row(
                             [
@@ -586,25 +678,9 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
-                        # Production Strategies (full width for readability)
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        create_chart_card(
-                                            title="Production Strategies",
-                                            chart_id="overview-production-strategies",
-                                            height="1600px",  # Tall enough for all players
-                                        )
-                                    ],
-                                    width=12,
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
                     ],
                 ),
-                # Tab 5: Cities
+                # Tab 6: Cities
                 dbc.Tab(
                     label="Cities",
                     tab_id="cities-tab",
@@ -624,6 +700,22 @@ layout = html.Div(
                                 ),
                             ],
                             className="mb-4 mt-3",
+                        ),
+                        # Production Strategies (full width for readability)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Production Strategies",
+                                            chart_id="overview-production-strategies",
+                                            height="1600px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
                         ),
                     ],
                 ),
@@ -1914,8 +2006,84 @@ def update_pick_order_win_rate(
         return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 
+# Generate callbacks for all yield charts
+def _create_yield_callback(
+    yield_type: str,
+    display_name: str,
+    rate_color: str,
+    cumulative_color: str,
+    cumulative_log_scale: bool = False,
+):
+    """Factory function to create a callback for a specific yield type."""
+    chart_id = f"overview-yield-{yield_type.lower().replace('yield_', '')}"
+
+    @callback(
+        Output(chart_id, "figure"),
+        Input("overview-round-filter-dropdown", "value"),
+        Input("overview-turn-length-slider", "value"),
+        Input("overview-map-size-dropdown", "value"),
+        Input("overview-map-class-dropdown", "value"),
+        Input("overview-map-aspect-dropdown", "value"),
+        Input("overview-nations-dropdown", "value"),
+        Input("overview-players-dropdown", "value"),
+        Input("refresh-interval", "n_intervals"),
+    )
+    def update_yield_chart(
+        round_num: Optional[int],
+        turn_length: Optional[int],
+        map_size: Optional[str],
+        map_class: Optional[str],
+        map_aspect: Optional[str],
+        nations: Optional[List[str]],
+        players: Optional[List[str]],
+        n_intervals: int,
+    ):
+        try:
+            queries = get_queries()
+            min_turns, max_turns = parse_turn_length(turn_length)
+
+            data = queries.get_yield_with_cumulative(
+                yield_type=yield_type,
+                tournament_round=round_num,
+                bracket=None,
+                min_turns=min_turns,
+                max_turns=max_turns,
+                map_size=map_size,
+                map_class=map_class,
+                map_aspect=map_aspect,
+                nations=nations if nations else None,
+                players=players if players else None,
+            )
+
+            if data["rate"].empty and data["cumulative"].empty:
+                return create_empty_chart_placeholder("No data for selected filters")
+
+            return create_yield_stacked_chart(
+                data["rate"],
+                data["cumulative"],
+                display_name,
+                rate_color,
+                cumulative_color,
+                cumulative_log_scale=cumulative_log_scale,
+            )
+
+        except Exception as e:
+            logger.error(f"Error loading {display_name.lower()} data: {e}")
+            return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    return update_yield_chart
+
+
+# Register callbacks for all yields except Science (which has its own callback with toggle)
+for yield_type, display_name, rate_color, cumulative_color in YIELD_CHARTS:
+    if yield_type == "YIELD_SCIENCE":
+        continue  # Science has a separate callback with scale toggle
+    _create_yield_callback(yield_type, display_name, rate_color, cumulative_color)
+
+
+# Science callback with scale toggle
 @callback(
-    Output("overview-science-progression", "figure"),
+    Output("overview-yield-science", "figure"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1923,9 +2091,10 @@ def update_pick_order_win_rate(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-science-scale-toggle", "value"),
     Input("refresh-interval", "n_intervals"),
 )
-def update_science_progression(
+def update_science_chart(
     round_num: Optional[int],
     turn_length: Optional[int],
     map_size: Optional[str],
@@ -1933,28 +2102,16 @@ def update_science_progression(
     map_aspect: Optional[str],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    scale_type: str,
     n_intervals: int,
-):
-    """Update science progression chart with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with line chart
-    """
+) -> go.Figure:
+    """Update Science chart with scale toggle support."""
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
 
-        stats = queries.get_metric_progression_stats(
+        data = queries.get_yield_with_cumulative(
+            yield_type="YIELD_SCIENCE",
             tournament_round=round_num,
             bracket=None,
             min_turns=min_turns,
@@ -1966,75 +2123,20 @@ def update_science_progression(
             players=players if players else None,
         )
 
-        if stats["science"].empty:
+        if data["rate"].empty and data["cumulative"].empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_science_progression_chart(stats["science"])
-
-    except Exception as e:
-        logger.error(f"Error loading science progression data: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
-@callback(
-    Output("overview-orders-progression", "figure"),
-    Input("overview-round-filter-dropdown", "value"),
-    Input("overview-turn-length-slider", "value"),
-    Input("overview-map-size-dropdown", "value"),
-    Input("overview-map-class-dropdown", "value"),
-    Input("overview-map-aspect-dropdown", "value"),
-    Input("overview-nations-dropdown", "value"),
-    Input("overview-players-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_orders_progression(
-    round_num: Optional[int],
-    turn_length: Optional[int],
-    map_size: Optional[str],
-    map_class: Optional[str],
-    map_aspect: Optional[str],
-    nations: Optional[List[str]],
-    players: Optional[List[str]],
-    n_intervals: int,
-):
-    """Update orders progression chart with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with line chart
-    """
-    try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        stats = queries.get_metric_progression_stats(
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
+        return create_yield_stacked_chart(
+            data["rate"],
+            data["cumulative"],
+            "Science",
+            "#1f77b4",
+            "#2ca02c",
+            cumulative_log_scale=(scale_type == "log"),
         )
 
-        if stats["orders"].empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
-        return create_orders_progression_chart(stats["orders"])
-
     except Exception as e:
-        logger.error(f"Error loading orders progression data: {e}")
+        logger.error(f"Error loading science data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 
