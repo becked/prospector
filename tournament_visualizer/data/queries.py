@@ -3221,7 +3221,7 @@ class TournamentQueries:
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
             PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM player_yield_history
         WHERE resource_type = 'YIELD_SCIENCE'
             AND match_id = ANY($match_ids)
@@ -3236,7 +3236,7 @@ class TournamentQueries:
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
             PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM player_yield_history
         WHERE resource_type = 'YIELD_ORDERS'
             AND match_id = ANY($match_ids)
@@ -3251,7 +3251,7 @@ class TournamentQueries:
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY military_power) as median,
             PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY military_power) as percentile_25,
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY military_power) as percentile_75,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM player_military_history
         WHERE match_id = ANY($match_ids)
         GROUP BY turn_number
@@ -3265,7 +3265,7 @@ class TournamentQueries:
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY legitimacy) as median,
             PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY legitimacy) as percentile_25,
             PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY legitimacy) as percentile_75,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM player_legitimacy_history
         WHERE match_id = ANY($match_ids)
         GROUP BY turn_number
@@ -3357,7 +3357,7 @@ class TournamentQueries:
             MAX(amount / 10.0) as max_value,
             AVG(amount / 10.0) as avg_value,
             STDDEV(amount / 10.0) as std_dev,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM player_yield_history
         WHERE resource_type = $yield_type
             AND match_id = ANY($match_ids)
@@ -3390,7 +3390,7 @@ class TournamentQueries:
             MAX(cumulative_yield) as max_value,
             AVG(cumulative_yield) as avg_value,
             STDDEV(cumulative_yield) as std_dev,
-            COUNT(*) as sample_size
+            COUNT(DISTINCT match_id) as sample_size
         FROM cumulative_per_player
         GROUP BY turn_number
         ORDER BY turn_number
