@@ -4410,8 +4410,9 @@ class TournamentQueries:
         # Build filter conditions
         filters = ["yh.resource_type = 'YIELD_SCIENCE'"]
 
-        if tournament_round is not None:
-            filters.append(f"m.tournament_round = {tournament_round}")
+        if tournament_round is not None and len(tournament_round) > 0:
+            rounds_list = ", ".join(str(r) for r in tournament_round)
+            filters.append(f"m.tournament_round IN ({rounds_list})")
 
         if bracket:
             if bracket == "Winners":
@@ -4426,13 +4427,16 @@ class TournamentQueries:
             filters.append(f"m.total_turns <= {max_turns}")
 
         if map_size:
-            filters.append(f"m.map_size = '{map_size}'")
+            map_size_list = "', '".join(map_size)
+            filters.append(f"m.map_size IN ('{map_size_list}')")
 
         if map_class:
-            filters.append(f"m.map_class = '{map_class}'")
+            map_class_list = "', '".join(map_class)
+            filters.append(f"m.map_class IN ('{map_class_list}')")
 
         if map_aspect:
-            filters.append(f"m.map_aspect = '{map_aspect}'")
+            map_aspect_list = "', '".join(map_aspect)
+            filters.append(f"m.map_aspect IN ('{map_aspect_list}')")
 
         if nations:
             nations_list = "', '".join(nations)
