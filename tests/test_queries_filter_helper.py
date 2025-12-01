@@ -115,10 +115,35 @@ def test_get_filtered_match_ids_by_bracket_unknown(test_queries):
 
 def test_get_filtered_match_ids_by_specific_round(test_queries):
     """Test filtering by specific round number."""
-    round_1_matches = test_queries._get_filtered_match_ids(tournament_round=1)
+    round_1_matches = test_queries._get_filtered_match_ids(tournament_round=[1])
 
     assert len(round_1_matches) == 2  # Matches 1, 2
     assert sorted(round_1_matches) == [1, 2]
+
+
+def test_get_filtered_match_ids_by_multiple_rounds(test_queries):
+    """Test filtering by multiple rounds."""
+    # Winners rounds 1 and 2
+    matches = test_queries._get_filtered_match_ids(tournament_round=[1, 2])
+
+    assert len(matches) == 3  # Matches 1, 2, 3
+    assert sorted(matches) == [1, 2, 3]
+
+
+def test_get_filtered_match_ids_by_mixed_bracket_rounds(test_queries):
+    """Test filtering by rounds from different brackets."""
+    # Winners round 1 and Losers round 1
+    matches = test_queries._get_filtered_match_ids(tournament_round=[1, -1])
+
+    assert len(matches) == 3  # Matches 1, 2 (round 1), 4 (round -1)
+    assert sorted(matches) == [1, 2, 4]
+
+
+def test_get_filtered_match_ids_empty_round_list(test_queries):
+    """Test that empty round list returns all matches."""
+    matches = test_queries._get_filtered_match_ids(tournament_round=[])
+
+    assert len(matches) == 6
 
 
 def test_get_filtered_match_ids_by_min_turns(test_queries):
@@ -149,30 +174,78 @@ def test_get_filtered_match_ids_by_turn_range(test_queries):
 
 
 def test_get_filtered_match_ids_by_map_size(test_queries):
-    """Test filtering by map size."""
-    matches = test_queries._get_filtered_match_ids(map_size="Large")
+    """Test filtering by single map size in list."""
+    matches = test_queries._get_filtered_match_ids(map_size=["Large"])
 
     # Matches with Large map: 2, 5
     assert len(matches) == 2
     assert sorted(matches) == [2, 5]
 
 
+def test_get_filtered_match_ids_by_multiple_map_sizes(test_queries):
+    """Test filtering by multiple map sizes."""
+    matches = test_queries._get_filtered_match_ids(map_size=["Large", "Small"])
+
+    # Matches with Large (2, 5) or Small (4) map
+    assert len(matches) == 3
+    assert sorted(matches) == [2, 4, 5]
+
+
+def test_get_filtered_match_ids_empty_map_size_list(test_queries):
+    """Test that empty map size list returns all matches."""
+    matches = test_queries._get_filtered_match_ids(map_size=[])
+
+    assert len(matches) == 6
+
+
 def test_get_filtered_match_ids_by_map_class(test_queries):
-    """Test filtering by map class."""
-    matches = test_queries._get_filtered_match_ids(map_class="Coastal")
+    """Test filtering by single map class in list."""
+    matches = test_queries._get_filtered_match_ids(map_class=["Coastal"])
 
     # Matches with Coastal map: 2, 5
     assert len(matches) == 2
     assert sorted(matches) == [2, 5]
 
 
+def test_get_filtered_match_ids_by_multiple_map_classes(test_queries):
+    """Test filtering by multiple map classes."""
+    matches = test_queries._get_filtered_match_ids(map_class=["Coastal", "Islands"])
+
+    # Matches with Coastal (2, 5) or Islands (4) map
+    assert len(matches) == 3
+    assert sorted(matches) == [2, 4, 5]
+
+
+def test_get_filtered_match_ids_empty_map_class_list(test_queries):
+    """Test that empty map class list returns all matches."""
+    matches = test_queries._get_filtered_match_ids(map_class=[])
+
+    assert len(matches) == 6
+
+
 def test_get_filtered_match_ids_by_map_aspect(test_queries):
-    """Test filtering by map aspect ratio."""
-    matches = test_queries._get_filtered_match_ids(map_aspect="Wide")
+    """Test filtering by single map aspect ratio in list."""
+    matches = test_queries._get_filtered_match_ids(map_aspect=["Wide"])
 
     # Matches with Wide aspect: 2, 5
     assert len(matches) == 2
     assert sorted(matches) == [2, 5]
+
+
+def test_get_filtered_match_ids_by_multiple_map_aspects(test_queries):
+    """Test filtering by multiple map aspects."""
+    matches = test_queries._get_filtered_match_ids(map_aspect=["Wide", "Tall"])
+
+    # Matches with Wide (2, 5) or Tall (4) aspect
+    assert len(matches) == 3
+    assert sorted(matches) == [2, 4, 5]
+
+
+def test_get_filtered_match_ids_empty_map_aspect_list(test_queries):
+    """Test that empty map aspect list returns all matches."""
+    matches = test_queries._get_filtered_match_ids(map_aspect=[])
+
+    assert len(matches) == 6
 
 
 def test_get_filtered_match_ids_by_nation(test_queries):
@@ -228,7 +301,7 @@ def test_get_filtered_match_ids_complex_combination(test_queries):
     """Test complex filter combination."""
     matches = test_queries._get_filtered_match_ids(
         bracket="Winners",
-        map_size="Medium",
+        map_size=["Medium"],
         nations=["Rome"],
         players=["Fluffbunny"]
     )
@@ -236,6 +309,24 @@ def test_get_filtered_match_ids_complex_combination(test_queries):
     # Winners + Medium + Rome + Fluffbunny: 1, 3
     assert len(matches) == 2
     assert sorted(matches) == [1, 3]
+
+
+def test_get_filtered_match_ids_combined_multi_select(test_queries):
+    """Test multiple multi-select filters combine with AND."""
+    matches = test_queries._get_filtered_match_ids(
+        tournament_round=[1, 2],
+        map_size=["Medium", "Large"],
+        map_class=["Inland", "Coastal"]
+    )
+
+    # Round 1,2 AND (Medium OR Large) AND (Inland OR Coastal)
+    # Round 1: matches 1, 2
+    # Round 2: match 3
+    # Match 1: Medium, Inland - matches all
+    # Match 2: Large, Coastal - matches all
+    # Match 3: Medium, Inland - matches all
+    assert len(matches) == 3
+    assert sorted(matches) == [1, 2, 3]
 
 
 def test_get_filtered_match_ids_no_matches(test_queries):

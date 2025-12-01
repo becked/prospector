@@ -1206,13 +1206,13 @@ class TournamentQueries:
 
     def get_nation_win_stats(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -1273,13 +1273,13 @@ class TournamentQueries:
 
     def get_nation_loss_stats(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -1340,13 +1340,13 @@ class TournamentQueries:
 
     def get_nation_popularity(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -1401,13 +1401,13 @@ class TournamentQueries:
 
     def get_map_breakdown(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -1462,13 +1462,13 @@ class TournamentQueries:
 
     def get_unit_popularity(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -1525,13 +1525,13 @@ class TournamentQueries:
     def get_law_progression_by_match(
         self,
         match_id: Optional[int] = None,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2305,13 +2305,13 @@ class TournamentQueries:
     def get_aggregated_event_timeline(
         self,
         max_turn: int = 150,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2507,13 +2507,13 @@ class TournamentQueries:
 
     def get_ruler_archetype_win_rates(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2583,13 +2583,13 @@ class TournamentQueries:
     def get_ruler_trait_win_rates(
         self,
         min_games: int = 2,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2713,13 +2713,13 @@ class TournamentQueries:
 
     def get_ruler_archetype_matchups(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2797,13 +2797,13 @@ class TournamentQueries:
     def get_ruler_archetype_trait_combinations(
         self,
         limit: int = 10,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2867,13 +2867,13 @@ class TournamentQueries:
     def get_nation_counter_pick_matrix(
         self,
         min_games: int = 1,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -2973,13 +2973,13 @@ class TournamentQueries:
 
     def get_pick_order_win_rates(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -3094,13 +3094,13 @@ class TournamentQueries:
 
     def get_metric_progression_stats(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> Dict[str, pd.DataFrame]:
@@ -3225,13 +3225,13 @@ class TournamentQueries:
     def get_yield_with_cumulative(
         self,
         yield_type: str,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> Dict[str, pd.DataFrame]:
@@ -3527,13 +3527,13 @@ class TournamentQueries:
 
     def get_tournament_expansion_timeline(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -3673,13 +3673,13 @@ class TournamentQueries:
 
     def get_tournament_production_strategies(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -3864,13 +3864,13 @@ class TournamentQueries:
 
     def _get_filtered_match_ids(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> list[int]:
@@ -3880,13 +3880,13 @@ class TournamentQueries:
         Returns all match IDs if no filters are provided.
 
         Args:
-            tournament_round: Specific round number
+            tournament_round: List of round numbers to include
             bracket: Bracket filter
             min_turns: Minimum turns
             max_turns: Maximum turns
-            map_size: Map size filter
-            map_class: Map class filter
-            map_aspect: Map aspect ratio filter
+            map_size: List of map sizes to include
+            map_class: List of map classes to include
+            map_aspect: List of map aspect ratios to include
             nations: List of civilizations
             players: List of player names
 
@@ -3897,8 +3897,8 @@ class TournamentQueries:
         params = {}
 
         # Apply filters (reuse logic from get_matches_by_round)
-        if tournament_round is not None:
-            query += " AND m.tournament_round = $tournament_round"
+        if tournament_round and len(tournament_round) > 0:
+            query += " AND m.tournament_round = ANY($tournament_round)"
             params["tournament_round"] = tournament_round
 
         if bracket == "Winners":
@@ -3915,14 +3915,14 @@ class TournamentQueries:
             query += " AND m.total_turns <= $max_turns"
             params["max_turns"] = max_turns
 
-        if map_size:
-            query += " AND m.map_size = $map_size"
+        if map_size and len(map_size) > 0:
+            query += " AND m.map_size = ANY($map_size)"
             params["map_size"] = map_size
-        if map_class:
-            query += " AND m.map_class = $map_class"
+        if map_class and len(map_class) > 0:
+            query += " AND m.map_class = ANY($map_class)"
             params["map_class"] = map_class
-        if map_aspect:
-            query += " AND m.map_aspect_ratio = $map_aspect"
+        if map_aspect and len(map_aspect) > 0:
+            query += " AND m.map_aspect_ratio = ANY($map_aspect)"
             params["map_aspect"] = map_aspect
 
         if nations and len(nations) > 0:
@@ -3947,13 +3947,13 @@ class TournamentQueries:
 
     def get_matches_by_round(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[list[str]] = None,
         players: Optional[list[str]] = None,
     ) -> pd.DataFrame:
@@ -4168,13 +4168,13 @@ class TournamentQueries:
 
     def get_science_win_correlation(
         self,
-        tournament_round: Optional[int] = None,
+        tournament_round: Optional[list[int]] = None,
         bracket: Optional[str] = None,
         min_turns: Optional[int] = None,
         max_turns: Optional[int] = None,
-        map_size: Optional[str] = None,
-        map_class: Optional[str] = None,
-        map_aspect: Optional[str] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
         nations: Optional[List[str]] = None,
         players: Optional[List[str]] = None,
     ) -> pd.DataFrame:

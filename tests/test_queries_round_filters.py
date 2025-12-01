@@ -51,7 +51,7 @@ class TestRoundFiltering:
         queries = TournamentQueries(test_db_with_rounds)
 
         # ACT
-        result = queries.get_matches_by_round(tournament_round=1)
+        result = queries.get_matches_by_round(tournament_round=[1])
 
         # ASSERT
         assert len(result) == 2, "Should return 2 matches from Winners Round 1"
@@ -124,7 +124,7 @@ class TestRoundFiltering:
         queries = TournamentQueries(test_db_with_rounds)
 
         # ACT
-        result = queries.get_matches_by_round(tournament_round=1, bracket="Winners")
+        result = queries.get_matches_by_round(tournament_round=[1], bracket="Winners")
 
         # ASSERT
         assert len(result) == 2, "Should return 2 Winners Round 1 matches"
@@ -167,7 +167,7 @@ class TestRoundFiltering:
         queries = TournamentQueries(test_db_with_rounds)
 
         # ACT
-        result = queries.get_matches_by_round(tournament_round=99)
+        result = queries.get_matches_by_round(tournament_round=[99])
 
         # ASSERT
         assert len(result) == 0, "Should return empty DataFrame"
