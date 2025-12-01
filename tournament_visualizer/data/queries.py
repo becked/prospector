@@ -3203,10 +3203,7 @@ class TournamentQueries:
             result_filter=result_filter,
         )
 
-        # Match-level query - only needs match_ids
-        match_ids = self._extract_match_ids(filtered, result_filter) if filtered else []
-
-        if not match_ids:
+        if not filtered:
             return {
                 "science": pd.DataFrame(),
                 "orders": pd.DataFrame(),
@@ -3214,65 +3211,68 @@ class TournamentQueries:
                 "legitimacy": pd.DataFrame(),
             }
 
+        # Build player-level filter (handles both match-only and match+player filtering)
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="h"
+        )
+
         # Science per turn (YIELD_SCIENCE)
-        science_query = """
+        science_query = f"""
         SELECT
-            turn_number,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
-            COUNT(DISTINCT match_id) as sample_size
-        FROM player_yield_history
-        WHERE resource_type = 'YIELD_SCIENCE'
-            AND match_id = ANY($match_ids)
-        GROUP BY turn_number
-        ORDER BY turn_number
+            h.turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY h.amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY h.amount / 10.0) as percentile_75,
+            COUNT(DISTINCT h.match_id) as sample_size
+        FROM player_yield_history h
+        WHERE h.resource_type = 'YIELD_SCIENCE'
+            AND {where_clause}
+        GROUP BY h.turn_number
+        ORDER BY h.turn_number
         """
 
         # Orders per turn (YIELD_ORDERS)
-        orders_query = """
+        orders_query = f"""
         SELECT
-            turn_number,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
-            COUNT(DISTINCT match_id) as sample_size
-        FROM player_yield_history
-        WHERE resource_type = 'YIELD_ORDERS'
-            AND match_id = ANY($match_ids)
-        GROUP BY turn_number
-        ORDER BY turn_number
+            h.turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY h.amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY h.amount / 10.0) as percentile_75,
+            COUNT(DISTINCT h.match_id) as sample_size
+        FROM player_yield_history h
+        WHERE h.resource_type = 'YIELD_ORDERS'
+            AND {where_clause}
+        GROUP BY h.turn_number
+        ORDER BY h.turn_number
         """
 
         # Military score per turn
-        military_query = """
+        military_query = f"""
         SELECT
-            turn_number,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY military_power) as median,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY military_power) as percentile_25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY military_power) as percentile_75,
-            COUNT(DISTINCT match_id) as sample_size
-        FROM player_military_history
-        WHERE match_id = ANY($match_ids)
-        GROUP BY turn_number
-        ORDER BY turn_number
+            h.turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.military_power) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY h.military_power) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY h.military_power) as percentile_75,
+            COUNT(DISTINCT h.match_id) as sample_size
+        FROM player_military_history h
+        WHERE {where_clause}
+        GROUP BY h.turn_number
+        ORDER BY h.turn_number
         """
 
         # Legitimacy per turn
-        legitimacy_query = """
+        legitimacy_query = f"""
         SELECT
-            turn_number,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY legitimacy) as median,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY legitimacy) as percentile_25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY legitimacy) as percentile_75,
-            COUNT(DISTINCT match_id) as sample_size
-        FROM player_legitimacy_history
-        WHERE match_id = ANY($match_ids)
-        GROUP BY turn_number
-        ORDER BY turn_number
+            h.turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.legitimacy) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY h.legitimacy) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY h.legitimacy) as percentile_75,
+            COUNT(DISTINCT h.match_id) as sample_size
+        FROM player_legitimacy_history h
+        WHERE {where_clause}
+        GROUP BY h.turn_number
+        ORDER BY h.turn_number
         """
-
-        params = {"match_ids": match_ids}
 
         with self.db.get_connection() as conn:
             return {
@@ -3337,49 +3337,51 @@ class TournamentQueries:
             result_filter=result_filter,
         )
 
-        # Match-level query - only needs match_ids
-        match_ids = self._extract_match_ids(filtered, result_filter) if filtered else []
-
-        if not match_ids:
+        if not filtered:
             return {
                 "rate": pd.DataFrame(),
                 "cumulative": pd.DataFrame(),
             }
 
+        # Build player-level filter (handles both match-only and match+player filtering)
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="yh"
+        )
+
         # Yield rate per turn
-        rate_query = """
+        rate_query = f"""
         SELECT
-            turn_number,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount / 10.0) as median,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount / 10.0) as percentile_75,
-            MIN(amount / 10.0) as min_value,
-            MAX(amount / 10.0) as max_value,
-            AVG(amount / 10.0) as avg_value,
-            STDDEV(amount / 10.0) as std_dev,
-            COUNT(DISTINCT match_id) as sample_size
-        FROM player_yield_history
-        WHERE resource_type = $yield_type
-            AND match_id = ANY($match_ids)
-        GROUP BY turn_number
-        ORDER BY turn_number
+            yh.turn_number,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY yh.amount / 10.0) as median,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY yh.amount / 10.0) as percentile_25,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY yh.amount / 10.0) as percentile_75,
+            MIN(yh.amount / 10.0) as min_value,
+            MAX(yh.amount / 10.0) as max_value,
+            AVG(yh.amount / 10.0) as avg_value,
+            STDDEV(yh.amount / 10.0) as std_dev,
+            COUNT(DISTINCT yh.match_id) as sample_size
+        FROM player_yield_history yh
+        WHERE yh.resource_type = $yield_type
+            AND {where_clause}
+        GROUP BY yh.turn_number
+        ORDER BY yh.turn_number
         """
 
         # Cumulative yield: first compute running sum per player/match,
         # then aggregate across all to get percentiles
-        cumulative_query = """
+        cumulative_query = f"""
         WITH cumulative_per_player AS (
             SELECT
-                match_id,
-                player_id,
-                turn_number,
-                SUM(amount / 10.0) OVER (
-                    PARTITION BY match_id, player_id
-                    ORDER BY turn_number
+                yh.match_id,
+                yh.player_id,
+                yh.turn_number,
+                SUM(yh.amount / 10.0) OVER (
+                    PARTITION BY yh.match_id, yh.player_id
+                    ORDER BY yh.turn_number
                 ) as cumulative_yield
-            FROM player_yield_history
-            WHERE resource_type = $yield_type
-                AND match_id = ANY($match_ids)
+            FROM player_yield_history yh
+            WHERE yh.resource_type = $yield_type
+                AND {where_clause}
         )
         SELECT
             turn_number,
@@ -3396,7 +3398,7 @@ class TournamentQueries:
         ORDER BY turn_number
         """
 
-        params = {"match_ids": match_ids, "yield_type": yield_type}
+        params["yield_type"] = yield_type
 
         with self.db.get_connection() as conn:
             return {
@@ -3645,12 +3647,14 @@ class TournamentQueries:
         if not filtered:
             return pd.DataFrame()
 
-        # Match-level query - only needs match_ids
-        match_ids = self._extract_match_ids(filtered, result_filter)
+        # Build player-level filter (handles both match-only and match+player filtering)
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="p"
+        )
 
         # Calculate cumulative cities per match, then average across matches
         # for players who played multiple games as the same civilization
-        query = """
+        query = f"""
         WITH per_match_cumulative AS (
             -- Calculate cumulative count within each match
             SELECT
@@ -3665,7 +3669,7 @@ class TournamentQueries:
                 ) as cumulative_cities
             FROM cities c
             JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
-            WHERE c.match_id = ANY($match_ids)
+            WHERE {where_clause}
         ),
         -- Deduplicate: multiple cities on same turn create duplicate rows
         per_match_per_turn AS (
@@ -3686,8 +3690,6 @@ class TournamentQueries:
         GROUP BY player_name, civilization, founded_turn
         ORDER BY player_name, civilization, founded_turn
         """
-
-        params = {"match_ids": match_ids}
 
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
@@ -3798,11 +3800,13 @@ class TournamentQueries:
         if not filtered:
             return pd.DataFrame()
 
-        # Match-level query - only needs match_ids
-        match_ids = self._extract_match_ids(filtered, result_filter)
+        # Build player-level filter (handles both match-only and match+player filtering)
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="p"
+        )
 
         # Calculate production per match, then average across matches
-        query = """
+        query = f"""
         WITH per_match_units AS (
             -- Calculate unit production per match per player
             SELECT
@@ -3819,7 +3823,7 @@ class TournamentQueries:
                 ), 0) as military
             FROM players p
             LEFT JOIN units_produced u ON p.match_id = u.match_id AND p.player_id = u.player_id
-            WHERE p.match_id = ANY($match_ids)
+            WHERE {where_clause}
             GROUP BY p.match_id, p.player_name, p.civilization
         ),
         per_match_projects AS (
@@ -3832,7 +3836,7 @@ class TournamentQueries:
             FROM players p
             LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
             LEFT JOIN city_projects proj ON c.match_id = proj.match_id AND c.city_id = proj.city_id
-            WHERE p.match_id = ANY($match_ids)
+            WHERE {where_clause}
             GROUP BY p.match_id, p.player_name, p.civilization
         ),
         per_match_combined AS (
@@ -3866,8 +3870,6 @@ class TournamentQueries:
         HAVING AVG(settlers + workers + disciples + military + projects) > 0
         ORDER BY total_production DESC
         """
-
-        params = {"match_ids": match_ids}
 
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
