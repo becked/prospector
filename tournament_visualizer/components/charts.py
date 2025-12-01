@@ -5413,7 +5413,9 @@ def create_tournament_conquest_summary_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def _create_science_progression_line_chart(df: pd.DataFrame) -> go.Figure:
+def _create_science_progression_line_chart(
+    df: pd.DataFrame, result_filter: Optional[str] = None
+) -> go.Figure:
     """Create line chart showing science progression for winners vs losers.
 
     Args:
@@ -5421,12 +5423,17 @@ def _create_science_progression_line_chart(df: pd.DataFrame) -> go.Figure:
             Expected columns: turn_number, avg_science_winners, avg_science_losers,
                             p25_winners, p75_winners, p25_losers, p75_losers,
                             winner_count, loser_count
+        result_filter: Filter to show only 'winners' or 'losers' line, or both if None/'all'
 
     Returns:
-        Plotly figure with two lines (winners and losers) and shaded percentile bands
+        Plotly figure with lines and shaded percentile bands
     """
     if df.empty:
         return create_empty_chart_placeholder("No science data available")
+
+    # Determine which lines to show
+    show_winners = result_filter in (None, "all", "winners")
+    show_losers = result_filter in (None, "all", "losers")
 
     # Create base figure with secondary y-axis
     fig = create_base_figure(
@@ -5437,81 +5444,90 @@ def _create_science_progression_line_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     # Add shaded band for losers (25th-75th percentile)
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["p75_losers"],
-            mode="lines",
-            line=dict(width=0),
-            showlegend=False,
-            hoverinfo="skip",
+    if show_losers:
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["p75_losers"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["p25_losers"],
-            mode="lines",
-            line=dict(width=0),
-            fill="tonexty",
-            fillcolor="rgba(214, 39, 40, 0.2)",  # Red with transparency
-            showlegend=False,
-            hoverinfo="skip",
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["p25_losers"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(214, 39, 40, 0.2)",  # Red with transparency
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
 
     # Add shaded band for winners (25th-75th percentile)
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["p75_winners"],
-            mode="lines",
-            line=dict(width=0),
-            showlegend=False,
-            hoverinfo="skip",
+    if show_winners:
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["p75_winners"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["p25_winners"],
-            mode="lines",
-            line=dict(width=0),
-            fill="tonexty",
-            fillcolor="rgba(44, 160, 44, 0.2)",  # Green with transparency
-            showlegend=False,
-            hoverinfo="skip",
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["p25_winners"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(44, 160, 44, 0.2)",  # Green with transparency
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
 
     # Add line for losers (on top of shaded band)
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["avg_science_losers"],
-            mode="lines",
-            name="Losers (avg)",
-            line=dict(color="#d62728", width=2),
-            hovertemplate="Turn %{x}<br>Avg Science: %{y:.1f}<extra></extra>",
+    if show_losers:
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["avg_science_losers"],
+                mode="lines",
+                name="Losers (avg)",
+                line=dict(color="#d62728", width=2),
+                hovertemplate="Turn %{x}<br>Avg Science: %{y:.1f}<extra></extra>",
+            )
         )
-    )
 
     # Add line for winners (on top of shaded band)
-    fig.add_trace(
-        go.Scatter(
-            x=df["turn_number"],
-            y=df["avg_science_winners"],
-            mode="lines",
-            name="Winners (avg)",
-            line=dict(color="#2ca02c", width=2),
-            hovertemplate="Turn %{x}<br>Avg Science: %{y:.1f}<extra></extra>",
+    if show_winners:
+        fig.add_trace(
+            go.Scatter(
+                x=df["turn_number"],
+                y=df["avg_science_winners"],
+                mode="lines",
+                name="Winners (avg)",
+                line=dict(color="#2ca02c", width=2),
+                hovertemplate="Turn %{x}<br>Avg Science: %{y:.1f}<extra></extra>",
+            )
         )
-    )
 
-    # Add sample size line on secondary y-axis (use max of winner/loser count)
+    # Add sample size line on secondary y-axis
     # Filter out turn 1 which often has incomplete data
     sample_df = df[df["turn_number"] >= 2].copy()
-    sample_size = sample_df[["winner_count", "loser_count"]].max(axis=1)
+    if show_winners and show_losers:
+        sample_size = sample_df[["winner_count", "loser_count"]].max(axis=1)
+    elif show_winners:
+        sample_size = sample_df["winner_count"]
+    else:
+        sample_size = sample_df["loser_count"]
     fig.add_trace(
         go.Scatter(
             x=sample_df["turn_number"],
@@ -5548,13 +5564,16 @@ def _create_science_progression_line_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_science_per_turn_correlation_chart(df: pd.DataFrame) -> go.Figure:
+def create_science_per_turn_correlation_chart(
+    df: pd.DataFrame, result_filter: Optional[str] = None
+) -> go.Figure:
     """Create line chart showing science progression for winners vs losers over turns.
 
     Args:
         df: DataFrame from get_science_win_correlation()
+        result_filter: Filter to show only 'winners' or 'losers' line, or both if None/'all'
 
     Returns:
-        Plotly figure with two lines showing turn-by-turn science progression
+        Plotly figure with turn-by-turn science progression
     """
-    return _create_science_progression_line_chart(df)
+    return _create_science_progression_line_chart(df, result_filter)

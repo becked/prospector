@@ -84,7 +84,6 @@ YIELD_CHARTS = [
     ("YIELD_MAINTENANCE", "Maintenance", "#843c39", "#ad494a"),
 ]
 
-
 # Register this page
 dash.register_page(__name__, path="/", name="Overview")
 
@@ -241,6 +240,30 @@ layout = html.Div(
                                                                 value=None,
                                                                 placeholder="All Players",
                                                                 multi=True,
+                                                                className="mb-3",
+                                                            ),
+                                                            html.Label(
+                                                                "Result",
+                                                                className="fw-bold mb-2",
+                                                            ),
+                                                            dcc.Dropdown(
+                                                                id="overview-result-dropdown",
+                                                                options=[
+                                                                    {
+                                                                        "label": "All Players",
+                                                                        "value": "all",
+                                                                    },
+                                                                    {
+                                                                        "label": "Winners Only",
+                                                                        "value": "winners",
+                                                                    },
+                                                                    {
+                                                                        "label": "Losers Only",
+                                                                        "value": "losers",
+                                                                    },
+                                                                ],
+                                                                value="all",
+                                                                clearable=False,
                                                                 className="mb-3",
                                                             ),
                                                         ],
@@ -930,6 +953,7 @@ def update_turn_length_label(turn_length: Optional[int]) -> str:
     Output("overview-map-aspect-dropdown", "value"),
     Output("overview-nations-dropdown", "value"),
     Output("overview-players-dropdown", "value"),
+    Output("overview-result-dropdown", "value"),
     Input("overview-clear-filters-btn", "n_clicks"),
     prevent_initial_call=True,
 )
@@ -950,6 +974,7 @@ def clear_all_filters(n_clicks: Optional[int]) -> tuple:
         None,  # map_aspect
         None,  # nations
         None,  # players
+        "all",  # result
     )
 
 
@@ -991,6 +1016,7 @@ def update_overview_metrics(n_intervals: int) -> html.Div:
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_win_chart(
@@ -1001,6 +1027,7 @@ def update_nation_win_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the nation win percentage chart with filters.
@@ -1013,6 +1040,7 @@ def update_nation_win_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
+        result_filter: Filter by match result (winners/losers/all)
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1032,12 +1060,14 @@ def update_nation_win_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_nation_win_percentage_chart(df)
+        fig = create_nation_win_percentage_chart(df)
+        return fig
 
     except Exception as e:
         return create_empty_chart_placeholder(f"Error loading nation data: {str(e)}")
@@ -1052,6 +1082,7 @@ def update_nation_win_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_loss_chart(
@@ -1062,6 +1093,7 @@ def update_nation_loss_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the nation loss percentage chart with filters.
@@ -1074,6 +1106,7 @@ def update_nation_loss_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
+        result_filter: Filter by match result (winners/losers/all)
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1093,12 +1126,14 @@ def update_nation_loss_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_nation_loss_percentage_chart(df)
+        fig = create_nation_loss_percentage_chart(df)
+        return fig
 
     except Exception as e:
         return create_empty_chart_placeholder(f"Error loading nation data: {str(e)}")
@@ -1113,6 +1148,7 @@ def update_nation_loss_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_nation_popularity_chart(
@@ -1123,6 +1159,7 @@ def update_nation_popularity_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the nation popularity chart with filters.
@@ -1135,6 +1172,7 @@ def update_nation_popularity_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
+        result_filter: Filter by match result (winners/losers/all)
         n_intervals: Number of interval triggers
 
     Returns:
@@ -1154,6 +1192,7 @@ def update_nation_popularity_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1174,6 +1213,7 @@ def update_nation_popularity_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_units_chart(
@@ -1184,6 +1224,7 @@ def update_units_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the unit popularity sunburst chart with filters.
@@ -1215,6 +1256,7 @@ def update_units_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1235,6 +1277,7 @@ def update_units_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_map_chart(
@@ -1245,6 +1288,7 @@ def update_map_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the map breakdown sunburst chart with filters.
@@ -1276,6 +1320,7 @@ def update_map_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1296,6 +1341,7 @@ def update_map_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_matches_table(
@@ -1306,6 +1352,7 @@ def update_matches_table(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ) -> List[Dict[str, Any]]:
     """Update the matches table based on filters.
@@ -1342,6 +1389,7 @@ def update_matches_table(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1452,6 +1500,7 @@ def check_data_status(n_intervals: int) -> html.Div:
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_law_distribution(
@@ -1462,6 +1511,7 @@ def update_law_distribution(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update law milestone distribution chart with filters.
@@ -1495,6 +1545,7 @@ def update_law_distribution(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1516,6 +1567,7 @@ def update_law_distribution(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_law_efficiency(
@@ -1526,6 +1578,7 @@ def update_law_efficiency(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update law efficiency scatter plot with filters.
@@ -1558,12 +1611,14 @@ def update_law_efficiency(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_law_efficiency_scatter(df)
+        fig = create_law_efficiency_scatter(df)
+        return fig
 
     except Exception as e:
         logger.error(f"Error loading law efficiency: {e}")
@@ -1579,6 +1634,7 @@ def update_law_efficiency(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_event_timeline(
@@ -1589,6 +1645,7 @@ def update_event_timeline(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update aggregated event category timeline chart with filters.
@@ -1623,6 +1680,7 @@ def update_event_timeline(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1644,6 +1702,7 @@ def update_event_timeline(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_archetype_chart(
@@ -1654,6 +1713,7 @@ def update_ruler_archetype_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update ruler archetype win rates chart with filters.
@@ -1685,6 +1745,7 @@ def update_ruler_archetype_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1706,6 +1767,7 @@ def update_ruler_archetype_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_trait_performance_chart(
@@ -1716,6 +1778,7 @@ def update_ruler_trait_performance_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update ruler trait performance chart with filters.
@@ -1748,12 +1811,14 @@ def update_ruler_trait_performance_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_ruler_trait_performance_chart(df)
+        fig = create_ruler_trait_performance_chart(df)
+        return fig
 
     except Exception as e:
         logger.error(f"Error loading ruler trait data: {e}")
@@ -1769,6 +1834,7 @@ def update_ruler_trait_performance_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_matchup_matrix_chart(
@@ -1779,6 +1845,7 @@ def update_ruler_matchup_matrix_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update ruler archetype matchup matrix chart with filters.
@@ -1810,12 +1877,14 @@ def update_ruler_matchup_matrix_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_ruler_archetype_matchup_matrix(df)
+        fig = create_ruler_archetype_matchup_matrix(df)
+        return fig
 
     except Exception as e:
         logger.error(f"Error loading ruler matchup data: {e}")
@@ -1831,6 +1900,7 @@ def update_ruler_matchup_matrix_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_ruler_combinations_chart(
@@ -1841,6 +1911,7 @@ def update_ruler_combinations_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update ruler archetype + trait combinations chart with filters.
@@ -1873,6 +1944,7 @@ def update_ruler_combinations_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -1894,6 +1966,7 @@ def update_ruler_combinations_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_counter_pick_heatmap(
@@ -1904,6 +1977,7 @@ def update_counter_pick_heatmap(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update nation counter-pick effectiveness heatmap with filters.
@@ -1936,10 +2010,12 @@ def update_counter_pick_heatmap(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         # Let the chart function handle empty data with a proper message
-        return create_nation_counter_pick_heatmap(df)
+        fig = create_nation_counter_pick_heatmap(df)
+        return fig
 
     except Exception as e:
         logger.error(f"Error loading counter-pick data: {e}")
@@ -1955,6 +2031,7 @@ def update_counter_pick_heatmap(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_pick_order_win_rate(
@@ -1965,6 +2042,7 @@ def update_pick_order_win_rate(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update pick order win rate bar chart with filters.
@@ -1996,10 +2074,12 @@ def update_pick_order_win_rate(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         # Let the chart function handle empty data with a proper message
-        return create_pick_order_win_rate_chart(df)
+        fig = create_pick_order_win_rate_chart(df)
+        return fig
 
     except Exception as e:
         logger.error(f"Error loading pick order win rate data: {e}")
@@ -2026,6 +2106,7 @@ def _create_yield_callback(
         Input("overview-map-aspect-dropdown", "value"),
         Input("overview-nations-dropdown", "value"),
         Input("overview-players-dropdown", "value"),
+        Input("overview-result-dropdown", "value"),
         Input("refresh-interval", "n_intervals"),
     )
     def update_yield_chart(
@@ -2036,6 +2117,7 @@ def _create_yield_callback(
         map_aspect: Optional[list[str]],
         nations: Optional[List[str]],
         players: Optional[List[str]],
+        result_filter: Optional[str],
         n_intervals: int,
     ):
         try:
@@ -2053,6 +2135,7 @@ def _create_yield_callback(
                 map_aspect=map_aspect,
                 nations=nations if nations else None,
                 players=players if players else None,
+                result_filter=result_filter if result_filter != "all" else None,
             )
 
             if data["rate"].empty and data["cumulative"].empty:
@@ -2091,6 +2174,7 @@ for yield_type, display_name, rate_color, cumulative_color in YIELD_CHARTS:
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("overview-science-scale-toggle", "value"),
     Input("refresh-interval", "n_intervals"),
 )
@@ -2102,6 +2186,7 @@ def update_science_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     scale_type: str,
     n_intervals: int,
 ) -> go.Figure:
@@ -2121,6 +2206,7 @@ def update_science_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if data["rate"].empty and data["cumulative"].empty:
@@ -2149,6 +2235,7 @@ def update_science_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_military_progression(
@@ -2159,6 +2246,7 @@ def update_military_progression(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update military progression chart with filters.
@@ -2190,6 +2278,7 @@ def update_military_progression(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if stats["military"].empty:
@@ -2211,6 +2300,7 @@ def update_military_progression(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_legitimacy_progression(
@@ -2221,6 +2311,7 @@ def update_legitimacy_progression(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update legitimacy progression chart with filters.
@@ -2252,6 +2343,7 @@ def update_legitimacy_progression(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if stats["legitimacy"].empty:
@@ -2276,6 +2368,7 @@ def update_legitimacy_progression(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_expansion_timeline_chart(
@@ -2286,6 +2379,7 @@ def update_expansion_timeline_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the city expansion timeline chart with filters.
@@ -2317,6 +2411,7 @@ def update_expansion_timeline_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -2338,6 +2433,7 @@ def update_expansion_timeline_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_production_strategies_chart(
@@ -2348,6 +2444,7 @@ def update_production_strategies_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the production strategies chart with filters.
@@ -2379,6 +2476,7 @@ def update_production_strategies_chart(
             map_aspect=map_aspect,
             nations=nations if nations else None,
             players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
         )
 
         if df.empty:
@@ -2400,6 +2498,7 @@ def update_production_strategies_chart(
     Input("overview-map-aspect-dropdown", "value"),
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
     Input("refresh-interval", "n_intervals"),
 )
 def update_science_correlation_chart(
@@ -2410,6 +2509,7 @@ def update_science_correlation_chart(
     map_aspect: Optional[list[str]],
     nations: Optional[List[str]],
     players: Optional[List[str]],
+    result_filter: Optional[str],
     n_intervals: int,
 ):
     """Update the science per turn correlation chart with filters.
@@ -2446,7 +2546,8 @@ def update_science_correlation_chart(
         if df.empty:
             return create_empty_chart_placeholder("No data for selected filters")
 
-        return create_science_per_turn_correlation_chart(df)
+        # Pass result_filter to chart to show only the relevant line(s)
+        return create_science_per_turn_correlation_chart(df, result_filter)
 
     except Exception as e:
         logger.error(f"Error creating science correlation chart: {e}")

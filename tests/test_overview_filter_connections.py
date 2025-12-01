@@ -25,6 +25,7 @@ REQUIRED_FILTER_INPUTS = [
     "overview-map-aspect-dropdown",
     "overview-nations-dropdown",
     "overview-players-dropdown",
+    "overview-result-dropdown",
 ]
 
 
