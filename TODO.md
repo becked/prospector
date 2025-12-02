@@ -1,6 +1,3 @@
-Nolegskitten:
-* Army composition
-
 Rincewind:
 * Worker/city ratio
 * Free unit timing (ballista, etc.)
