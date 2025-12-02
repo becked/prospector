@@ -26,6 +26,13 @@ from tournament_visualizer.components.charts import (
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
     create_match_yield_stacked_chart,
+    create_units_stacked_bar_chart,
+    create_units_grouped_bar_chart,
+    create_units_waffle_chart,
+    create_units_treemap_chart,
+    create_units_icon_grid,
+    create_units_army_portrait,
+    create_units_marimekko_chart,
 )
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
@@ -439,7 +446,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     )
                                 ],
-                                className="mb-3",
+                                className="mt-3 mb-3",
                             ),
                             dbc.Row(
                                 [
@@ -493,7 +500,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mt-3 mb-3",
                             ),
                             # Technology Tempo chart
                             dbc.Row(
@@ -593,7 +600,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             else dbc.Col(width=6)
                                         ),  # Empty column if odd number
                                     ],
-                                    className="mb-3",
+                                    className="mt-3 mb-3" if i == 0 else "mb-3",
                                 )
                                 for i in range(
                                     0, len(YIELD_TYPES), 2
@@ -619,7 +626,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mt-3 mb-3",
                             ),
                             # Ambition Timeline Charts (dynamically generated per player)
                             html.Div(id="match-ambition-timelines-container"),
@@ -670,7 +677,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         ]
                                     )
                                 ],
-                                className="mb-3",
+                                className="mt-3 mb-3",
                             ),
                             # Hexagonal Map
                             dbc.Row(
@@ -749,6 +756,120 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
+                        "label": "Units",
+                        "tab_id": "units",
+                        "content": [
+                            # Unit listing by player
+                            html.Div(id="match-units-list-content", className="mt-3 mb-3"),
+                            # Row 1: Stacked Bar and Grouped Bar
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Army Composition (Stacked)",
+                                                chart_id="match-units-stacked-bar",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Unit Comparison (Grouped)",
+                                                chart_id="match-units-grouped-bar",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 2: Waffle Chart
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Unit Grid (Waffle)",
+                                                chart_id="match-units-waffle",
+                                                height="450px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 3: Treemap
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Unit Hierarchy (Treemap)",
+                                                chart_id="match-units-treemap",
+                                                height="550px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 4: Icon Grid
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Army Formation (Icons)",
+                                                chart_id="match-units-icon-grid",
+                                                height="450px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 5: Army Portrait
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Army Portrait",
+                                                chart_id="match-units-portrait",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 6: Marimekko Chart
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Army Size & Composition (Marimekko)",
+                                                chart_id="match-units-marimekko",
+                                                height="500px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                        ],
+                    },
+                    {
                         "label": "Game Settings",
                         "tab_id": "settings",
                         "content": [
@@ -758,7 +879,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         [html.Div(id="match-settings-content")],
                                         width=12,
                                     )
-                                ]
+                                ],
+                                className="mt-3",
                             )
                         ],
                     },
@@ -2006,3 +2128,197 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
         return create_empty_chart_placeholder(
             f"Error loading territory distribution: {str(e)}"
         )
+
+
+# =============================================================================
+# Unit Composition Callbacks
+# =============================================================================
+
+
+@callback(
+    [
+        Output("match-units-stacked-bar", "figure"),
+        Output("match-units-grouped-bar", "figure"),
+        Output("match-units-waffle", "figure"),
+        Output("match-units-treemap", "figure"),
+        Output("match-units-icon-grid", "figure"),
+        Output("match-units-portrait", "figure"),
+        Output("match-units-marimekko", "figure"),
+    ],
+    Input("match-selector", "value"),
+)
+def update_all_unit_charts(match_id: Optional[int]) -> List[go.Figure]:
+    """Update all unit composition charts when a match is selected.
+
+    Fetches unit data once and creates all 7 chart types.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        List of 7 Plotly figures for unit charts
+    """
+    empty_placeholder = create_empty_chart_placeholder(
+        "Select a match to view unit data"
+    )
+
+    if not match_id:
+        return [empty_placeholder] * 7
+
+    try:
+        queries = get_queries()
+        df = queries.get_match_units_produced(match_id)
+
+        if df.empty:
+            no_data = create_empty_chart_placeholder(
+                "No unit data available for this match"
+            )
+            return [no_data] * 7
+
+        # Create all 7 charts from the same DataFrame
+        return [
+            create_units_stacked_bar_chart(df),
+            create_units_grouped_bar_chart(df),
+            create_units_waffle_chart(df),
+            create_units_treemap_chart(df),
+            create_units_icon_grid(df),
+            create_units_army_portrait(df),
+            create_units_marimekko_chart(df),
+        ]
+
+    except Exception as e:
+        logger.error(f"Error loading unit charts: {e}")
+        error_fig = create_empty_chart_placeholder(f"Error loading unit data: {str(e)}")
+        return [error_fig] * 7
+
+
+@callback(
+    Output("match-units-list-content", "children"),
+    Input("match-selector", "value"),
+)
+def update_units_list(match_id: Optional[int]) -> html.Div:
+    """Update unit listing by player, split into Military and Non-Military.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML content with player boxes containing unit lists
+    """
+    if not match_id:
+        return html.Div(
+            "Select a match to view unit details", className="text-muted"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_match_units_produced(match_id)
+
+        if df.empty:
+            return html.Div("No unit data available", className="text-muted")
+
+        # Group by player
+        players = df["player_name"].unique()
+
+        player_cols = []
+        for player in sorted(players):
+            player_data = df[df["player_name"] == player]
+
+            # Split into military and non-military
+            military_data = player_data[player_data["category"] == "military"]
+            non_military_data = player_data[player_data["category"] != "military"]
+
+            # Build military list with counts
+            military_items = []
+            for _, row in military_data.sort_values("unit_name").iterrows():
+                unit_display = row["unit_name"].title()
+                military_items.append(
+                    html.Li(f"{unit_display} ({row['count']})", className="mb-1")
+                )
+
+            # Build non-military list with counts
+            non_military_items = []
+            for _, row in non_military_data.sort_values("unit_name").iterrows():
+                unit_display = row["unit_name"].title()
+                non_military_items.append(
+                    html.Li(f"{unit_display} ({row['count']})", className="mb-1")
+                )
+
+            # Calculate totals
+            military_total = int(military_data["count"].sum())
+            non_military_total = int(non_military_data["count"].sum())
+
+            player_card = dbc.Card(
+                [
+                    dbc.CardHeader(html.H5(player, className="mb-0")),
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            html.H6(
+                                                [
+                                                    "Military ",
+                                                    dbc.Badge(
+                                                        military_total,
+                                                        color="danger",
+                                                        pill=True,
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            html.Ul(
+                                                military_items
+                                                if military_items
+                                                else [
+                                                    html.Span(
+                                                        "No military units",
+                                                        className="text-muted",
+                                                    )
+                                                ],
+                                                style={"fontSize": "0.9rem"},
+                                            ),
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            html.H6(
+                                                [
+                                                    "Non-Military ",
+                                                    dbc.Badge(
+                                                        non_military_total,
+                                                        color="success",
+                                                        pill=True,
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            html.Ul(
+                                                non_military_items
+                                                if non_military_items
+                                                else [
+                                                    html.Span(
+                                                        "No non-military units",
+                                                        className="text-muted",
+                                                    )
+                                                ],
+                                                style={"fontSize": "0.9rem"},
+                                            ),
+                                        ],
+                                        width=6,
+                                    ),
+                                ]
+                            )
+                        ]
+                    ),
+                ]
+            )
+            player_cols.append(dbc.Col(player_card, width=12 // len(players)))
+
+        return dbc.Row(player_cols)
+
+    except Exception as e:
+        logger.error(f"Error loading unit list: {e}")
+        return html.Div(f"Error loading data: {str(e)}", className="text-danger")

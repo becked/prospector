@@ -5577,3 +5577,585 @@ def create_science_per_turn_correlation_chart(
         Plotly figure with turn-by-turn science progression
     """
     return _create_science_progression_line_chart(df, result_filter)
+
+
+# =============================================================================
+# Unit Composition Charts
+# =============================================================================
+
+# Define role colors for consistent visualization across all unit charts
+ROLE_COLORS = {
+    "infantry": "#4a90d9",    # Blue
+    "ranged": "#d94a4a",      # Red
+    "cavalry": "#d9a54a",     # Gold
+    "siege": "#8b4513",       # Brown
+    "naval": "#20b2aa",       # Teal
+    "settler": "#228b22",     # Forest green
+    "worker": "#daa520",      # Goldenrod
+    "scout": "#9370db",       # Purple
+    "religious": "#ff69b4",   # Pink
+    "unknown": "#808080",     # Gray
+}
+
+
+def create_units_stacked_bar_chart(df: pd.DataFrame) -> go.Figure:
+    """Create stacked bar chart showing army composition by role.
+
+    Each player is a bar with segments colored by unit role (infantry, ranged, etc.).
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with stacked bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Aggregate by player and role
+    role_totals = df.groupby(["player_name", "role"])["count"].sum().reset_index()
+
+    # Pivot to get roles as columns
+    pivot_data = role_totals.pivot(
+        index="player_name", columns="role", values="count"
+    ).fillna(0)
+
+    fig = create_base_figure(x_title="Player", y_title="Units Produced")
+
+    # Add a bar trace for each role
+    for role in pivot_data.columns:
+        fig.add_trace(
+            go.Bar(
+                name=role.title(),
+                x=pivot_data.index,
+                y=pivot_data[role],
+                marker_color=ROLE_COLORS.get(role, "#808080"),
+            )
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+
+    return fig
+
+
+def create_units_grouped_bar_chart(df: pd.DataFrame) -> go.Figure:
+    """Create grouped bar chart comparing unit types across players.
+
+    Unit types on x-axis, bars grouped by player.
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Get top 10 most-produced unit types across all players
+    top_units = df.groupby("unit_name")["count"].sum().nlargest(10).index.tolist()
+    df_filtered = df[df["unit_name"].isin(top_units)]
+
+    fig = create_base_figure(x_title="Unit Type", y_title="Units Produced")
+
+    players = df_filtered["player_name"].unique()
+    for i, player in enumerate(players):
+        player_data = df_filtered[df_filtered["player_name"] == player]
+        # Ensure all unit types are represented
+        unit_counts = {
+            unit: player_data[player_data["unit_name"] == unit]["count"].sum()
+            for unit in top_units
+        }
+
+        fig.add_trace(
+            go.Bar(
+                name=player,
+                x=list(unit_counts.keys()),
+                y=list(unit_counts.values()),
+                marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        xaxis_tickangle=-45,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+
+    return fig
+
+
+def create_units_waffle_chart(df: pd.DataFrame) -> go.Figure:
+    """Create waffle chart showing unit composition as colored grid.
+
+    Each square represents one unit, colored by role.
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with waffle chart (using heatmap)
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Create a subplot for each player
+    players = df["player_name"].unique()
+    n_players = len(players)
+
+    fig = make_subplots(
+        rows=1,
+        cols=n_players,
+        subplot_titles=[p for p in players],
+        horizontal_spacing=0.05,
+    )
+
+    # Map roles to numeric values for coloring
+    role_to_num = {role: i for i, role in enumerate(ROLE_COLORS.keys())}
+
+    for col_idx, player in enumerate(players, 1):
+        player_data = df[df["player_name"] == player]
+
+        # Create flat list of units with their roles
+        units = []
+        for _, row in player_data.iterrows():
+            units.extend([row["role"]] * row["count"])
+
+        if not units:
+            continue
+
+        # Arrange into grid (10 columns)
+        grid_cols = 10
+        grid_rows = (len(units) + grid_cols - 1) // grid_cols
+
+        # Pad to fill grid
+        while len(units) < grid_rows * grid_cols:
+            units.append(None)
+
+        # Create grid
+        z = []
+        text = []
+        for row in range(grid_rows):
+            z_row = []
+            text_row = []
+            for c in range(grid_cols):
+                idx = row * grid_cols + c
+                if idx < len(units) and units[idx]:
+                    z_row.append(role_to_num.get(units[idx], -1))
+                    text_row.append(units[idx].title())
+                else:
+                    z_row.append(-1)
+                    text_row.append("")
+            z.append(z_row)
+            text.append(text_row)
+
+        # Create colorscale from ROLE_COLORS
+        colorscale = []
+        for i, (role, color) in enumerate(ROLE_COLORS.items()):
+            norm_val = i / (len(ROLE_COLORS) - 1)
+            colorscale.append([norm_val, color])
+
+        fig.add_trace(
+            go.Heatmap(
+                z=z,
+                text=text,
+                hovertemplate="%{text}<extra></extra>",
+                colorscale=colorscale,
+                showscale=False,
+                xgap=2,
+                ygap=2,
+            ),
+            row=1,
+            col=col_idx,
+        )
+
+        # Hide axis labels
+        fig.update_xaxes(showticklabels=False, showgrid=False, row=1, col=col_idx)
+        fig.update_yaxes(showticklabels=False, showgrid=False, row=1, col=col_idx)
+
+    # Add legend manually using scatter traces
+    for role, color in ROLE_COLORS.items():
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(size=15, color=color, symbol="square"),
+                name=role.title(),
+                showlegend=True,
+            )
+        )
+
+    fig.update_layout(
+        height=400,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+    )
+
+    return fig
+
+
+def create_units_treemap_chart(df: pd.DataFrame) -> go.Figure:
+    """Create treemap showing hierarchical unit composition.
+
+    Hierarchy: Player > Role > Unit Type
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with treemap
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Build hierarchical data with unique IDs to avoid duplicate label issues
+    ids = ["Army"]
+    labels = ["Army"]
+    parents = [""]
+    values = [0]
+    colors = ["#f0f0f0"]
+
+    # Add player level
+    players = df["player_name"].unique()
+    for player in players:
+        ids.append(f"player-{player}")
+        labels.append(player)
+        parents.append("Army")
+        values.append(0)
+        colors.append("#e0e0e0")
+
+    # Add role level (under each player)
+    for player in players:
+        player_data = df[df["player_name"] == player]
+        roles = player_data["role"].unique()
+        for role in roles:
+            role_id = f"{player}-{role}"
+            ids.append(role_id)
+            labels.append(role.title())
+            parents.append(f"player-{player}")
+            values.append(0)
+            colors.append(ROLE_COLORS.get(role, "#808080"))
+
+            # Add unit types under each role
+            role_data = player_data[player_data["role"] == role]
+            for _, row in role_data.iterrows():
+                unit_id = f"{role_id}-{row['unit_name']}"
+                ids.append(unit_id)
+                labels.append(row["unit_name"].title())
+                parents.append(role_id)
+                values.append(row["count"])
+                colors.append(ROLE_COLORS.get(role, "#808080"))
+
+    fig = go.Figure(
+        go.Treemap(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            marker=dict(colors=colors),
+            textinfo="label+value",
+            hovertemplate="<b>%{label}</b><br>Count: %{value}<extra></extra>",
+            branchvalues="remainder",
+        )
+    )
+
+    fig.update_layout(height=500, margin=dict(t=30, l=10, r=10, b=10))
+
+    return fig
+
+
+def create_units_icon_grid(df: pd.DataFrame) -> go.Figure:
+    """Create unit icon grid showing army composition visually.
+
+    Displays units in formation-like grid using emoji/text icons.
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with icon grid
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Role to icon mapping (using Unicode symbols)
+    role_icons = {
+        "infantry": "⚔️",
+        "ranged": "🏹",
+        "cavalry": "🐴",
+        "siege": "🪨",
+        "naval": "⚓",
+        "settler": "🏠",
+        "worker": "⛏️",
+        "scout": "👁️",
+        "religious": "✝️",
+        "unknown": "❓",
+    }
+
+    players = df["player_name"].unique()
+    n_players = len(players)
+
+    fig = make_subplots(
+        rows=1,
+        cols=n_players,
+        subplot_titles=[p for p in players],
+        horizontal_spacing=0.05,
+    )
+
+    for col_idx, player in enumerate(players, 1):
+        player_data = df[df["player_name"] == player]
+
+        # Build unit list organized by role for formation effect
+        role_order = ["infantry", "ranged", "cavalry", "siege", "naval", "settler", "worker", "scout", "religious"]
+        units = []
+        for role in role_order:
+            role_data = player_data[player_data["role"] == role]
+            for _, row in role_data.iterrows():
+                icon = role_icons.get(role, "❓")
+                units.extend([(icon, row["unit_name"], role)] * row["count"])
+
+        if not units:
+            continue
+
+        # Arrange into grid
+        grid_cols = 8
+        grid_rows = (len(units) + grid_cols - 1) // grid_cols
+
+        x_coords = []
+        y_coords = []
+        icons = []
+        hover_texts = []
+
+        for i, (icon, name, role) in enumerate(units):
+            row = i // grid_cols
+            col = i % grid_cols
+            x_coords.append(col)
+            y_coords.append(grid_rows - row - 1)  # Flip y so row 0 is at top
+            icons.append(icon)
+            hover_texts.append(f"{name.title()} ({role.title()})")
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                mode="text",
+                text=icons,
+                textfont=dict(size=16),
+                hovertext=hover_texts,
+                hoverinfo="text",
+                showlegend=False,
+            ),
+            row=1,
+            col=col_idx,
+        )
+
+        fig.update_xaxes(
+            showticklabels=False,
+            showgrid=False,
+            zeroline=False,
+            range=[-0.5, grid_cols - 0.5],
+            row=1,
+            col=col_idx,
+        )
+        fig.update_yaxes(
+            showticklabels=False,
+            showgrid=False,
+            zeroline=False,
+            range=[-0.5, grid_rows - 0.5],
+            row=1,
+            col=col_idx,
+        )
+
+    # Add legend
+    for role, icon in role_icons.items():
+        if role != "unknown":
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers+text",
+                    text=[icon],
+                    textposition="middle right",
+                    marker=dict(size=1, color=ROLE_COLORS.get(role, "#808080")),
+                    name=f"{icon} {role.title()}",
+                    showlegend=True,
+                )
+            )
+
+    fig.update_layout(
+        height=400,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+    )
+
+    return fig
+
+
+def create_units_army_portrait(df: pd.DataFrame) -> go.Figure:
+    """Create army portrait showing scaled composition summary.
+
+    Shows each player's army as a summary with role proportions.
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with army portrait visualization
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    players = df["player_name"].unique()
+    n_players = len(players)
+
+    fig = make_subplots(
+        rows=1,
+        cols=n_players,
+        subplot_titles=[p for p in players],
+        specs=[[{"type": "domain"}] * n_players],
+        horizontal_spacing=0.02,
+    )
+
+    for col_idx, player in enumerate(players, 1):
+        player_data = df[df["player_name"] == player]
+        role_totals = player_data.groupby("role")["count"].sum()
+
+        fig.add_trace(
+            go.Pie(
+                labels=[r.title() for r in role_totals.index],
+                values=role_totals.values,
+                hole=0.4,
+                marker=dict(
+                    colors=[ROLE_COLORS.get(r, "#808080") for r in role_totals.index]
+                ),
+                textinfo="percent",
+                hovertemplate="<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>",
+                showlegend=(col_idx == 1),  # Only show legend for first chart
+            ),
+            row=1,
+            col=col_idx,
+        )
+
+        # Add total count in center
+        total = role_totals.sum()
+        fig.add_annotation(
+            text=f"<b>{total}</b><br>units",
+            x=0.5 / n_players + (col_idx - 1) / n_players,
+            y=0.5,
+            font=dict(size=14),
+            showarrow=False,
+            xref="paper",
+            yref="paper",
+        )
+
+    fig.update_layout(
+        height=350,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+    )
+
+    return fig
+
+
+def create_units_marimekko_chart(df: pd.DataFrame) -> go.Figure:
+    """Create Marimekko chart showing army size and composition.
+
+    Width represents total army size, height segments show role proportions.
+
+    Args:
+        df: DataFrame from get_match_units_produced()
+
+    Returns:
+        Plotly figure with Marimekko chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No unit data available")
+
+    # Calculate totals per player
+    player_totals = df.groupby("player_name")["count"].sum()
+    total_all = player_totals.sum()
+
+    # Calculate widths as proportion of total
+    widths = {player: total / total_all for player, total in player_totals.items()}
+
+    # Get all roles that exist
+    all_roles = df["role"].unique()
+
+    fig = go.Figure()
+
+    # Track x position for each player column
+    x_pos = 0
+
+    for player in player_totals.index:
+        width = widths[player]
+        player_data = df[df["player_name"] == player]
+        role_totals = player_data.groupby("role")["count"].sum()
+        player_total = role_totals.sum()
+
+        # Stack roles vertically
+        y_pos = 0
+        for role in all_roles:
+            count = role_totals.get(role, 0)
+            if count == 0:
+                continue
+
+            height = count / player_total  # Normalized height
+
+            fig.add_trace(
+                go.Bar(
+                    x=[x_pos + width / 2],
+                    y=[height],
+                    width=width * 0.95,  # Slight gap between bars
+                    base=y_pos,
+                    name=role.title(),
+                    marker_color=ROLE_COLORS.get(role, "#808080"),
+                    hovertemplate=(
+                        f"<b>{player}</b><br>"
+                        f"{role.title()}: {count}<br>"
+                        f"<extra></extra>"
+                    ),
+                    showlegend=bool(x_pos == 0),  # Only show legend for first player
+                    legendgroup=role,
+                )
+            )
+
+            y_pos += height
+
+        x_pos += width
+
+    # Add player labels
+    x_pos = 0
+    for player, width in widths.items():
+        total = player_totals[player]
+        fig.add_annotation(
+            x=x_pos + width / 2,
+            y=-0.08,
+            text=f"<b>{player}</b><br>({total} units)",
+            showarrow=False,
+            font=dict(size=11),
+            xref="x",
+            yref="paper",
+        )
+        x_pos += width
+
+    fig.update_layout(
+        barmode="stack",
+        xaxis=dict(
+            showticklabels=False,
+            showgrid=False,
+            zeroline=False,
+            range=[0, 1],
+        ),
+        yaxis=dict(
+            title="Proportion",
+            showgrid=True,
+            range=[0, 1],
+            tickformat=".0%",
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        height=450,
+        margin=dict(b=80),
+    )
+
+    return fig

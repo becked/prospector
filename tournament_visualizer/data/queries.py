@@ -3593,6 +3593,43 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_match_units_produced(self, match_id: int) -> pd.DataFrame:
+        """Get detailed unit production for a specific match.
+
+        Returns all units produced by each player with classification info.
+
+        Args:
+            match_id: Tournament match ID
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - unit_type: Unit type (e.g., UNIT_WARRIOR)
+                - unit_name: Human-readable unit name
+                - count: Number of units produced
+                - category: Unit category (military, civilian, religious)
+                - role: Unit role (infantry, ranged, cavalry, etc.)
+        """
+        query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            up.unit_type,
+            REPLACE(REPLACE(up.unit_type, 'UNIT_', ''), '_', ' ') as unit_name,
+            up.count,
+            COALESCE(uc.category, 'unknown') as category,
+            COALESCE(uc.role, 'unknown') as role
+        FROM units_produced up
+        JOIN players p ON up.match_id = p.match_id AND up.player_id = p.player_id
+        LEFT JOIN unit_classifications uc ON up.unit_type = uc.unit_type
+        WHERE up.match_id = ?
+        ORDER BY p.player_name, uc.category, uc.role, up.count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_tournament_expansion_timeline(
         self,
         tournament_round: Optional[list[int]] = None,
