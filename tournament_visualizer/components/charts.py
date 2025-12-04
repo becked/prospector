@@ -5019,11 +5019,43 @@ def create_hexagonal_map(
 
     # Plot owned tiles by player
     if not owned_tiles.empty:
+        # Build player colors dict based on civilizations (for same-nation handling)
+        player_civs = (
+            owned_tiles.groupby("player_name")["civilization"].first().to_dict()
+        )
+        players = list(player_civs.keys())
+
+        # Get colors using map colors (original game colors, beige Carthage not black)
+        from tournament_visualizer.nation_colors import get_nation_map_color
+
+        player_colors: Dict[str, str] = {}
+        if len(players) >= 2:
+            # Check if same nation - if so, player 2 gets a different color
+            civ1 = player_civs.get(players[0])
+            civ2 = player_civs.get(players[1])
+            player_colors[players[0]] = (
+                get_nation_map_color(civ1) if civ1 else "#808080"
+            )
+            if civ1 and civ2 and civ1.upper() == civ2.upper():
+                # Same nation - use green for player 2
+                player_colors[players[1]] = "#228B22"
+            else:
+                player_colors[players[1]] = (
+                    get_nation_map_color(civ2) if civ2 else "#808080"
+                )
+        elif len(players) == 1:
+            civ = player_civs.get(players[0])
+            player_colors[players[0]] = (
+                get_nation_map_color(civ) if civ else "#808080"
+            )
+
         for i, (player_id, player_data) in enumerate(
             owned_tiles.groupby("owner_player_id")
         ):
             player_name = player_data["player_name"].iloc[0]
-            color = Config.PRIMARY_COLORS[int(i) % len(Config.PRIMARY_COLORS)]
+            color = player_colors.get(
+                player_name, Config.PRIMARY_COLORS[int(i) % len(Config.PRIMARY_COLORS)]
+            )
 
             fig.add_trace(
                 go.Scatter(

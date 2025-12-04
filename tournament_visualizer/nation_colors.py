@@ -7,11 +7,28 @@ from typing import Optional
 
 # Nation name to primary color mapping (hex values)
 # Source: docs/reference/color-scheme.md
+# Note: Carthage uses black for better visibility in line charts
 NATION_COLORS: dict[str, str] = {
     "AKSUM": "#F8A3B4",  # Pink/Rose
     "ASSYRIA": "#FADC3B",  # Yellow
     "BABYLONIA": "#82C83E",  # Green
-    "CARTHAGE": "#000000",  # Black (was beige, changed for visibility)
+    "CARTHAGE": "#000000",  # Black (for visibility in line charts)
+    "EGYPT": "#BC6304",  # Dark Orange/Brown
+    "GREECE": "#2360BC",  # Dark Blue
+    "HATTI": "#80E3E8",  # Cyan
+    "HITTITE": "#80E3E8",  # Cyan (alias for HATTI)
+    "KUSH": "#FFFFB6",  # Light Yellow
+    "PERSIA": "#C04E4A",  # Red
+    "ROME": "#880D56",  # Purple/Burgundy
+}
+
+# Map-specific colors using original game colors (Carthage is beige, not black)
+# Used for hexagonal territory maps where area fill looks better with original colors
+NATION_MAP_COLORS: dict[str, str] = {
+    "AKSUM": "#F8A3B4",  # Pink/Rose
+    "ASSYRIA": "#FADC3B",  # Yellow
+    "BABYLONIA": "#82C83E",  # Green
+    "CARTHAGE": "#F6EFE1",  # Beige/Off-white (original game color)
     "EGYPT": "#BC6304",  # Dark Orange/Brown
     "GREECE": "#2360BC",  # Dark Blue
     "HATTI": "#80E3E8",  # Cyan
@@ -27,7 +44,7 @@ SAME_NATION_FALLBACK_COLOR = "#228B22"  # Forest Green
 
 def get_nation_color(nation_name: str) -> str:
     """
-    Get the color for a nation.
+    Get the color for a nation (for line charts, uses black for Carthage).
 
     Args:
         nation_name: The nation name (case-insensitive)
@@ -36,6 +53,22 @@ def get_nation_color(nation_name: str) -> str:
         Hex color code. Returns a default gray if nation not found.
     """
     return NATION_COLORS.get(nation_name.upper(), "#808080")
+
+
+def get_nation_map_color(nation_name: str) -> str:
+    """
+    Get the map color for a nation (uses original game colors including beige Carthage).
+
+    Use this for hexagonal maps and territory visualizations where area fill
+    looks better with the original game colors.
+
+    Args:
+        nation_name: The nation name (case-insensitive)
+
+    Returns:
+        Hex color code. Returns a default gray if nation not found.
+    """
+    return NATION_MAP_COLORS.get(nation_name.upper(), "#808080")
 
 
 def get_match_player_colors(
