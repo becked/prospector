@@ -305,11 +305,15 @@ def create_resource_progression_chart(df: pd.DataFrame, player_name: str) -> go.
     return fig
 
 
-def create_territory_control_chart(df: pd.DataFrame) -> go.Figure:
+def create_territory_control_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
     """Create an area chart showing territory control over time.
 
     Args:
         df: DataFrame with territory control data over time
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with territory control
@@ -329,6 +333,12 @@ def create_territory_control_chart(df: pd.DataFrame) -> go.Figure:
     for i, player in enumerate(players):
         player_data = df[df["player_name"] == player]
 
+        # Use nation-based color if provided
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
         fig.add_trace(
             go.Scatter(
                 x=player_data["turn_number"],
@@ -336,7 +346,7 @@ def create_territory_control_chart(df: pd.DataFrame) -> go.Figure:
                 mode="lines",
                 name=player,
                 fill="tonexty" if i > 0 else "tozeroy",
-                line=dict(color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]),
+                line=dict(color=color),
             )
         )
 
@@ -2078,7 +2088,9 @@ def create_law_efficiency_scatter(df: pd.DataFrame) -> go.Figure:
 
 
 def create_cumulative_law_count_chart(
-    df: pd.DataFrame, total_turns: Optional[int] = None
+    df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
     """Create a line chart showing cumulative law count over time.
 
@@ -2089,6 +2101,7 @@ def create_cumulative_law_count_chart(
         df: DataFrame with columns: player_name, turn_number, cumulative_laws
             (from get_cumulative_law_count_by_turn())
         total_turns: Optional total turns in the match to extend lines to the end
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with line chart
@@ -2110,6 +2123,12 @@ def create_cumulative_law_count_chart(
 
     for i, player in enumerate(players):
         player_data = df[df["player_name"] == player]
+
+        # Use nation-based color if provided, otherwise fall back to default
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
 
         # Add a point at turn 0 with 0 laws for cleaner visualization
         turns = [0] + player_data["turn_number"].tolist()
@@ -2169,7 +2188,7 @@ def create_cumulative_law_count_chart(
                 mode="lines+markers",
                 name=player,
                 line=dict(
-                    color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    color=color,
                     width=4,
                 ),
                 marker=dict(size=10),
@@ -2229,7 +2248,9 @@ def create_cumulative_law_count_chart(
 
 
 def create_cumulative_tech_count_chart(
-    df: pd.DataFrame, total_turns: Optional[int] = None
+    df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
     """Create a line chart showing cumulative technology count over time.
 
@@ -2240,6 +2261,7 @@ def create_cumulative_tech_count_chart(
         df: DataFrame with columns: player_name, turn_number, cumulative_techs
             (from get_tech_count_by_turn())
         total_turns: Optional total turns in the match to extend lines to the end
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with line chart
@@ -2261,6 +2283,12 @@ def create_cumulative_tech_count_chart(
 
     for i, player in enumerate(players):
         player_data = df[df["player_name"] == player]
+
+        # Use nation-based color if provided, otherwise fall back to default
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
 
         # Add a point at turn 0 with 0 techs for cleaner visualization
         turns = [0] + player_data["turn_number"].tolist()
@@ -2320,7 +2348,7 @@ def create_cumulative_tech_count_chart(
                 mode="lines+markers",
                 name=player,
                 line=dict(
-                    color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                    color=color,
                     width=4,
                 ),
                 marker=dict(size=10),
@@ -2458,7 +2486,10 @@ def create_tech_comparison_bar_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
+def create_tech_completion_timeline_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
     """Create a timeline chart showing when each player completed each technology.
 
     Each technology gets its own row, with colored markers showing when
@@ -2467,6 +2498,7 @@ def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
     Args:
         df: DataFrame with columns: player_name, turn_number, tech_name
             (from get_tech_timeline())
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with technology completion timeline
@@ -2536,8 +2568,12 @@ def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
             player = row["player_name"]
             turn = row["turn_number"]
 
-            # Get player color index
-            player_idx = list(players).index(player)
+            # Get player color - use nation colors if provided
+            if player_colors and player in player_colors:
+                color = player_colors[player]
+            else:
+                player_idx = list(players).index(player)
+                color = Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)]
 
             fig.add_trace(
                 go.Scatter(
@@ -2547,9 +2583,7 @@ def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
                     name=player,
                     marker=dict(
                         symbol="circle",
-                        color=Config.PRIMARY_COLORS[
-                            player_idx % len(Config.PRIMARY_COLORS)
-                        ],
+                        color=color,
                         size=14,
                         line=dict(width=2, color="white"),
                     ),
@@ -2595,7 +2629,10 @@ def create_tech_completion_timeline_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
+def create_law_adoption_timeline_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
     """Create a timeline chart showing when each player adopted each law.
 
     Each law gets its own row, with colored markers showing when
@@ -2604,6 +2641,7 @@ def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
     Args:
         df: DataFrame with columns: player_name, turn_number, law_name
             (from get_law_timeline())
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with law adoption timeline
@@ -2673,8 +2711,12 @@ def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
             player = row["player_name"]
             turn = row["turn_number"]
 
-            # Get player color index
-            player_idx = list(players).index(player)
+            # Get player color - use nation colors if provided
+            if player_colors and player in player_colors:
+                color = player_colors[player]
+            else:
+                player_idx = list(players).index(player)
+                color = Config.PRIMARY_COLORS[player_idx % len(Config.PRIMARY_COLORS)]
 
             fig.add_trace(
                 go.Scatter(
@@ -2684,9 +2726,7 @@ def create_law_adoption_timeline_chart(df: pd.DataFrame) -> go.Figure:
                     name=player,
                     marker=dict(
                         symbol="circle",
-                        color=Config.PRIMARY_COLORS[
-                            player_idx % len(Config.PRIMARY_COLORS)
-                        ],
+                        color=color,
                         size=14,
                         line=dict(width=2, color="white"),
                     ),
@@ -2868,6 +2908,7 @@ def create_match_yield_stacked_chart(
     total_turns: Optional[int] = None,
     yield_type: str = "YIELD_FOOD",
     display_name: Optional[str] = None,
+    player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
     """Create stacked subplots showing per-player yield rate and cumulative.
 
@@ -2880,6 +2921,7 @@ def create_match_yield_stacked_chart(
         total_turns: Optional total turns in the match to extend lines to the end
         yield_type: The yield type being displayed (e.g., "YIELD_FOOD")
         display_name: Optional human-readable name (e.g., "Food")
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with two vertically stacked subplots
@@ -2905,7 +2947,11 @@ def create_match_yield_stacked_chart(
 
     for i, player in enumerate(players):
         player_data = df[df["player_name"] == player].sort_values("turn_number")
-        color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        # Use nation-based color if provided, otherwise fall back to default
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
 
         turns = player_data["turn_number"].tolist()
         yields = player_data["amount"].tolist()
@@ -2967,6 +3013,9 @@ def create_match_yield_stacked_chart(
             xanchor="center",
             x=0.5,
         ),
+        template=None,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
 
     for annotation in fig["layout"]["annotations"]:
@@ -4716,7 +4765,9 @@ def create_city_founding_timeline_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def create_cumulative_city_count_chart(
-    df: pd.DataFrame, total_turns: Optional[int] = None
+    df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
     """Create a cumulative city count line chart.
 
@@ -4727,6 +4778,7 @@ def create_cumulative_city_count_chart(
         df: DataFrame with columns: player_name, civilization, turn_number, city_name
             (from get_city_founding_timeline())
         total_turns: Total turns in the match (to extend lines to end)
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with cumulative line chart
@@ -4754,9 +4806,12 @@ def create_cumulative_city_count_chart(
         # Create cumulative count
         player_data["cumulative_count"] = range(1, len(player_data) + 1)
 
-        # Get color based on civilization
-        civ = player_data["civilization"].iloc[0] if not player_data.empty else None
-        color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[0]
+        # Use player_colors if provided, otherwise fall back to nation color
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            civ = player_data["civilization"].iloc[0] if not player_data.empty else None
+            color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[0]
 
         # Extend line to total_turns if provided
         if total_turns and player_data["turn_number"].iloc[-1] < total_turns:
@@ -4802,7 +4857,10 @@ def create_cumulative_city_count_chart(
     return fig
 
 
-def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
+def create_city_founding_scatter_jitter_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
     """Create a scatter plot with jitter showing city founding events.
 
     Shows individual cities as points with slight vertical offset (jitter)
@@ -4811,6 +4869,7 @@ def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
     Args:
         df: DataFrame with columns: player_name, civilization, turn_number, city_name
             (from get_city_founding_timeline())
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with scatter plot
@@ -4837,9 +4896,12 @@ def create_city_founding_scatter_jitter_chart(df: pd.DataFrame) -> go.Figure:
         player_data = df[df["player_name"] == player].copy()
         y_pos = player_y_positions[player]
 
-        # Get color based on civilization
-        civ = player_data["civilization"].iloc[0] if not player_data.empty else None
-        color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[y_pos]
+        # Use player_colors if provided, otherwise fall back to nation color
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            civ = player_data["civilization"].iloc[0] if not player_data.empty else None
+            color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[y_pos]
 
         # Add jitter: small random offset to prevent exact overlap
         import numpy as np

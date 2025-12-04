@@ -45,12 +45,63 @@ from tournament_visualizer.components.layouts import (
 )
 from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG, Config
 from tournament_visualizer.data.queries import get_queries
+from tournament_visualizer.nation_colors import get_match_player_colors
 from tournament_visualizer.utils.event_categories import (
     get_category_color_map,
     get_event_category,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def get_player_colors_from_df(df: pd.DataFrame) -> Dict[str, str]:
+    """Extract player colors based on their civilizations from a DataFrame.
+
+    Args:
+        df: DataFrame with 'player_name' and 'civilization' columns
+
+    Returns:
+        Dict mapping player names to hex color codes
+    """
+    if df.empty or "civilization" not in df.columns:
+        return {}
+
+    # Get unique player-civilization pairs
+    player_civs = df.groupby("player_name")["civilization"].first().to_dict()
+    players = list(player_civs.keys())
+
+    if len(players) < 2:
+        # Single player, just use their nation color
+        from tournament_visualizer.nation_colors import get_nation_color
+
+        return {p: get_nation_color(player_civs[p]) for p in players}
+
+    # Two players - use get_match_player_colors for same-nation handling
+    color1, color2 = get_match_player_colors(
+        player_civs.get(players[0]), player_civs.get(players[1])
+    )
+    return {players[0]: color1, players[1]: color2}
+
+
+def get_player_colors_for_match(match_id: int) -> Dict[str, str]:
+    """Get player colors for a match by fetching player civilization data.
+
+    Args:
+        match_id: The match ID to get player colors for
+
+    Returns:
+        Dict mapping player names to hex color codes
+    """
+    try:
+        queries = get_queries()
+        # Use yield history which has civilization data
+        df = queries.get_yield_history_by_match(match_id)
+        if not df.empty and "civilization" in df.columns:
+            return get_player_colors_from_df(df)
+    except Exception:
+        pass
+    return {}
+
 
 # All 14 yield types tracked in Old World
 YIELD_TYPES = [
@@ -1078,7 +1129,10 @@ def update_technology_chart(match_id: Optional[int]) -> go.Figure:
             match_info.iloc[0]["total_turns"] if not match_info.empty else None
         )
 
-        return create_cumulative_tech_count_chart(df, total_turns)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_cumulative_tech_count_chart(df, total_turns, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading cumulative tech count: {e}")
@@ -1111,7 +1165,10 @@ def update_tech_timeline(match_id: Optional[int]) -> go.Figure:
                 "No technology timeline data available for this match"
             )
 
-        return create_tech_completion_timeline_chart(df)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_tech_completion_timeline_chart(df, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading tech completion timeline: {e}")
@@ -1144,7 +1201,10 @@ def update_law_timeline(match_id: Optional[int]) -> go.Figure:
                 "No law timeline data available for this match"
             )
 
-        return create_law_adoption_timeline_chart(df)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_law_adoption_timeline_chart(df, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading law adoption timeline: {e}")
@@ -1667,7 +1727,10 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
             match_info.iloc[0]["total_turns"] if not match_info.empty else None
         )
 
-        return create_cumulative_law_count_chart(df, total_turns)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_cumulative_law_count_chart(df, total_turns, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading cumulative law count: {e}")
@@ -1724,18 +1787,22 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
             match_info.iloc[0]["total_turns"] if not match_info.empty else None
         )
 
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_from_df(all_yields_df)
+
         # Create all 14 charts from the same DataFrame
         charts = []
         for yield_type, display_name in YIELD_TYPES:
             # Filter to this specific yield type
             df_yield = all_yields_df[all_yields_df["resource_type"] == yield_type]
 
-            # Create stacked chart with rate + cumulative
+            # Create stacked chart with rate + cumulative (using nation colors)
             chart = create_match_yield_stacked_chart(
                 df_yield,
                 total_turns=total_turns,
                 yield_type=yield_type,
                 display_name=display_name,
+                player_colors=player_colors,
             )
             charts.append(chart)
 
@@ -1890,7 +1957,10 @@ def update_cumulative_city_count(match_id: Optional[int]) -> go.Figure:
             match_info.iloc[0]["total_turns"] if not match_info.empty else None
         )
 
-        return create_cumulative_city_count_chart(df, total_turns)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_cumulative_city_count_chart(df, total_turns, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading cumulative city count: {e}")
@@ -1926,7 +1996,10 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
                 "No city founding data available for this match"
             )
 
-        return create_city_founding_scatter_jitter_chart(df)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_city_founding_scatter_jitter_chart(df, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading city founding scatter: {e}")
@@ -2074,7 +2147,10 @@ def update_match_territory_timeline_chart(match_id: Optional[int]):
                 "No territory data available for this match"
             )
 
-        return create_territory_control_chart(df)
+        # Get player colors based on their civilizations
+        player_colors = get_player_colors_for_match(match_id)
+
+        return create_territory_control_chart(df, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading territory timeline: {e}")
