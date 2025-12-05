@@ -118,7 +118,7 @@ layout = html.Div(
                                         ],
                                         id="overview-filter-toggle",
                                         color="link",
-                                        className="text-decoration-none text-dark fw-bold w-100 text-start p-0",
+                                        className="text-decoration-none text-light fw-bold w-100 text-start p-0",
                                     ),
                                     className="py-2",
                                 ),

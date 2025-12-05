@@ -1,42 +1,31 @@
 """
 Nation color mappings for consistent chart colors.
 Colors from docs/reference/color-scheme.md
+
+With the dark theme, Carthage uses off-white/beige for visibility on dark backgrounds.
 """
 
 from typing import Optional
 
 # Nation name to primary color mapping (hex values)
 # Source: docs/reference/color-scheme.md
-# Note: Carthage uses black for better visibility in line charts
+# Note: Carthage uses off-white for visibility on dark backgrounds
 NATION_COLORS: dict[str, str] = {
-    "AKSUM": "#F8A3B4",  # Pink/Rose
-    "ASSYRIA": "#FADC3B",  # Yellow
-    "BABYLONIA": "#82C83E",  # Green
-    "CARTHAGE": "#000000",  # Black (for visibility in line charts)
-    "EGYPT": "#BC6304",  # Dark Orange/Brown
-    "GREECE": "#2360BC",  # Dark Blue
-    "HATTI": "#80E3E8",  # Cyan
-    "HITTITE": "#80E3E8",  # Cyan (alias for HATTI)
-    "KUSH": "#FFFFB6",  # Light Yellow
-    "PERSIA": "#C04E4A",  # Red
-    "ROME": "#880D56",  # Purple/Burgundy
+    "AKSUM": "#F8A3B4",     # Pink/Rose
+    "ASSYRIA": "#FADC3B",   # Yellow
+    "BABYLONIA": "#82C83E", # Green
+    "CARTHAGE": "#F6EFE1",  # Off-white/Beige (visible on dark background)
+    "EGYPT": "#BC6304",     # Dark Orange/Brown
+    "GREECE": "#2360BC",    # Dark Blue
+    "HATTI": "#80E3E8",     # Cyan
+    "HITTITE": "#80E3E8",   # Cyan (alias for HATTI)
+    "KUSH": "#FFFFB6",      # Light Yellow
+    "PERSIA": "#C04E4A",    # Red
+    "ROME": "#880D56",      # Purple/Burgundy
 }
 
-# Map-specific colors using original game colors (Carthage is beige, not black)
-# Used for hexagonal territory maps where area fill looks better with original colors
-NATION_MAP_COLORS: dict[str, str] = {
-    "AKSUM": "#F8A3B4",  # Pink/Rose
-    "ASSYRIA": "#FADC3B",  # Yellow
-    "BABYLONIA": "#82C83E",  # Green
-    "CARTHAGE": "#F6EFE1",  # Beige/Off-white (original game color)
-    "EGYPT": "#BC6304",  # Dark Orange/Brown
-    "GREECE": "#2360BC",  # Dark Blue
-    "HATTI": "#80E3E8",  # Cyan
-    "HITTITE": "#80E3E8",  # Cyan (alias for HATTI)
-    "KUSH": "#FFFFB6",  # Light Yellow
-    "PERSIA": "#C04E4A",  # Red
-    "ROME": "#880D56",  # Purple/Burgundy
-}
+# Backwards compatibility - now identical to NATION_COLORS
+NATION_MAP_COLORS = NATION_COLORS
 
 # Fallback color for player 2 when both players use same nation
 SAME_NATION_FALLBACK_COLOR = "#228B22"  # Forest Green
@@ -44,7 +33,7 @@ SAME_NATION_FALLBACK_COLOR = "#228B22"  # Forest Green
 
 def get_nation_color(nation_name: str) -> str:
     """
-    Get the color for a nation (for line charts, uses black for Carthage).
+    Get the color for a nation.
 
     Args:
         nation_name: The nation name (case-insensitive)
@@ -57,10 +46,9 @@ def get_nation_color(nation_name: str) -> str:
 
 def get_nation_map_color(nation_name: str) -> str:
     """
-    Get the map color for a nation (uses original game colors including beige Carthage).
+    Get the map color for a nation.
 
-    Use this for hexagonal maps and territory visualizations where area fill
-    looks better with the original game colors.
+    Now identical to get_nation_color() - kept for backwards compatibility.
 
     Args:
         nation_name: The nation name (case-insensitive)
@@ -68,7 +56,7 @@ def get_nation_map_color(nation_name: str) -> str:
     Returns:
         Hex color code. Returns a default gray if nation not found.
     """
-    return NATION_MAP_COLORS.get(nation_name.upper(), "#808080")
+    return NATION_COLORS.get(nation_name.upper(), "#808080")
 
 
 def get_match_player_colors(

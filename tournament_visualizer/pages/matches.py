@@ -2186,6 +2186,13 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
         final_turn = df["turn_number"].max()
         final_data = df[(df["turn_number"] == final_turn) & (df["player_name"].notna())]
 
+        # Get nation colors for players
+        player_colors = get_player_colors_for_match(match_id)
+        colors = [
+            player_colors.get(name, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+            for i, name in enumerate(final_data["player_name"])
+        ]
+
         fig = create_base_figure(show_legend=False)
 
         fig.add_trace(
@@ -2193,7 +2200,7 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
                 labels=final_data["player_name"],
                 values=final_data["controlled_territories"],
                 hole=0.3,
-                marker_colors=Config.PRIMARY_COLORS[: len(final_data)],
+                marker_colors=colors,
             )
         )
 
@@ -2251,10 +2258,13 @@ def update_all_unit_charts(match_id: Optional[int]) -> List[go.Figure]:
             )
             return [no_data] * 7
 
+        # Get player colors for nation-based coloring
+        player_colors = get_player_colors_for_match(match_id)
+
         # Create all 7 charts from the same DataFrame
         return [
             create_units_stacked_bar_chart(df),
-            create_units_grouped_bar_chart(df),
+            create_units_grouped_bar_chart(df, player_colors),
             create_units_waffle_chart(df),
             create_units_treemap_chart(df),
             create_units_icon_grid(df),

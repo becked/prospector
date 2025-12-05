@@ -149,6 +149,38 @@ This section provides a roadmap to the codebase structure. Use this when plannin
 
 **See:** `docs/ui-architecture.md` for comprehensive UI patterns and examples
 
+### CSS Override Order (Critical!)
+
+CSS in `assets/style.css` loads **BEFORE** Bootstrap and Dash CSS, so overrides there get ignored.
+
+**To override Dash component styles (DataTable, dropdowns, etc.):**
+- Add CSS to `app.index_string` in the `<style>` block AFTER `{%css%}`
+- This ensures your styles load last and take precedence
+- Use `!important` for stubborn overrides
+
+```python
+# In app.py
+app.index_string = """<!DOCTYPE html>
+<html data-bs-theme="dark">
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            /* Your overrides here - loads AFTER Bootstrap/Dash */
+            .dash-table-container a { color: #c8d4e3 !important; }
+        </style>
+    </head>
+    ...
+"""
+```
+
+**Theme files:**
+- `tournament_visualizer/theme.py` - Python color constants for charts
+- `tournament_visualizer/assets/style.css` - Base CSS variables (loads early)
+- `app.py` `index_string` - Critical overrides (loads last)
+
 ### Testing Structure
 
 **Test Organization:**

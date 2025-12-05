@@ -10,6 +10,7 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html
 
 from ..config import LAYOUT_CONSTANTS, MODEBAR_CONFIG
+from ..theme import DARK_THEME
 
 
 # Tournament Round Formatting Helpers
@@ -226,21 +227,38 @@ def create_data_table_card(
                         filter_options={"case": "insensitive"},
                         page_action="native",
                         page_size=LAYOUT_CONSTANTS["TABLE_PAGE_SIZE"],
+                        style_table={
+                            "backgroundColor": DARK_THEME["bg_dark"],
+                        },
                         style_cell={
                             "textAlign": "left",
                             "padding": "10px",
-                            "fontFamily": "Arial",
+                            "fontFamily": "inherit",
+                            "backgroundColor": DARK_THEME["bg_dark"],
+                            "color": DARK_THEME["text_primary"],
+                            "border": f"1px solid {DARK_THEME['bg_light']}",
                         },
                         style_header={
-                            "backgroundColor": "rgb(230, 230, 230)",
+                            "backgroundColor": "#3b4c69",
                             "fontWeight": "bold",
+                            "color": DARK_THEME["text_primary"],
+                            "border": f"1px solid {DARK_THEME['bg_light']}",
                         },
                         style_data_conditional=[
                             {
                                 "if": {"row_index": "odd"},
-                                "backgroundColor": "rgb(248, 248, 248)",
-                            }
+                                "backgroundColor": DARK_THEME["bg_medium"],
+                            },
+                            {
+                                "if": {"state": "active"},
+                                "backgroundColor": DARK_THEME["bg_light"],
+                                "border": f"1px solid {DARK_THEME['accent_primary']}",
+                            },
                         ],
+                        style_filter={
+                            "backgroundColor": "#41597b",
+                            "color": DARK_THEME["text_primary"],
+                        },
                     ),
                 ]
             )

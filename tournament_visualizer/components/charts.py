@@ -13,6 +13,43 @@ from plotly.subplots import make_subplots
 
 from ..config import CIVILIZATION_COLORS, DEFAULT_CHART_LAYOUT, Config
 from ..nation_colors import get_nation_color
+from ..theme import CHART_THEME
+
+
+def apply_dark_theme(fig: go.Figure) -> go.Figure:
+    """Apply dark theme to any figure (especially subplots).
+
+    Use this for figures created with make_subplots() which don't go through
+    create_base_figure().
+
+    Args:
+        fig: Plotly figure to apply dark theme to
+
+    Returns:
+        The same figure with dark theme applied
+    """
+    fig.update_layout(
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+    # Update all axes (subplots create xaxis, xaxis2, xaxis3, etc.)
+    fig.update_xaxes(
+        gridcolor=CHART_THEME["gridcolor"],
+        tickfont=dict(color=CHART_THEME["font_color"]),
+        title_font=dict(color=CHART_THEME["font_color"]),
+    )
+    fig.update_yaxes(
+        gridcolor=CHART_THEME["gridcolor"],
+        tickfont=dict(color=CHART_THEME["font_color"]),
+        title_font=dict(color=CHART_THEME["font_color"]),
+    )
+    return fig
 
 
 def create_base_figure(
@@ -34,10 +71,18 @@ def create_base_figure(
     Returns:
         Configured Plotly figure
     """
-    layout = DEFAULT_CHART_LAYOUT.copy()
+    import copy
+
+    # Deep copy to avoid mutating the default layout
+    layout = copy.deepcopy(DEFAULT_CHART_LAYOUT)
     layout.update(
         {
-            "title": {"text": title, "x": 0.5, "xanchor": "center"},
+            "title": {
+                "text": title,
+                "x": 0.5,
+                "xanchor": "center",
+                "font": {"color": CHART_THEME["font_color"]},
+            },
             "showlegend": show_legend,
             "xaxis_title": x_title,
             "yaxis_title": y_title,
@@ -621,15 +666,15 @@ def create_empty_chart_placeholder(message: str = "No data available") -> go.Fig
         xanchor="center",
         yanchor="middle",
         showarrow=False,
-        font=dict(size=16, color="gray"),
+        font=dict(size=16, color=CHART_THEME["text_muted"]),
     )
 
     fig.update_layout(
         showlegend=False,
         xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
         yaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
     )
 
     return fig
@@ -957,9 +1002,14 @@ def create_statistics_radar_chart(
             title += f" - {category_filter}"
 
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 100]),
+            bgcolor=CHART_THEME["plot_bgcolor"],
+        ),
         showlegend=True,
         title=title,
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
     )
 
     return fig
@@ -1107,6 +1157,7 @@ def create_law_progression_comparison_chart(df: pd.DataFrame) -> go.Figure:
         ),
         horizontal_spacing=0.12,
     )
+    fig = apply_dark_theme(fig)
 
     # Average laws per game
     fig.add_trace(
@@ -1506,6 +1557,7 @@ def create_map_breakdown_pie_charts(df: pd.DataFrame) -> go.Figure:
         specs=[[{"type": "pie"}, {"type": "pie"}]],
         subplot_titles=("Duel Maps", "Tiny Maps"),
     )
+    fig = apply_dark_theme(fig)
 
     # Duel maps (left pie chart)
     duel_df = df[df["map_size"] == "Duel"]
@@ -1589,7 +1641,7 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     # Level 1: Add roles (cavalry, infantry, ranged, siege, naval)
     role_totals = military_df.groupby("role")["total_count"].sum().to_dict()
     roles = sorted(role_totals.keys())
-    colors = ["#FFFFFF"]  # Root color (white)
+    colors = [CHART_THEME["paper_bgcolor"]]  # Root color (matches background)
 
     for role in roles:
         labels.append(role)
@@ -1650,7 +1702,12 @@ def create_unit_popularity_sunburst_chart(df: pd.DataFrame) -> go.Figure:
         )
     )
 
-    fig.update_layout(margin=dict(t=0, l=0, r=0, b=0), height=400)
+    fig.update_layout(
+        margin=dict(t=0, l=0, r=0, b=0),
+        height=400,
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+    )
 
     return fig
 
@@ -2605,8 +2662,6 @@ def create_tech_completion_timeline_chart(
             xanchor="right",
             x=1,
         ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
         height=fig_height,
     )
 
@@ -2746,8 +2801,6 @@ def create_law_adoption_timeline_chart(
             xanchor="right",
             x=1,
         ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
         height=fig_height,
     )
 
@@ -2942,6 +2995,7 @@ def create_match_yield_stacked_chart(
         row_heights=[0.5, 0.5],
         subplot_titles=("Per Turn", "Cumulative Total"),
     )
+    fig = apply_dark_theme(fig)
 
     players = df["player_name"].unique()
 
@@ -3014,12 +3068,10 @@ def create_match_yield_stacked_chart(
             x=0.5,
         ),
         template=None,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
     )
 
     for annotation in fig["layout"]["annotations"]:
-        annotation["font"] = dict(size=11, color="#666")
+        annotation["font"] = dict(size=11, color=CHART_THEME["text_muted"])
 
     fig.update_xaxes(title_text="Turn Number", row=2, col=1)
     fig.update_yaxes(title_text=f"{display_name}/Turn", row=1, col=1)
@@ -3172,6 +3224,8 @@ def create_map_breakdown_actual_sunburst_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         margin=dict(t=0, l=0, r=0, b=0),
         height=400,
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
     )
 
     return fig
@@ -3225,6 +3279,8 @@ def create_map_breakdown_parallel_categories_chart(df: pd.DataFrame) -> go.Figur
         title="Map Breakdown (Parallel Categories)",
         margin=dict(t=60, l=80, r=80, b=20),
         height=400,
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
     )
 
     return fig
@@ -3329,19 +3385,19 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
     # Should only have one player at this point
     player_name = df["player_name"].iloc[0] if not df.empty else "Player"
 
-    # Define marker properties for each status
+    # Define marker properties for each status (semantic colors)
     status_markers = {
         "Started": {
             "symbol": "circle-open",
-            "color": Config.PRIMARY_COLORS[2],
+            "color": Config.PRIMARY_COLORS[0],  # Green - new beginning
             "size": 10,
         },
         "Completed": {
             "symbol": "circle",
-            "color": Config.PRIMARY_COLORS[1],
+            "color": Config.PRIMARY_COLORS[1],  # Orange - achievement
             "size": 12,
         },
-        "Failed": {"symbol": "x", "color": Config.PRIMARY_COLORS[0], "size": 12},
+        "Failed": {"symbol": "x", "color": Config.PRIMARY_COLORS[3], "size": 12},  # Red - failure
     }
 
     # Helper function to extract ambition name from description
@@ -3452,8 +3508,6 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
     # Update layout
     fig.update_layout(
         showlegend=False,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
         height=fig_height,
     )
 
@@ -3461,7 +3515,7 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(
         showgrid=True,
         gridwidth=1,
-        gridcolor="rgba(128,128,128,0.2)",
+        gridcolor=CHART_THEME["gridcolor"],
     )
 
     # Hide y-axis (ambition names are in labels)
@@ -3506,9 +3560,9 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
                         "<b>Failed</b>",
                         "<b>Completion Rate</b>",
                     ],
-                    fill_color=Config.PRIMARY_COLORS[2],
+                    fill_color=CHART_THEME["hoverlabel_bgcolor"],
                     align="left",
-                    font=dict(color="white", size=12),
+                    font=dict(color=CHART_THEME["font_color"], size=12),
                 ),
                 cells=dict(
                     values=[
@@ -3520,10 +3574,10 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
                         df_display["completion_rate"],
                     ],
                     fill_color=[
-                        ["white", "#f9f9f9"] * len(df_display)
+                        [CHART_THEME["paper_bgcolor"], CHART_THEME["plot_bgcolor"]] * len(df_display)
                     ],  # Alternating row colors
                     align="left",
-                    font=dict(color="#333333", size=11),
+                    font=dict(color=CHART_THEME["font_color"], size=11),
                     height=30,
                 ),
             )
@@ -3532,7 +3586,7 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
         height=max(150, len(df) * 35 + 50),  # Dynamic height based on number of players
     )
 
@@ -3558,6 +3612,7 @@ def create_ruler_archetype_win_rates_chart(df: pd.DataFrame) -> go.Figure:
     df_sorted = df.sort_values("win_rate", ascending=True)
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = apply_dark_theme(fig)
 
     # Add bars for games played
     fig.add_trace(
@@ -3619,6 +3674,7 @@ def create_ruler_trait_performance_chart(df: pd.DataFrame) -> go.Figure:
     df_sorted = df.sort_values("win_rate", ascending=True)
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = apply_dark_theme(fig)
 
     # Add bars for games played
     fig.add_trace(
@@ -4274,6 +4330,7 @@ def create_yield_stacked_chart(
         subplot_titles=("Per Turn", "Cumulative Total"),
         specs=[[{"secondary_y": True}], [{"secondary_y": True}]],
     )
+    fig = apply_dark_theme(fig)
 
     # Convert hex to rgba for fill
     def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -4951,6 +5008,12 @@ def create_city_founding_scatter_jitter_chart(
             tickvals=list(player_y_positions.values()),
             ticktext=list(player_y_positions.keys()),
             range=[-0.5, len(players) - 0.5],  # Add padding
+            showgrid=True,
+            gridcolor=CHART_THEME["gridcolor"],
+            zeroline=False,  # Hide the prominent zero line
+        ),
+        xaxis=dict(
+            zeroline=False,  # Hide x-axis zero line as well
         ),
         showlegend=True,
         legend=dict(
@@ -5130,6 +5193,7 @@ def create_hexagonal_map(
         ),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=CHART_THEME["font_color"]),
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -5138,6 +5202,12 @@ def create_hexagonal_map(
             y=1,
             xanchor="left",
             x=1.02,
+            font=dict(color=CHART_THEME["font_color"]),
+        ),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
         ),
         height=700,
     )
@@ -5468,8 +5538,8 @@ def create_tournament_conquest_summary_chart(df: pd.DataFrame) -> go.Figure:
                         "Founded Turn",
                         "Match",
                     ],
-                    fill_color=Config.PRIMARY_COLORS[0],
-                    font=dict(color="white", size=12),
+                    fill_color=CHART_THEME["hoverlabel_bgcolor"],
+                    font=dict(color=CHART_THEME["font_color"], size=12),
                     align="left",
                 ),
                 cells=dict(
@@ -5490,8 +5560,8 @@ def create_tournament_conquest_summary_chart(df: pd.DataFrame) -> go.Figure:
                         df["founded_turn"],
                         df["match_id"],
                     ],
-                    fill_color="white",
-                    font=dict(size=11),
+                    fill_color=CHART_THEME["paper_bgcolor"],
+                    font=dict(color=CHART_THEME["font_color"], size=11),
                     align="left",
                     height=30,
                 ),
@@ -5500,7 +5570,7 @@ def create_tournament_conquest_summary_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     fig.update_layout(
-        title="",
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
         height=max(200, len(df) * 35 + 50),  # Dynamic height based on rows
     )
 
@@ -5649,8 +5719,8 @@ def _create_science_progression_line_chart(
             y=1.4,
             xanchor="right",
             yanchor="top",
-            bgcolor="rgba(255, 255, 255, 0.9)",
-            bordercolor="rgba(0, 0, 0, 0.2)",
+            bgcolor=CHART_THEME["legend_bgcolor"],
+            bordercolor=CHART_THEME["legend_bordercolor"],
             borderwidth=1,
         ),
     )
@@ -5735,13 +5805,17 @@ def create_units_stacked_bar_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_units_grouped_bar_chart(df: pd.DataFrame) -> go.Figure:
+def create_units_grouped_bar_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
     """Create grouped bar chart comparing unit types across players.
 
     Unit types on x-axis, bars grouped by player.
 
     Args:
         df: DataFrame from get_match_units_produced()
+        player_colors: Optional dict mapping player names to hex colors
 
     Returns:
         Plotly figure with grouped bar chart
@@ -5764,12 +5838,18 @@ def create_units_grouped_bar_chart(df: pd.DataFrame) -> go.Figure:
             for unit in top_units
         }
 
+        # Use player_colors if provided, otherwise fall back to PRIMARY_COLORS
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
         fig.add_trace(
             go.Bar(
                 name=player,
                 x=list(unit_counts.keys()),
                 y=list(unit_counts.values()),
-                marker_color=Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)],
+                marker_color=color,
             )
         )
 
@@ -5806,6 +5886,7 @@ def create_units_waffle_chart(df: pd.DataFrame) -> go.Figure:
         subplot_titles=[p for p in players],
         horizontal_spacing=0.05,
     )
+    fig = apply_dark_theme(fig)
 
     # Map roles to numeric values for coloring
     role_to_num = {role: i for i, role in enumerate(ROLE_COLORS.keys())}
@@ -5956,7 +6037,12 @@ def create_units_treemap_chart(df: pd.DataFrame) -> go.Figure:
         )
     )
 
-    fig.update_layout(height=500, margin=dict(t=30, l=10, r=10, b=10))
+    fig.update_layout(
+        height=500,
+        margin=dict(t=30, l=10, r=10, b=10),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+    )
 
     return fig
 
@@ -5998,6 +6084,7 @@ def create_units_icon_grid(df: pd.DataFrame) -> go.Figure:
         subplot_titles=[p for p in players],
         horizontal_spacing=0.05,
     )
+    fig = apply_dark_theme(fig)
 
     for col_idx, player in enumerate(players, 1):
         player_data = df[df["player_name"] == player]
@@ -6111,6 +6198,7 @@ def create_units_army_portrait(df: pd.DataFrame) -> go.Figure:
         specs=[[{"type": "domain"}] * n_players],
         horizontal_spacing=0.02,
     )
+    fig = apply_dark_theme(fig)
 
     for col_idx, player in enumerate(players, 1):
         player_data = df[df["player_name"] == player]
@@ -6227,7 +6315,7 @@ def create_units_marimekko_chart(df: pd.DataFrame) -> go.Figure:
             y=-0.08,
             text=f"<b>{player}</b><br>({total} units)",
             showarrow=False,
-            font=dict(size=11),
+            font=dict(size=11, color=CHART_THEME["font_color"]),
             xref="x",
             yref="paper",
         )
@@ -6244,12 +6332,30 @@ def create_units_marimekko_chart(df: pd.DataFrame) -> go.Figure:
         yaxis=dict(
             title="Proportion",
             showgrid=True,
+            gridcolor=CHART_THEME["gridcolor"],
             range=[0, 1],
             tickformat=".0%",
+            tickfont=dict(color=CHART_THEME["font_color"]),
+            title_font=dict(color=CHART_THEME["font_color"]),
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(color=CHART_THEME["font_color"]),
+        ),
         height=450,
         margin=dict(b=80),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
     )
 
     return fig

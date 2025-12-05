@@ -62,16 +62,16 @@ class Config:
 
     # Color schemes
     PRIMARY_COLORS = [
-        "#1f77b4",
-        "#ff7f0e",
-        "#2ca02c",
-        "#d62728",
-        "#9467bd",
-        "#8c564b",
-        "#e377c2",
-        "#7f7f7f",
-        "#bcbd22",
-        "#17becf",
+        "#4aba6e",  # Green (accent_success) - replaces blue for dark theme
+        "#ff7f0e",  # Orange
+        "#64b5f6",  # Light blue (accent_primary)
+        "#d62728",  # Red
+        "#9467bd",  # Purple
+        "#8c564b",  # Brown
+        "#e377c2",  # Pink
+        "#7f7f7f",  # Gray
+        "#bcbd22",  # Yellow-green
+        "#4dd0e1",  # Teal (accent_info)
     ]
 
     CIVILIZATION_COLORS = {
@@ -293,15 +293,40 @@ FILTER_OPTIONS = {
 }
 
 
-# Default chart layouts
+# Default chart layouts - uses dark theme colors
+from tournament_visualizer.theme import CHART_THEME
+
 DEFAULT_CHART_LAYOUT = {
     "margin": Config.CHART_MARGIN,
     "height": Config.CHART_HEIGHT,
     "showlegend": True,
-    "legend": {"x": 0, "y": 1, "bgcolor": "rgba(255,255,255,0.8)"},
-    "font": {"size": 12},
-    "plot_bgcolor": "rgba(0,0,0,0)",
-    "paper_bgcolor": "rgba(0,0,0,0)",
+    "legend": {
+        "x": 0,
+        "y": 1,
+        "bgcolor": CHART_THEME["legend_bgcolor"],
+        "bordercolor": CHART_THEME["legend_bordercolor"],
+        "borderwidth": 1,
+        "font": {"color": CHART_THEME["font_color"]},
+    },
+    "font": {"size": 12, "color": CHART_THEME["font_color"]},
+    "plot_bgcolor": CHART_THEME["plot_bgcolor"],
+    "paper_bgcolor": CHART_THEME["paper_bgcolor"],
+    # Hover tooltip styling (critical - cannot be done via CSS)
+    "hoverlabel": {
+        "bgcolor": CHART_THEME["hoverlabel_bgcolor"],
+        "bordercolor": CHART_THEME["hoverlabel_bordercolor"],
+        "font": {"color": CHART_THEME["hoverlabel_font_color"]},
+    },
+    "xaxis": {
+        "gridcolor": CHART_THEME["gridcolor"],
+        "tickfont": {"color": CHART_THEME["font_color"]},
+        "title_font": {"color": CHART_THEME["font_color"]},
+    },
+    "yaxis": {
+        "gridcolor": CHART_THEME["gridcolor"],
+        "tickfont": {"color": CHART_THEME["font_color"]},
+        "title_font": {"color": CHART_THEME["font_color"]},
+    },
 }
 
 # Plotly modebar configuration

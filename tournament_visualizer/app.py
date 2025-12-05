@@ -69,16 +69,104 @@ if config_errors:
         logger.error(f"  - {error}")
     sys.exit(1)
 
+# CSS for styling Dash core components with Bootstrap themes
+# See: https://github.com/AnnMarieW/dash-bootstrap-templates
+DBC_CSS = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
+
 # Initialize Dash app with Bootstrap theme
 app = dash.Dash(
     __name__,
     use_pages=True,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
+    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP, DBC_CSS],
     suppress_callback_exceptions=True,
     title=config.APP_TITLE,
     update_title="Loading...",
     assets_folder=config.ASSETS_DIRECTORY,
 )
+
+# Set dark theme on HTML element for Bootstrap 5.3 color mode
+# Style block after {%css%} ensures our overrides load after Bootstrap
+app.index_string = """<!DOCTYPE html>
+<html data-bs-theme="dark">
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            /* Override Bootstrap dark theme with dark blue palette */
+            [data-bs-theme=dark] {
+                --bs-body-bg: #0e1b2e;
+                --bs-body-color: #edf2f7;
+                --bs-secondary-bg: #364c6b;
+                --bs-tertiary-bg: #3a5a7e;
+                --bs-card-bg: #364c6b;
+                --bs-card-cap-bg: #3a5a7e;
+                --bs-modal-bg: #364c6b;
+                --bs-dropdown-bg: #3a5a7e;
+                --bs-border-color: rgba(255, 255, 255, 0.18);
+                --bs-link-color: #c8d4e3;
+                --bs-link-hover-color: #ffffff;
+            }
+            body {
+                background-color: #0e1b2e !important;
+            }
+            .navbar {
+                background-color: #3b4c69 !important;
+            }
+            /* DataTable links - must be here to override Dash CSS */
+            .dash-table-container a,
+            .dash-spreadsheet-container a,
+            .dash-cell a {
+                color: #c8d4e3 !important;
+                text-decoration: underline;
+            }
+            .dash-table-container a:hover,
+            .dash-spreadsheet-container a:hover,
+            .dash-cell a:hover {
+                color: #ffffff !important;
+            }
+            /* DataTable filter inputs - override dbc.css --bs-body-bg variable */
+            .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.dash-filter input:not([type=radio]):not([type=checkbox]) {
+                --bs-body-bg: #41597b;
+                background-color: #41597b !important;
+                color: #edf2f7 !important;
+            }
+            .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.dash-filter input::placeholder {
+                color: #c8d4e3 !important;
+            }
+            /* DataTable sort indicators - match header text color */
+            .dash-table-container .column-header--sort {
+                color: #edf2f7 !important;
+            }
+            /* Export buttons - light grey to match borders */
+            .btn-outline-primary {
+                border-color: #c8d4e3 !important;
+                color: #c8d4e3 !important;
+            }
+            .btn-outline-primary:hover {
+                background-color: #c8d4e3 !important;
+                border-color: #c8d4e3 !important;
+                color: #0e1b2e !important;
+            }
+            /* Plotly modebar icons - light color for dark theme */
+            .modebar-btn path {
+                fill: #c8d4e3 !important;
+            }
+            .modebar-btn:hover path {
+                fill: #ffffff !important;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>"""
 
 # Set up the app layout
 app.layout = dbc.Container(
@@ -145,8 +233,8 @@ app.layout = dbc.Container(
             ],
             brand=[html.I(className="bi bi-trophy-fill me-2"), config.APP_TITLE],
             brand_href="/",
-            color="primary",
-            dark=True,
+            dark=True,  # Sets light text color
+            style={"backgroundColor": "#3b4c69"},  # Custom dark blue background
             className="mb-4",
         ),
         # Alert area for messages
@@ -168,9 +256,10 @@ app.layout = dbc.Container(
                         html.H5("Old World Tournament Visualizer"),
                         html.P(
                             [
-                                "This application visualizes tournament data from Old World game saves. ",
-                                "It provides comprehensive analytics including player performance, ",
-                                "match analysis, and territorial control patterns.",
+                                "This application visualizes tournament data from "
+                                "Old World game saves. It provides comprehensive "
+                                "analytics including player performance, match "
+                                "analysis, and territorial control patterns.",
                             ]
                         ),
                         html.Hr(),
@@ -202,7 +291,10 @@ app.layout = dbc.Container(
                 ),
                 dbc.ModalFooter(
                     dbc.Button(
-                        "Close", id="about-modal-close", className="ms-auto", n_clicks=0
+                        "Close",
+                        id="about-modal-close",
+                        className="ms-auto",
+                        n_clicks=0,
                     )
                 ),
             ],
@@ -220,7 +312,7 @@ app.layout = dbc.Container(
         ),
     ],
     fluid=True,
-    className="px-4",
+    className="dbc px-4",
 )
 
 
