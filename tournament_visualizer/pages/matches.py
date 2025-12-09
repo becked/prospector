@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
+import dash_cytoscape as cyto
 from dash import Input, Output, callback, dcc, html
 from plotly import graph_objects as go
 
@@ -50,6 +51,12 @@ from tournament_visualizer.utils.event_categories import (
     get_category_color_map,
     get_event_category,
 )
+from tournament_visualizer.components.tech_tree import (
+    build_cytoscape_elements,
+    get_techs_at_turn,
+    TECH_TREE_STYLESHEET,
+)
+from tournament_visualizer.tech_tree import TECHS
 
 logger = logging.getLogger(__name__)
 
@@ -534,8 +541,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Laws & Technology",
-                        "tab_id": "technology",
+                        "label": "Laws",
+                        "tab_id": "laws",
                         "content": [
                             # Law Tempo chart
                             dbc.Row(
@@ -553,22 +560,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mt-3 mb-3",
                             ),
-                            # Technology Tempo chart
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Technology Tempo",
-                                                chart_id="match-technology-chart",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
                             # Law Adoption Timeline
                             dbc.Row(
                                 [
@@ -577,6 +568,142 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             create_chart_card(
                                                 title="Law Adoption Timeline",
                                                 chart_id="match-law-timeline",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Final Laws by player
+                            html.Div(
+                                id="match-final-laws-content", className="mb-3"
+                            ),
+                        ],
+                    },
+                    {
+                        "label": "Technology",
+                        "tab_id": "technology",
+                        "content": [
+                            # Tech Tree Visualization
+                            dbc.Card(
+                                [
+                                    dbc.CardBody(
+                                        [
+                                            html.H5(
+                                                "Tech Tree Progression",
+                                                className="card-title",
+                                            ),
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        [
+                                                            html.Label(
+                                                                "Turn:",
+                                                                className="form-label",
+                                                            ),
+                                                            dcc.Slider(
+                                                                id="match-tech-tree-turn-slider",
+                                                                min=0,
+                                                                max=100,
+                                                                step=1,
+                                                                value=100,
+                                                                marks={
+                                                                    i: str(i)
+                                                                    for i in range(
+                                                                        0, 101, 25
+                                                                    )
+                                                                },
+                                                                tooltip={
+                                                                    "placement": "bottom",
+                                                                    "always_visible": True,
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=12,
+                                                    ),
+                                                ]
+                                            ),
+                                        ]
+                                    )
+                                ],
+                                className="mt-3 mb-3",
+                            ),
+                            # Tech trees side by side
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            dbc.Card(
+                                                [
+                                                    dbc.CardHeader(
+                                                        id="match-tech-tree-player1-header"
+                                                    ),
+                                                    dbc.CardBody(
+                                                        [
+                                                            cyto.Cytoscape(
+                                                                id="match-tech-tree-player1",
+                                                                elements=[],
+                                                                stylesheet=TECH_TREE_STYLESHEET,
+                                                                layout={"name": "preset"},
+                                                                style={
+                                                                    "width": "100%",
+                                                                    "height": "420px",
+                                                                },
+                                                                userZoomingEnabled=False,
+                                                                userPanningEnabled=False,
+                                                                boxSelectionEnabled=False,
+                                                            )
+                                                        ],
+                                                        style={"padding": "0.5rem"},
+                                                    ),
+                                                ]
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            dbc.Card(
+                                                [
+                                                    dbc.CardHeader(
+                                                        id="match-tech-tree-player2-header"
+                                                    ),
+                                                    dbc.CardBody(
+                                                        [
+                                                            cyto.Cytoscape(
+                                                                id="match-tech-tree-player2",
+                                                                elements=[],
+                                                                stylesheet=TECH_TREE_STYLESHEET,
+                                                                layout={"name": "preset"},
+                                                                style={
+                                                                    "width": "100%",
+                                                                    "height": "420px",
+                                                                },
+                                                                userZoomingEnabled=False,
+                                                                userPanningEnabled=False,
+                                                                boxSelectionEnabled=False,
+                                                            )
+                                                        ],
+                                                        style={"padding": "0.5rem"},
+                                                    ),
+                                                ]
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Technology Tempo chart
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Technology Tempo",
+                                                chart_id="match-technology-chart",
                                                 height="400px",
                                             )
                                         ],
@@ -601,9 +728,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mb-3",
                             ),
-                            # Final Laws and Technologies by player
+                            # Final Technologies by player
                             html.Div(
-                                id="match-final-laws-techs-content", className="mb-3"
+                                id="match-final-techs-content", className="mb-3"
                             ),
                         ],
                     },
@@ -1531,21 +1658,21 @@ def update_settings_content(match_id: Optional[int]):
 
 
 @callback(
-    Output("match-final-laws-techs-content", "children"),
+    Output("match-final-laws-content", "children"),
     Input("match-selector", "value"),
 )
-def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
-    """Update final laws and technologies display by player.
+def update_final_laws(match_id: Optional[int]) -> html.Div:
+    """Update final laws display by player.
 
     Args:
         match_id: Selected match ID
 
     Returns:
-        HTML content with player boxes containing laws and techs
+        HTML content with player boxes containing laws
     """
     if not match_id:
         return html.Div(
-            "Select a match to view final laws and technologies", className="text-muted"
+            "Select a match to view final laws", className="text-muted"
         )
 
     try:
@@ -1553,82 +1680,140 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
 
         # Get laws data
         laws_df = queries.get_cumulative_law_count_by_turn(match_id)
-        # Get techs data
-        techs_df = queries.get_tech_count_by_turn(match_id)
 
-        if laws_df.empty and techs_df.empty:
-            return html.Div("No data available", className="text-muted")
+        if laws_df.empty:
+            return html.Div("No law data available", className="text-muted")
 
         # Get final turn data for each player
         player_data = {}
 
-        if not laws_df.empty:
-            final_laws = laws_df.loc[
-                laws_df.groupby("player_id")["turn_number"].idxmax()
-            ]
-            for _, row in final_laws.iterrows():
-                player_id = row["player_id"]
-                player_data[player_id] = {
-                    "name": row["player_name"],
-                    "laws": [],
-                    "techs": [],
-                }
-                law_list_str = row.get("law_list", "")
-                if law_list_str and pd.notna(law_list_str):
-                    laws = [law.strip() for law in str(law_list_str).split(",")]
-                    # Remove LAW_ prefix, quotes, humanize, deduplicate, and sort
-                    # Use set() to get unique laws (removes duplicates from switches)
-                    player_data[player_id]["laws"] = sorted(
-                        set([
-                            law.replace("LAW_", "")
-                            .replace("_", " ")
-                            .strip('"')
-                            .strip("'")
-                            .title()
-                            for law in laws
-                        ])
-                    )
-
-        if not techs_df.empty:
-            final_techs = techs_df.loc[
-                techs_df.groupby("player_id")["turn_number"].idxmax()
-            ]
-            for _, row in final_techs.iterrows():
-                player_id = row["player_id"]
-                if player_id not in player_data:
-                    player_data[player_id] = {
-                        "name": row["player_name"],
-                        "laws": [],
-                        "techs": [],
-                    }
-                tech_list_str = row.get("tech_list", "")
-                if tech_list_str and pd.notna(tech_list_str):
-                    techs = [tech.strip() for tech in str(tech_list_str).split(",")]
-                    # Remove TECH_ prefix, quotes, humanize, and sort
-                    player_data[player_id]["techs"] = sorted(
-                        [
-                            tech.replace("TECH_", "")
-                            .replace("_", " ")
-                            .strip('"')
-                            .strip("'")
-                            .title()
-                            for tech in techs
-                        ]
-                    )
+        final_laws = laws_df.loc[
+            laws_df.groupby("player_id")["turn_number"].idxmax()
+        ]
+        for _, row in final_laws.iterrows():
+            player_id = row["player_id"]
+            player_data[player_id] = {
+                "name": row["player_name"],
+                "laws": [],
+            }
+            law_list_str = row.get("law_list", "")
+            if law_list_str and pd.notna(law_list_str):
+                laws = [law.strip() for law in str(law_list_str).split(",")]
+                # Remove LAW_ prefix, quotes, humanize, deduplicate, and sort
+                player_data[player_id]["laws"] = sorted(
+                    set([
+                        law.replace("LAW_", "")
+                        .replace("_", " ")
+                        .strip('"')
+                        .strip("'")
+                        .title()
+                        for law in laws
+                    ])
+                )
 
         # Create player boxes
         player_cols = []
         for player_id in sorted(player_data.keys()):
             data = player_data[player_id]
 
-            # Create laws list
             laws_items = (
                 [html.Li(law, className="mb-1") for law in data["laws"]]
                 if data["laws"]
                 else [html.Span("No laws", className="text-muted")]
             )
 
-            # Create techs list
+            player_card = dbc.Card(
+                [
+                    dbc.CardHeader(html.H5(data["name"], className="mb-0")),
+                    dbc.CardBody(
+                        [
+                            html.H6(
+                                [
+                                    "Laws ",
+                                    dbc.Badge(
+                                        len(data["laws"]),
+                                        color="primary",
+                                        pill=True,
+                                    ),
+                                ],
+                                className="mb-2",
+                            ),
+                            html.Ul(
+                                laws_items,
+                                style={"fontSize": "0.9rem"},
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            player_cols.append(dbc.Col(player_card, width=12 // len(player_data)))
+
+        return dbc.Row(player_cols)
+
+    except Exception as e:
+        logger.error(f"Error loading final laws: {e}")
+        return html.Div(f"Error loading data: {str(e)}", className="text-danger")
+
+
+@callback(
+    Output("match-final-techs-content", "children"),
+    Input("match-selector", "value"),
+)
+def update_final_techs(match_id: Optional[int]) -> html.Div:
+    """Update final technologies display by player.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML content with player boxes containing technologies
+    """
+    if not match_id:
+        return html.Div(
+            "Select a match to view final technologies", className="text-muted"
+        )
+
+    try:
+        queries = get_queries()
+
+        # Get techs data
+        techs_df = queries.get_tech_count_by_turn(match_id)
+
+        if techs_df.empty:
+            return html.Div("No technology data available", className="text-muted")
+
+        # Get final turn data for each player
+        player_data = {}
+
+        final_techs = techs_df.loc[
+            techs_df.groupby("player_id")["turn_number"].idxmax()
+        ]
+        for _, row in final_techs.iterrows():
+            player_id = row["player_id"]
+            player_data[player_id] = {
+                "name": row["player_name"],
+                "techs": [],
+            }
+            tech_list_str = row.get("tech_list", "")
+            if tech_list_str and pd.notna(tech_list_str):
+                techs = [tech.strip() for tech in str(tech_list_str).split(",")]
+                # Remove TECH_ prefix, quotes, humanize, and sort
+                player_data[player_id]["techs"] = sorted(
+                    [
+                        tech.replace("TECH_", "")
+                        .replace("_", " ")
+                        .strip('"')
+                        .strip("'")
+                        .title()
+                        for tech in techs
+                    ]
+                )
+
+        # Create player boxes
+        player_cols = []
+        for player_id in sorted(player_data.keys()):
+            data = player_data[player_id]
+
             techs_items = (
                 [html.Li(tech, className="mb-1") for tech in data["techs"]]
                 if data["techs"]
@@ -1640,50 +1825,21 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
                     dbc.CardHeader(html.H5(data["name"], className="mb-0")),
                     dbc.CardBody(
                         [
-                            dbc.Row(
+                            html.H6(
                                 [
-                                    dbc.Col(
-                                        [
-                                            html.H6(
-                                                [
-                                                    "Laws ",
-                                                    dbc.Badge(
-                                                        len(data["laws"]),
-                                                        color="primary",
-                                                        pill=True,
-                                                    ),
-                                                ],
-                                                className="mb-2",
-                                            ),
-                                            html.Ul(
-                                                laws_items,
-                                                style={"fontSize": "0.9rem"},
-                                            ),
-                                        ],
-                                        width=6,
+                                    "Technologies ",
+                                    dbc.Badge(
+                                        len(data["techs"]),
+                                        color="success",
+                                        pill=True,
                                     ),
-                                    dbc.Col(
-                                        [
-                                            html.H6(
-                                                [
-                                                    "Technologies ",
-                                                    dbc.Badge(
-                                                        len(data["techs"]),
-                                                        color="success",
-                                                        pill=True,
-                                                    ),
-                                                ],
-                                                className="mb-2",
-                                            ),
-                                            html.Ul(
-                                                techs_items,
-                                                style={"fontSize": "0.9rem"},
-                                            ),
-                                        ],
-                                        width=6,
-                                    ),
-                                ]
-                            )
+                                ],
+                                className="mb-2",
+                            ),
+                            html.Ul(
+                                techs_items,
+                                style={"fontSize": "0.9rem"},
+                            ),
                         ]
                     ),
                 ]
@@ -1693,7 +1849,7 @@ def update_final_laws_techs(match_id: Optional[int]) -> html.Div:
         return dbc.Row(player_cols)
 
     except Exception as e:
-        logger.error(f"Error loading final laws and technologies: {e}")
+        logger.error(f"Error loading final technologies: {e}")
         return html.Div(f"Error loading data: {str(e)}", className="text-danger")
 
 
@@ -2408,3 +2564,184 @@ def update_units_list(match_id: Optional[int]) -> html.Div:
     except Exception as e:
         logger.error(f"Error loading unit list: {e}")
         return html.Div(f"Error loading data: {str(e)}", className="text-danger")
+
+
+# ============================================================================
+# Tech Tree Callbacks
+# ============================================================================
+
+
+@callback(
+    [
+        Output("match-tech-tree-player1", "elements"),
+        Output("match-tech-tree-player2", "elements"),
+        Output("match-tech-tree-player1-header", "children"),
+        Output("match-tech-tree-player2-header", "children"),
+        Output("match-tech-tree-turn-slider", "max"),
+        Output("match-tech-tree-turn-slider", "value"),
+        Output("match-tech-tree-turn-slider", "marks"),
+    ],
+    Input("match-selector", "value"),
+)
+def update_tech_tree_controls(match_id: Optional[int]):
+    """Initialize tech trees and configure turn slider for selected match.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Tuple of (player1_elements, player2_elements, player1_header,
+                  player2_header, slider_max, slider_value, slider_marks)
+    """
+    empty_elements: List[Dict[str, Any]] = []
+    default_marks = {i: str(i) for i in range(0, 101, 25)}
+
+    if not match_id:
+        return (
+            empty_elements,
+            empty_elements,
+            "Player 1",
+            "Player 2",
+            100,
+            100,
+            default_marks,
+        )
+
+    try:
+        queries = get_queries()
+
+        # Get tech timeline for this match
+        tech_df = queries.get_tech_timeline(match_id)
+
+        if tech_df.empty:
+            return (
+                empty_elements,
+                empty_elements,
+                "No tech data",
+                "No tech data",
+                100,
+                100,
+                default_marks,
+            )
+
+        # Get player info
+        players = tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        if len(players) < 2:
+            # Pad with empty player if only one found
+            players.append((None, "Player 2"))
+
+        player1_id, player1_name = players[0]
+        player2_id, player2_name = players[1] if len(players) > 1 else (None, "Player 2")
+
+        # Get max turn from tech discoveries
+        max_turn = int(tech_df["turn_number"].max())
+        min_turn = int(tech_df["turn_number"].min())
+
+        # Get techs at final turn for initial view
+        player1_techs = get_techs_at_turn(tech_df, player1_id, max_turn)
+        player2_techs = get_techs_at_turn(tech_df, player2_id, max_turn) if player2_id else set()
+
+        # Build elements
+        player1_elements = build_cytoscape_elements(player1_techs)
+        player2_elements = build_cytoscape_elements(player2_techs)
+
+        # Build headers with tech counts
+        total_techs = len(TECHS)
+        player1_header = f"{player1_name} ({len(player1_techs)}/{total_techs} techs)"
+        player2_header = f"{player2_name} ({len(player2_techs)}/{total_techs} techs)"
+
+        # Configure slider marks
+        mark_step = max(1, max_turn // 10)
+        marks = {i: str(i) for i in range(min_turn, max_turn + 1, mark_step)}
+        marks[min_turn] = str(min_turn)
+        marks[max_turn] = str(max_turn)
+
+        return (
+            player1_elements,
+            player2_elements,
+            player1_header,
+            player2_header,
+            max_turn,
+            max_turn,
+            marks,
+        )
+
+    except Exception as e:
+        logger.error(f"Error initializing tech trees: {e}")
+        return (
+            empty_elements,
+            empty_elements,
+            "Error",
+            "Error",
+            100,
+            100,
+            default_marks,
+        )
+
+
+@callback(
+    [
+        Output("match-tech-tree-player1", "elements", allow_duplicate=True),
+        Output("match-tech-tree-player2", "elements", allow_duplicate=True),
+        Output("match-tech-tree-player1-header", "children", allow_duplicate=True),
+        Output("match-tech-tree-player2-header", "children", allow_duplicate=True),
+    ],
+    [
+        Input("match-selector", "value"),
+        Input("match-tech-tree-turn-slider", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def update_tech_trees_for_turn(
+    match_id: Optional[int],
+    turn_number: int,
+) -> tuple:
+    """Update tech trees when turn slider changes.
+
+    Args:
+        match_id: Selected match ID
+        turn_number: Turn number from slider
+
+    Returns:
+        Tuple of (player1_elements, player2_elements, player1_header, player2_header)
+    """
+    empty_elements: List[Dict[str, Any]] = []
+
+    if not match_id or turn_number is None:
+        return empty_elements, empty_elements, "Player 1", "Player 2"
+
+    try:
+        queries = get_queries()
+
+        # Get tech timeline for this match
+        tech_df = queries.get_tech_timeline(match_id)
+
+        if tech_df.empty:
+            return empty_elements, empty_elements, "No data", "No data"
+
+        # Get player info
+        players = tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        if len(players) < 2:
+            players.append((None, "Player 2"))
+
+        player1_id, player1_name = players[0]
+        player2_id, player2_name = players[1] if len(players) > 1 else (None, "Player 2")
+
+        # Get techs at specified turn
+        player1_techs = get_techs_at_turn(tech_df, player1_id, turn_number)
+        player2_techs = get_techs_at_turn(tech_df, player2_id, turn_number) if player2_id else set()
+
+        # Build elements
+        player1_elements = build_cytoscape_elements(player1_techs)
+        player2_elements = build_cytoscape_elements(player2_techs)
+
+        # Build headers with tech counts
+        total_techs = len(TECHS)
+        player1_header = f"{player1_name} ({len(player1_techs)}/{total_techs} techs)"
+        player2_header = f"{player2_name} ({len(player2_techs)}/{total_techs} techs)"
+
+        return player1_elements, player2_elements, player1_header, player2_header
+
+    except Exception as e:
+        logger.error(f"Error updating tech trees for turn: {e}")
+        return empty_elements, empty_elements, "Error", "Error"

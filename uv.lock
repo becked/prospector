@@ -398,6 +398,15 @@ wheels = [
 ]
 
 [[package]]
+name = "dash-cytoscape"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dash" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ea/b7/0d511af853024241dc3192bea77e4753ea606187bd2dd777a8209a5b01bb/dash_cytoscape-1.0.2.tar.gz", hash = "sha256:a61019d2184d63a2b3b5c06d056d3b867a04223a674cc3c7cf900a561a9a59aa", size = 3992593, upload-time = "2024-07-15T11:39:06.185Z" }
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2006,6 +2015,7 @@ dependencies = [
     { name = "chyllonge" },
     { name = "dash" },
     { name = "dash-bootstrap-components" },
+    { name = "dash-cytoscape" },
     { name = "duckdb" },
     { name = "google-api-python-client" },
     { name = "gunicorn" },
@@ -2036,6 +2046,7 @@ requires-dist = [
     { name = "chyllonge", specifier = ">=1.1.1" },
     { name = "dash", specifier = ">=2.17.1" },
     { name = "dash-bootstrap-components", specifier = ">=1.5.0" },
+    { name = "dash-cytoscape", specifier = ">=1.0.2" },
     { name = "duckdb", specifier = ">=0.9.1" },
     { name = "google-api-python-client", specifier = ">=2.185.0" },
     { name = "gunicorn", specifier = ">=21.2.0" },
