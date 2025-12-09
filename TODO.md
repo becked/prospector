@@ -8,6 +8,3 @@ Siontific
 
 Becked
 * Fix the integration with the spreadsheet
-
-Auro
-* Some way to click through the tech tree to see the order players researched techs visually. Perhaps an overlay similar to the Maps section?

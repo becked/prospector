@@ -583,7 +583,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Technology",
+                        "label": "Techs",
                         "tab_id": "technology",
                         "content": [
                             # Tech Tree Visualization
