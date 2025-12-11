@@ -24,6 +24,7 @@ from tournament_visualizer.components.charts import (
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
     create_law_adoption_timeline_chart,
+    create_military_power_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
     create_match_yield_stacked_chart,
@@ -934,9 +935,25 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Units",
+                        "label": "Military",
                         "tab_id": "units",
                         "content": [
+                            # Military Power Progression
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Military Power",
+                                                chart_id="match-military-power",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mt-3 mb-3",
+                            ),
                             # Unit listing by player
                             html.Div(id="match-units-list-content", className="mt-3 mb-3"),
                             # Row 1: Stacked Bar and Grouped Bar
@@ -2372,6 +2389,42 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
 # =============================================================================
 # Unit Composition Callbacks
 # =============================================================================
+
+
+@callback(
+    Output("match-military-power", "figure"),
+    Input("match-selector", "value"),
+)
+def update_military_power_chart(match_id: Optional[int]) -> go.Figure:
+    """Update military power progression chart.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with military power line chart
+    """
+    if not match_id:
+        return create_empty_chart_placeholder(
+            "Select a match to view military power"
+        )
+
+    try:
+        queries = get_queries()
+        df = queries.get_military_history_by_match(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No military power data available for this match"
+            )
+
+        return create_military_power_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading military power chart: {e}")
+        return create_empty_chart_placeholder(
+            f"Error loading military power: {str(e)}"
+        )
 
 
 @callback(
