@@ -225,13 +225,13 @@ def _format_civilizations_display(civs_played: str, favorite: str) -> str:
 
 @callback(
     Output("player-summary-metrics", "children"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_player_summary_metrics(n_intervals: int) -> html.Div:
+def update_player_summary_metrics(pathname: str) -> html.Div:
     """Update player summary metrics.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         Metrics grid component with participant linking stats
@@ -288,13 +288,13 @@ def update_player_summary_metrics(n_intervals: int) -> html.Div:
 
 @callback(
     Output("h2h-player1-selector", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_h2h_player1_options(n_intervals: int) -> List[Dict[str, str]]:
+def update_h2h_player1_options(pathname: str) -> List[Dict[str, str]]:
     """Update Player 1 selector options.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         List of player options sorted by activity
@@ -493,13 +493,13 @@ def update_h2h_chart(player1: Optional[str], player2: Optional[str]):
 # Data table callbacks
 @callback(
     Output("players-rankings-table", "data"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_rankings_table(n_intervals: int) -> List[Dict[str, Any]]:
+def update_rankings_table(pathname: str) -> List[Dict[str, Any]]:
     """Update player rankings table.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         List of player ranking data with visual indicators for unlinked players

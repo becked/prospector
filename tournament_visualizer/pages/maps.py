@@ -115,13 +115,13 @@ layout = html.Div(
 
 @callback(
     Output("map-summary-metrics", "children"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_summary_metrics(n_intervals: int) -> html.Div:
+def update_map_summary_metrics(pathname: str) -> html.Div:
     """Update map summary metrics.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         Metrics grid component
@@ -189,13 +189,13 @@ def update_map_summary_metrics(n_intervals: int) -> html.Div:
 
 @callback(
     Output("map-length-chart", "figure"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_length_chart(n_intervals: int):
+def update_map_length_chart(pathname: str):
     """Update map length chart with grouped bars by size and class.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         Plotly figure for map length analysis
@@ -263,13 +263,13 @@ def update_map_length_chart(n_intervals: int):
 
 @callback(
     Output("map-stats-table", "data"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_stats_table(n_intervals: int) -> list[dict[str, Any]]:
+def update_map_stats_table(pathname: str) -> list[dict[str, Any]]:
     """Update map statistics table.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         List of map statistics data

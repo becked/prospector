@@ -460,12 +460,17 @@ def create_chart_grid(charts: List[Dict[str, Any]], columns: int = 2) -> List[db
     return rows
 
 
-def create_tab_layout(tabs: List[Dict[str, Any]], active_tab: str = None) -> dbc.Tabs:
+def create_tab_layout(
+    tabs: List[Dict[str, Any]],
+    active_tab: str = None,
+    tabs_id: str = None,
+) -> dbc.Tabs:
     """Create a tabbed layout.
 
     Args:
         tabs: List of tab configurations with 'label', 'tab_id', and 'content'
         active_tab: ID of initially active tab
+        tabs_id: ID for the Tabs component (needed for lazy loading callbacks)
 
     Returns:
         Tabs component
@@ -481,10 +486,14 @@ def create_tab_layout(tabs: List[Dict[str, Any]], active_tab: str = None) -> dbc
             )
         )
 
-    return dbc.Tabs(
-        tab_components,
-        active_tab=active_tab or (tabs[0].get("tab_id") if tabs else None),
-    )
+    # Build kwargs, only including id if tabs_id is provided
+    tabs_kwargs = {
+        "active_tab": active_tab or (tabs[0].get("tab_id") if tabs else None),
+    }
+    if tabs_id:
+        tabs_kwargs["id"] = tabs_id
+
+    return dbc.Tabs(tab_components, **tabs_kwargs)
 
 
 def create_loading_placeholder(text: str = "Loading...") -> html.Div:

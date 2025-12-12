@@ -268,14 +268,13 @@ def sync_match_selection(
 
 @callback(
     Output("match-selector", "options"),
-    Input("refresh-interval", "n_intervals"),
-    prevent_initial_call=False,
+    Input("_pages_location", "pathname"),
 )
-def update_match_options(n_intervals: int) -> List[Dict[str, Any]]:
+def update_match_options(pathname: str) -> List[Dict[str, Any]]:
     """Update match selector options.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         List of match options for dropdown
@@ -1081,6 +1080,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                     },
                 ],
                 active_tab="turn-progression",
+                tabs_id="match-details-tabs",
             ),
         ]
 
@@ -1244,16 +1244,27 @@ def update_breadcrumb(match_id: Optional[int]) -> html.Div:
     return create_breadcrumb(items)
 
 
-@callback(Output("match-technology-chart", "figure"), Input("match-selector", "value"))
-def update_technology_chart(match_id: Optional[int]) -> go.Figure:
+@callback(
+    Output("match-technology-chart", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_technology_chart(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
     """Update cumulative technology count chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure for cumulative technology count
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "technology":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder("Select a match to view technology data")
 
@@ -1321,16 +1332,27 @@ def update_tech_timeline(match_id: Optional[int]) -> go.Figure:
         )
 
 
-@callback(Output("match-law-timeline", "figure"), Input("match-selector", "value"))
-def update_law_timeline(match_id: Optional[int]) -> go.Figure:
+@callback(
+    Output("match-law-timeline", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_law_timeline(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
     """Update law adoption timeline chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure showing when each player adopted each law
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "laws":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder(
             "Select a match to view law timeline"
@@ -1676,17 +1698,25 @@ def update_settings_content(match_id: Optional[int]):
 
 @callback(
     Output("match-final-laws-content", "children"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_final_laws(match_id: Optional[int]) -> html.Div:
+def update_final_laws(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> html.Div:
     """Update final laws display by player.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         HTML content with player boxes containing laws
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "laws":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return html.Div(
             "Select a match to view final laws", className="text-muted"
@@ -1872,17 +1902,25 @@ def update_final_techs(match_id: Optional[int]) -> html.Div:
 
 @callback(
     Output("match-law-cumulative", "figure"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
+def update_law_cumulative(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
     """Update cumulative law count chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure with cumulative line chart
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "laws":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder("Select a match")
 
@@ -1916,20 +1954,28 @@ def update_law_cumulative(match_id: Optional[int]) -> go.Figure:
         Output(f"match-{yield_type.lower().replace('_', '-')}-chart", "figure")
         for yield_type, _ in YIELD_TYPES
     ],
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
+def update_all_yield_charts(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> List[go.Figure]:
     """Update all yield charts when a match is selected.
 
     Fetches data for all 14 yield types in a single query and creates
     individual charts for each yield type.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         List of 14 Plotly figures (one for each yield type)
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "yields":
+        raise dash.exceptions.PreventUpdate
+
     # If no match selected, return empty placeholders for all charts
     if not match_id:
         return [
@@ -1994,17 +2040,25 @@ def update_all_yield_charts(match_id: Optional[int]) -> List[go.Figure]:
 
 @callback(
     Output("match-ambition-timelines-container", "children"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_ambition_timelines(match_id: Optional[int]):
+def update_ambition_timelines(
+    active_tab: Optional[str], match_id: Optional[int]
+):
     """Update ambition timeline charts - one per player.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         HTML Div containing separate chart cards for each player
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "statistics":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return html.Div(
             "Select a match to view ambition timelines", className="text-muted"
@@ -2064,17 +2118,25 @@ def update_ambition_timelines(match_id: Optional[int]):
 
 @callback(
     Output("match-ambition-summary", "figure"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_ambition_summary(match_id: Optional[int]) -> go.Figure:
+def update_ambition_summary(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
     """Update ambition summary table.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure for ambition summary table
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "statistics":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder("Select a match to view ambition summary")
 
@@ -2188,17 +2250,25 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
         Output("match-territory-turn-slider", "value"),
         Output("match-territory-turn-slider", "marks"),
     ],
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_match_territory_controls(match_id: Optional[int]):
+def update_match_territory_controls(
+    active_tab: Optional[str], match_id: Optional[int]
+):
     """Update territory heatmap and configure turn slider for selected match.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Tuple of (figure, slider_max, slider_value, slider_marks)
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "maps":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         empty_fig = create_empty_chart_placeholder(
             "Select a match to view territory map"
@@ -2295,17 +2365,25 @@ def update_match_territory_heatmap_turn(
 
 @callback(
     Output("match-territory-timeline-chart", "figure"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_match_territory_timeline_chart(match_id: Optional[int]):
+def update_match_territory_timeline_chart(
+    active_tab: Optional[str], match_id: Optional[int]
+):
     """Update territory timeline chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure for territory timeline
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "maps":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder(
             "Select a match to view territory control"
@@ -2334,17 +2412,25 @@ def update_match_territory_timeline_chart(match_id: Optional[int]):
 
 @callback(
     Output("match-territory-distribution-chart", "figure"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_match_territory_distribution_chart(match_id: Optional[int]):
+def update_match_territory_distribution_chart(
+    active_tab: Optional[str], match_id: Optional[int]
+):
     """Update territory distribution chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure for territory distribution
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "maps":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder("Select a match")
 
@@ -2393,17 +2479,25 @@ def update_match_territory_distribution_chart(match_id: Optional[int]):
 
 @callback(
     Output("match-military-power", "figure"),
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_military_power_chart(match_id: Optional[int]) -> go.Figure:
+def update_military_power_chart(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
     """Update military power progression chart.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         Plotly figure with military power line chart
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "units":
+        raise dash.exceptions.PreventUpdate
+
     if not match_id:
         return create_empty_chart_placeholder(
             "Select a match to view military power"
@@ -2437,19 +2531,27 @@ def update_military_power_chart(match_id: Optional[int]) -> go.Figure:
         Output("match-units-portrait", "figure"),
         Output("match-units-marimekko", "figure"),
     ],
+    Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
 )
-def update_all_unit_charts(match_id: Optional[int]) -> List[go.Figure]:
+def update_all_unit_charts(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> List[go.Figure]:
     """Update all unit composition charts when a match is selected.
 
     Fetches unit data once and creates all 7 chart types.
 
     Args:
+        active_tab: Currently active tab
         match_id: Selected match ID
 
     Returns:
         List of 7 Plotly figures for unit charts
     """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "units":
+        raise dash.exceptions.PreventUpdate
+
     empty_placeholder = create_empty_chart_placeholder(
         "Select a match to view unit data"
     )

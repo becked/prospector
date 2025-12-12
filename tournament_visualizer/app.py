@@ -303,13 +303,6 @@ app.layout = dbc.Container(
         ),
         # Hidden div to store app state
         dcc.Store(id="app-state", data={}),
-        # Interval component for periodic updates
-        dcc.Interval(
-            id="refresh-interval",
-            interval=60 * 1000,  # Update every minute
-            n_intervals=0,
-            disabled=True,
-        ),
     ],
     fluid=True,
     className="dbc px-4",
@@ -319,13 +312,13 @@ app.layout = dbc.Container(
 @callback(
     Output("db-status-badge", "children"),
     Output("db-status-badge", "color"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_database_status(n_intervals: int) -> tuple[str, str]:
+def update_database_status(pathname: str) -> tuple[str, str]:
     """Update the database status indicator.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         Tuple of (badge_text, badge_color)

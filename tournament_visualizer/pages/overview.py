@@ -777,13 +777,10 @@ def toggle_filter_collapse(n_clicks: Optional[int]) -> tuple[bool, str]:
 
 @callback(
     Output("overview-round-filter-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),  # Fires once on page load
 )
-def update_round_options(n_intervals: int) -> List[dict]:
-    """Update round dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_round_options(pathname: str) -> List[dict]:
+    """Update round dropdown options on page load.
 
     Returns:
         List of options for round dropdown
@@ -819,13 +816,10 @@ def update_round_options(n_intervals: int) -> List[dict]:
 
 @callback(
     Output("overview-map-size-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_size_options(n_intervals: int) -> List[dict]:
-    """Update map size dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_map_size_options(pathname: str) -> List[dict]:
+    """Update map size dropdown options on page load.
 
     Returns:
         List of options for map size dropdown
@@ -841,13 +835,10 @@ def update_map_size_options(n_intervals: int) -> List[dict]:
 
 @callback(
     Output("overview-map-class-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_class_options(n_intervals: int) -> List[dict]:
-    """Update map class dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_map_class_options(pathname: str) -> List[dict]:
+    """Update map class dropdown options on page load.
 
     Returns:
         List of options for map class dropdown
@@ -863,13 +854,10 @@ def update_map_class_options(n_intervals: int) -> List[dict]:
 
 @callback(
     Output("overview-map-aspect-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_map_aspect_options(n_intervals: int) -> List[dict]:
-    """Update map aspect dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_map_aspect_options(pathname: str) -> List[dict]:
+    """Update map aspect dropdown options on page load.
 
     Returns:
         List of options for map aspect dropdown
@@ -885,13 +873,10 @@ def update_map_aspect_options(n_intervals: int) -> List[dict]:
 
 @callback(
     Output("overview-nations-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_nations_options(n_intervals: int) -> List[dict]:
-    """Update nations dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_nations_options(pathname: str) -> List[dict]:
+    """Update nations dropdown options on page load.
 
     Returns:
         List of options for nations dropdown
@@ -907,13 +892,10 @@ def update_nations_options(n_intervals: int) -> List[dict]:
 
 @callback(
     Output("overview-players-dropdown", "options"),
-    Input("refresh-interval", "n_intervals"),
+    Input("_pages_location", "pathname"),
 )
-def update_players_options(n_intervals: int) -> List[dict]:
-    """Update players dropdown options.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_players_options(pathname: str) -> List[dict]:
+    """Update players dropdown options on page load.
 
     Returns:
         List of options for players dropdown
@@ -979,13 +961,11 @@ def clear_all_filters(n_clicks: Optional[int]) -> tuple:
 
 
 @callback(
-    Output("overview-metrics", "children"), Input("refresh-interval", "n_intervals")
+    Output("overview-metrics", "children"),
+    Input("_pages_location", "pathname"),
 )
-def update_overview_metrics(n_intervals: int) -> html.Div:
-    """Update the overview metrics cards.
-
-    Args:
-        n_intervals: Number of interval triggers
+def update_overview_metrics(pathname: str) -> html.Div:
+    """Update the overview metrics cards on page load.
 
     Returns:
         Metrics grid component
@@ -1007,140 +987,14 @@ def update_overview_metrics(n_intervals: int) -> html.Div:
         )
 
 
+# Consolidated Nations Tab Callback - reduces HTTP requests from 5 to 1
 @callback(
     Output("overview-nation-win-chart", "figure"),
-    Input("overview-round-filter-dropdown", "value"),
-    Input("overview-turn-length-slider", "value"),
-    Input("overview-map-size-dropdown", "value"),
-    Input("overview-map-class-dropdown", "value"),
-    Input("overview-map-aspect-dropdown", "value"),
-    Input("overview-nations-dropdown", "value"),
-    Input("overview-players-dropdown", "value"),
-    Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_nation_win_chart(
-    round_num: Optional[list[int]],
-    turn_length: Optional[int],
-    map_size: Optional[list[str]],
-    map_class: Optional[list[str]],
-    map_aspect: Optional[list[str]],
-    nations: Optional[List[str]],
-    players: Optional[List[str]],
-    result_filter: Optional[str],
-    n_intervals: int,
-):
-    """Update the nation win percentage chart with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        result_filter: Filter by match result (winners/losers/all)
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for nation win percentage
-    """
-    try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        df = queries.get_nation_win_stats(
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
-            result_filter=result_filter if result_filter != "all" else None,
-        )
-
-        if df.empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
-        fig = create_nation_win_percentage_chart(df)
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading nation data: {str(e)}")
-
-
-@callback(
     Output("overview-nation-loss-chart", "figure"),
-    Input("overview-round-filter-dropdown", "value"),
-    Input("overview-turn-length-slider", "value"),
-    Input("overview-map-size-dropdown", "value"),
-    Input("overview-map-class-dropdown", "value"),
-    Input("overview-map-aspect-dropdown", "value"),
-    Input("overview-nations-dropdown", "value"),
-    Input("overview-players-dropdown", "value"),
-    Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_nation_loss_chart(
-    round_num: Optional[list[int]],
-    turn_length: Optional[int],
-    map_size: Optional[list[str]],
-    map_class: Optional[list[str]],
-    map_aspect: Optional[list[str]],
-    nations: Optional[List[str]],
-    players: Optional[List[str]],
-    result_filter: Optional[str],
-    n_intervals: int,
-):
-    """Update the nation loss percentage chart with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        result_filter: Filter by match result (winners/losers/all)
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure for nation loss percentage
-    """
-    try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        df = queries.get_nation_loss_stats(
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
-            result_filter=result_filter if result_filter != "all" else None,
-        )
-
-        if df.empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
-        fig = create_nation_loss_percentage_chart(df)
-        return fig
-
-    except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading nation data: {str(e)}")
-
-
-@callback(
     Output("overview-nation-popularity-chart", "figure"),
+    Output("overview-counter-pick-heatmap", "figure"),
+    Output("overview-pick-order-win-rate", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1149,9 +1003,10 @@ def update_nation_loss_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
-def update_nation_popularity_chart(
+def update_nations_tab_charts(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1160,11 +1015,14 @@ def update_nation_popularity_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
-):
-    """Update the nation popularity chart with filters.
+) -> tuple:
+    """Update all Nations tab charts in a single callback.
+
+    This consolidated callback reduces HTTP requests and DOM updates when
+    switching to the Nations tab, improving perceived performance.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1173,35 +1031,87 @@ def update_nation_popularity_chart(
         nations: List of selected nations
         players: List of selected players
         result_filter: Filter by match result (winners/losers/all)
-        n_intervals: Number of interval triggers
 
     Returns:
-        Plotly figure for nation popularity
+        Tuple of 5 Plotly figures for all Nations tab charts
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "nations-tab":
+        raise dash.exceptions.PreventUpdate
+
+    queries = get_queries()
+    min_turns, max_turns = parse_turn_length(turn_length)
+
+    # Common filter parameters
+    filter_params = {
+        "tournament_round": round_num,
+        "bracket": None,
+        "min_turns": min_turns,
+        "max_turns": max_turns,
+        "map_size": map_size,
+        "map_class": map_class,
+        "map_aspect": map_aspect,
+        "nations": nations if nations else None,
+        "players": players if players else None,
+        "result_filter": result_filter if result_filter != "all" else None,
+    }
+
+    # 1. Nation Win Chart
     try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        df = queries.get_nation_popularity(
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
-            result_filter=result_filter if result_filter != "all" else None,
+        df_win = queries.get_nation_win_stats(**filter_params)
+        fig_win = (
+            create_nation_win_percentage_chart(df_win)
+            if not df_win.empty
+            else create_empty_chart_placeholder("No data for selected filters")
         )
-
-        if df.empty:
-            return create_empty_chart_placeholder("No data for selected filters")
-
-        return create_nation_popularity_chart(df)
-
     except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading nation data: {str(e)}")
+        fig_win = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 2. Nation Loss Chart
+    try:
+        df_loss = queries.get_nation_loss_stats(**filter_params)
+        fig_loss = (
+            create_nation_loss_percentage_chart(df_loss)
+            if not df_loss.empty
+            else create_empty_chart_placeholder("No data for selected filters")
+        )
+    except Exception as e:
+        fig_loss = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 3. Nation Popularity Chart
+    try:
+        df_pop = queries.get_nation_popularity(**filter_params)
+        fig_pop = (
+            create_nation_popularity_chart(df_pop)
+            if not df_pop.empty
+            else create_empty_chart_placeholder("No data for selected filters")
+        )
+    except Exception as e:
+        fig_pop = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 4. Counter-Pick Heatmap
+    try:
+        df_counter = queries.get_nation_counter_pick_matrix(min_games=1, **filter_params)
+        fig_counter = create_nation_counter_pick_heatmap(df_counter)
+    except Exception as e:
+        logger.error(f"Error loading counter-pick data: {e}")
+        fig_counter = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 5. Pick Order Win Rate
+    try:
+        df_pick = queries.get_pick_order_win_rates(**filter_params)
+        fig_pick = (
+            create_pick_order_win_rate_chart(df_pick)
+            if not df_pick.empty
+            else create_empty_chart_placeholder("No data for selected filters")
+        )
+    except Exception as e:
+        logger.error(f"Error loading pick order win rate data: {e}")
+        fig_pick = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    return fig_win, fig_loss, fig_pop, fig_counter, fig_pick
+
+
 
 
 @callback(
@@ -1214,7 +1124,6 @@ def update_nation_popularity_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
 )
 def update_units_chart(
     round_num: Optional[list[int]],
@@ -1225,7 +1134,6 @@ def update_units_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update the unit popularity sunburst chart with filters.
 
@@ -1237,7 +1145,7 @@ def update_units_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure for unit popularity
@@ -1278,7 +1186,6 @@ def update_units_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
 )
 def update_map_chart(
     round_num: Optional[list[int]],
@@ -1289,7 +1196,6 @@ def update_map_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update the map breakdown sunburst chart with filters.
 
@@ -1301,7 +1207,7 @@ def update_map_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure for map breakdown
@@ -1342,7 +1248,6 @@ def update_map_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
 )
 def update_matches_table(
     round_num: Optional[list[int]],
@@ -1353,7 +1258,6 @@ def update_matches_table(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ) -> List[Dict[str, Any]]:
     """Update the matches table based on filters.
 
@@ -1365,7 +1269,7 @@ def update_matches_table(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         List of dictionaries for table data
@@ -1424,13 +1328,14 @@ def update_matches_table(
 
 
 @callback(
-    Output("overview-alerts", "children"), Input("refresh-interval", "n_intervals")
+    Output("overview-alerts", "children"),
+    Input("_pages_location", "pathname"),
 )
-def check_data_status(n_intervals: int) -> html.Div:
+def check_data_status(pathname: str) -> html.Div:
     """Check data status and show alerts if needed.
 
     Args:
-        n_intervals: Number of interval triggers
+        pathname: Current page path (triggers on page load)
 
     Returns:
         Alert components if needed
@@ -1493,6 +1398,7 @@ def check_data_status(n_intervals: int) -> html.Div:
 
 @callback(
     Output("overview-law-distribution", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1501,9 +1407,10 @@ def check_data_status(n_intervals: int) -> html.Div:
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_law_distribution(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1512,11 +1419,11 @@ def update_law_distribution(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update law milestone distribution chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1524,11 +1431,15 @@ def update_law_distribution(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with box plot distribution
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "laws-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1560,6 +1471,7 @@ def update_law_distribution(
 
 @callback(
     Output("overview-law-efficiency", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1568,9 +1480,10 @@ def update_law_distribution(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_law_efficiency(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1579,11 +1492,11 @@ def update_law_efficiency(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update law efficiency scatter plot with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1591,11 +1504,15 @@ def update_law_efficiency(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with scatter plot
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "laws-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1635,7 +1552,6 @@ def update_law_efficiency(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
 )
 def update_event_timeline(
     round_num: Optional[list[int]],
@@ -1646,7 +1562,6 @@ def update_event_timeline(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update aggregated event category timeline chart with filters.
 
@@ -1660,7 +1575,7 @@ def update_event_timeline(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with stacked area chart
@@ -1695,6 +1610,7 @@ def update_event_timeline(
 
 @callback(
     Output("overview-ruler-archetype-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1703,9 +1619,10 @@ def update_event_timeline(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_ruler_archetype_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1714,11 +1631,11 @@ def update_ruler_archetype_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update ruler archetype win rates chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1726,11 +1643,15 @@ def update_ruler_archetype_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with dual-axis chart
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1760,6 +1681,7 @@ def update_ruler_archetype_chart(
 
 @callback(
     Output("overview-ruler-trait-performance-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1768,9 +1690,10 @@ def update_ruler_archetype_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_ruler_trait_performance_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1779,11 +1702,11 @@ def update_ruler_trait_performance_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update ruler trait performance chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1791,11 +1714,15 @@ def update_ruler_trait_performance_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with dual-axis chart
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1827,6 +1754,7 @@ def update_ruler_trait_performance_chart(
 
 @callback(
     Output("overview-ruler-matchup-matrix-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1835,9 +1763,10 @@ def update_ruler_trait_performance_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_ruler_matchup_matrix_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1846,11 +1775,11 @@ def update_ruler_matchup_matrix_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update ruler archetype matchup matrix chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1858,11 +1787,15 @@ def update_ruler_matchup_matrix_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with heatmap
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1893,6 +1826,7 @@ def update_ruler_matchup_matrix_chart(
 
 @callback(
     Output("overview-ruler-combinations-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -1901,9 +1835,10 @@ def update_ruler_matchup_matrix_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_ruler_combinations_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -1912,11 +1847,11 @@ def update_ruler_combinations_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update ruler archetype + trait combinations chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -1924,11 +1859,15 @@ def update_ruler_combinations_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with horizontal bar chart
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -1957,135 +1896,6 @@ def update_ruler_combinations_chart(
         return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 
-@callback(
-    Output("overview-counter-pick-heatmap", "figure"),
-    Input("overview-round-filter-dropdown", "value"),
-    Input("overview-turn-length-slider", "value"),
-    Input("overview-map-size-dropdown", "value"),
-    Input("overview-map-class-dropdown", "value"),
-    Input("overview-map-aspect-dropdown", "value"),
-    Input("overview-nations-dropdown", "value"),
-    Input("overview-players-dropdown", "value"),
-    Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_counter_pick_heatmap(
-    round_num: Optional[list[int]],
-    turn_length: Optional[int],
-    map_size: Optional[list[str]],
-    map_class: Optional[list[str]],
-    map_aspect: Optional[list[str]],
-    nations: Optional[List[str]],
-    players: Optional[List[str]],
-    result_filter: Optional[str],
-    n_intervals: int,
-):
-    """Update nation counter-pick effectiveness heatmap with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with heatmap
-    """
-    try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        df = queries.get_nation_counter_pick_matrix(
-            min_games=1,
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
-            result_filter=result_filter if result_filter != "all" else None,
-        )
-
-        # Let the chart function handle empty data with a proper message
-        fig = create_nation_counter_pick_heatmap(df)
-        return fig
-
-    except Exception as e:
-        logger.error(f"Error loading counter-pick data: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
-@callback(
-    Output("overview-pick-order-win-rate", "figure"),
-    Input("overview-round-filter-dropdown", "value"),
-    Input("overview-turn-length-slider", "value"),
-    Input("overview-map-size-dropdown", "value"),
-    Input("overview-map-class-dropdown", "value"),
-    Input("overview-map-aspect-dropdown", "value"),
-    Input("overview-nations-dropdown", "value"),
-    Input("overview-players-dropdown", "value"),
-    Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
-)
-def update_pick_order_win_rate(
-    round_num: Optional[list[int]],
-    turn_length: Optional[int],
-    map_size: Optional[list[str]],
-    map_class: Optional[list[str]],
-    map_aspect: Optional[list[str]],
-    nations: Optional[List[str]],
-    players: Optional[List[str]],
-    result_filter: Optional[str],
-    n_intervals: int,
-):
-    """Update pick order win rate bar chart with filters.
-
-    Args:
-        round_num: Selected round number
-        turn_length: Maximum turn number cutoff (None means no filter)
-        map_size: Map size filter
-        map_class: Map class filter
-        map_aspect: Map aspect ratio filter
-        nations: List of selected nations
-        players: List of selected players
-        n_intervals: Number of interval triggers
-
-    Returns:
-        Plotly figure with grouped bar chart
-    """
-    try:
-        queries = get_queries()
-        min_turns, max_turns = parse_turn_length(turn_length)
-
-        df = queries.get_pick_order_win_rates(
-            tournament_round=round_num,
-            bracket=None,
-            min_turns=min_turns,
-            max_turns=max_turns,
-            map_size=map_size,
-            map_class=map_class,
-            map_aspect=map_aspect,
-            nations=nations if nations else None,
-            players=players if players else None,
-            result_filter=result_filter if result_filter != "all" else None,
-        )
-
-        # Let the chart function handle empty data with a proper message
-        fig = create_pick_order_win_rate_chart(df)
-        return fig
-
-    except Exception as e:
-        logger.error(f"Error loading pick order win rate data: {e}")
-        return create_empty_chart_placeholder(f"Error: {str(e)}")
-
-
 # Generate callbacks for all yield charts
 def _create_yield_callback(
     yield_type: str,
@@ -2107,8 +1917,7 @@ def _create_yield_callback(
         Input("overview-nations-dropdown", "value"),
         Input("overview-players-dropdown", "value"),
         Input("overview-result-dropdown", "value"),
-        Input("refresh-interval", "n_intervals"),
-    )
+        )
     def update_yield_chart(
         round_num: Optional[list[int]],
         turn_length: Optional[int],
@@ -2118,7 +1927,6 @@ def _create_yield_callback(
         nations: Optional[List[str]],
         players: Optional[List[str]],
         result_filter: Optional[str],
-        n_intervals: int,
     ):
         try:
             queries = get_queries()
@@ -2167,6 +1975,7 @@ for yield_type, display_name, rate_color, cumulative_color in YIELD_CHARTS:
 # Science callback with scale toggle
 @callback(
     Output("overview-yield-science", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -2176,9 +1985,10 @@ for yield_type, display_name, rate_color, cumulative_color in YIELD_CHARTS:
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
     Input("overview-science-scale-toggle", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_science_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -2188,9 +1998,12 @@ def update_science_chart(
     players: Optional[List[str]],
     result_filter: Optional[str],
     scale_type: str,
-    n_intervals: int,
 ) -> go.Figure:
     """Update Science chart with scale toggle support."""
+    # Lazy loading: skip if tab not active
+    if active_tab != "yields-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -2228,6 +2041,7 @@ def update_science_chart(
 
 @callback(
     Output("overview-military-progression", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -2236,9 +2050,10 @@ def update_science_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_military_progression(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -2247,11 +2062,11 @@ def update_military_progression(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update military progression chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -2259,11 +2074,15 @@ def update_military_progression(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with line chart
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "yields-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -2293,6 +2112,7 @@ def update_military_progression(
 
 @callback(
     Output("overview-legitimacy-progression", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -2301,9 +2121,10 @@ def update_military_progression(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_legitimacy_progression(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -2312,11 +2133,11 @@ def update_legitimacy_progression(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update legitimacy progression chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -2324,11 +2145,15 @@ def update_legitimacy_progression(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with line chart
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "yields-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -2361,6 +2186,7 @@ def update_legitimacy_progression(
 
 @callback(
     Output("overview-expansion-timeline", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -2369,9 +2195,10 @@ def update_legitimacy_progression(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_expansion_timeline_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -2380,11 +2207,11 @@ def update_expansion_timeline_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update the city expansion timeline chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -2392,11 +2219,15 @@ def update_expansion_timeline_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with expansion timeline
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "cities-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -2426,6 +2257,7 @@ def update_expansion_timeline_chart(
 
 @callback(
     Output("overview-production-strategies", "figure"),
+    Input("overview-tabs", "active_tab"),
     Input("overview-round-filter-dropdown", "value"),
     Input("overview-turn-length-slider", "value"),
     Input("overview-map-size-dropdown", "value"),
@@ -2434,9 +2266,10 @@ def update_expansion_timeline_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
+    prevent_initial_call=True,
 )
 def update_production_strategies_chart(
+    active_tab: Optional[str],
     round_num: Optional[list[int]],
     turn_length: Optional[int],
     map_size: Optional[list[str]],
@@ -2445,11 +2278,11 @@ def update_production_strategies_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update the production strategies chart with filters.
 
     Args:
+        active_tab: Currently active tab
         round_num: Selected round number
         turn_length: Maximum turn number cutoff (None means no filter)
         map_size: Map size filter
@@ -2457,11 +2290,15 @@ def update_production_strategies_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure with production strategies
     """
+    # Lazy loading: skip if tab not active
+    if active_tab != "cities-tab":
+        raise dash.exceptions.PreventUpdate
+
     try:
         queries = get_queries()
         min_turns, max_turns = parse_turn_length(turn_length)
@@ -2499,7 +2336,6 @@ def update_production_strategies_chart(
     Input("overview-nations-dropdown", "value"),
     Input("overview-players-dropdown", "value"),
     Input("overview-result-dropdown", "value"),
-    Input("refresh-interval", "n_intervals"),
 )
 def update_science_correlation_chart(
     round_num: Optional[list[int]],
@@ -2510,7 +2346,6 @@ def update_science_correlation_chart(
     nations: Optional[List[str]],
     players: Optional[List[str]],
     result_filter: Optional[str],
-    n_intervals: int,
 ):
     """Update the science per turn correlation chart with filters.
 
@@ -2522,7 +2357,7 @@ def update_science_correlation_chart(
         map_aspect: Map aspect ratio filter
         nations: List of selected nations
         players: List of selected players
-        n_intervals: Number of interval triggers
+        result_filter: Filter by match result (winners/losers/all)
 
     Returns:
         Plotly figure for science per turn vs win rate
