@@ -907,3 +907,107 @@ hr {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Timeline Component Styles */
+.timeline-container {
+    max-height: 600px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+}
+
+.timeline-row {
+    display: flex !important;
+    flex-direction: row !important;
+    border-bottom: 1px solid var(--bs-border-color);
+    min-height: 32px;
+    width: 100%;
+}
+
+.timeline-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--bs-card-bg, #364c6b);
+    z-index: 10;
+}
+
+.timeline-cell-left,
+.timeline-cell-right {
+    flex: 1 1 40% !important;
+    padding: 6px 12px;
+    min-width: 0;
+}
+
+.timeline-cell-left {
+    text-align: right;
+    border-right: 1px solid var(--bs-border-color);
+}
+
+.timeline-cell-right {
+    text-align: left;
+    border-left: 1px solid var(--bs-border-color);
+}
+
+.timeline-cell-center {
+    flex: 0 0 60px !important;
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    text-align: center;
+    font-weight: bold;
+    color: var(--bs-secondary);
+    padding: 6px 4px;
+    background-color: var(--bs-tertiary-bg);
+}
+
+.timeline-event {
+    display: block;
+    cursor: help;
+    padding: 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timeline-event-icon {
+    margin-right: 8px;
+}
+
+.timeline-event-title {
+    font-size: 0.85rem;
+}
+
+/* Event type specific styling */
+.timeline-event-ruler {
+    color: #ffd43b;
+}
+
+.timeline-event-death {
+    color: #868e96;
+}
+
+.timeline-event-capital,
+.timeline-event-city {
+    color: #69db7c;
+}
+
+.timeline-event-tech {
+    color: #74c0fc;
+}
+
+.timeline-event-law,
+.timeline-event-law_swap {
+    color: #da77f2;
+}
+
+.timeline-event-wonder_start,
+.timeline-event-wonder_complete {
+    color: #ffa94d;
+}
+
+.timeline-event-battle {
+    color: #ff6b6b;
+}
+
+.timeline-event-uu_unlock {
+    color: #20c997;
+}

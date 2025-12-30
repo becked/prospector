@@ -4521,6 +4521,397 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query).df()
 
+    def get_match_timeline_events(self, match_id: int) -> pd.DataFrame:
+        """Get unified timeline of key game events for a match.
+
+        Combines tech discoveries, law adoptions, wonder construction, city founding,
+        ruler successions/deaths, and battle detection into a single timeline.
+
+        Args:
+            match_id: ID of the match
+
+        Returns:
+            DataFrame with columns:
+            - turn: int
+            - player_id: int
+            - event_type: str (tech, law, law_swap, wonder_start, wonder_complete,
+                              city, capital, ruler, death, battle, uu_unlock)
+            - title: str (short display text)
+            - details: str (hover tooltip)
+            - icon: str (emoji)
+            - subtype: str | None (tech type, law class, etc.)
+        """
+        from tournament_visualizer.data.game_constants import (
+            EVENT_PRIORITY,
+            IGNORED_LAWS,
+            LAW_TO_CLASS,
+            TECH_TYPES,
+            TIMELINE_ICONS,
+        )
+
+        query = """
+        WITH
+        -- 1. Tech events (excluding _BONUS_ variants)
+        tech_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                'tech' as event_type,
+                -- Title case: first letter uppercase, rest lowercase for each word
+                'Discovered: ' || ARRAY_TO_STRING(
+                    LIST_TRANSFORM(
+                        STRING_SPLIT(REPLACE(REPLACE(json_extract_string(e.event_data, '$.tech'), 'TECH_', ''), '_', ' '), ' '),
+                        word -> UPPER(word[1]) || LOWER(word[2:])
+                    ),
+                    ' '
+                ) as title,
+                e.description as details,
+                json_extract_string(e.event_data, '$.tech') as raw_value
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'TECH_DISCOVERED'
+              AND json_extract_string(e.event_data, '$.tech') NOT LIKE '%_BONUS_%'
+        ),
+
+        -- 2. Law events (with swap detection)
+        law_events_raw AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                json_extract_string(e.event_data, '$.law') as law,
+                e.description as details,
+                ROW_NUMBER() OVER (PARTITION BY e.player_id ORDER BY e.turn_number, e.event_id) as law_order
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'LAW_ADOPTED'
+        ),
+
+        -- 3. Wonder events (deduplicated, parsed from description)
+        wonder_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                CASE
+                    WHEN e.description LIKE '%has begun construction%'
+                      OR e.description LIKE '%begonnen%'
+                      OR e.description LIKE '%начинает%'
+                    THEN 'wonder_start'
+                    ELSE 'wonder_complete'
+                END as event_type,
+                e.description as details,
+                -- Extract wonder name from description
+                CASE
+                    -- English completed: "The X completed by..."
+                    WHEN e.description LIKE '%completed by%'
+                    THEN TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) completed', 1))
+                    -- English started: "...construction of X." or "...construction of X" (no punctuation)
+                    WHEN e.description LIKE '%construction of%'
+                    THEN TRIM(RTRIM(REGEXP_EXTRACT(e.description, 'construction of (.+)', 1), '.!'))
+                    -- German started: "begonnen: X."
+                    WHEN e.description LIKE '%begonnen:%'
+                    THEN TRIM(RTRIM(REGEXP_EXTRACT(e.description, 'begonnen: (.+)', 1), '.!'))
+                    -- German completed: "X (abgeschlossen|fertiggestellt)"
+                    WHEN e.description LIKE '%abgeschlossen%' OR e.description LIKE '%fertiggestellt%'
+                    THEN TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (abgeschlossen|fertiggestellt)', 1))
+                    ELSE e.description
+                END as wonder_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.turn_number,
+                        CASE
+                            WHEN e.description LIKE '%has begun construction%' THEN 'start'
+                            WHEN e.description LIKE '%completed by%' THEN 'complete'
+                            ELSE 'other'
+                        END,
+                        -- Dedupe by extracting what looks like a wonder name
+                        REGEXP_EXTRACT(e.description, '(Pyramids|Ishtar|Aqueduct|Jerwan|Colossus|Hanging|Mausoleum|Lighthouse|Library|Oracle|Parthenon|Sphinx|Stonehenge|Temple|Ziggurat|Great Wall|Necropolis|Royal Library|Royal Mint|Hagia Sophia|Tower)', 1)
+                    ORDER BY e.event_id
+                ) as rn
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'WONDER_ACTIVITY'
+        ),
+
+        -- 4. City founding events
+        city_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                CASE WHEN c.is_capital THEN 'capital' ELSE 'city' END as event_type,
+                CASE WHEN c.is_capital
+                    THEN 'Capital: ' || COALESCE(c.city_name, TRIM(REPLACE(e.description, 'Founded', '')))
+                    ELSE 'Founded: ' || COALESCE(c.city_name, TRIM(REPLACE(e.description, 'Founded', '')))
+                END as title,
+                e.description as details
+            FROM events e
+            LEFT JOIN cities c ON e.match_id = c.match_id
+                AND TRIM(REPLACE(e.description, 'Founded', '')) = c.city_name
+                AND e.player_id = c.player_id
+            WHERE e.match_id = ?
+              AND e.event_type = 'CITY_FOUNDED'
+        ),
+
+        -- 4b. City breach/capture events (deduplicated)
+        city_breach_events AS (
+            SELECT
+                e.turn_number as turn,
+                -- Assign to defender (player NOT mentioned as attacker in description)
+                CASE
+                    WHEN e.description LIKE '%' || p1.player_name || '%' THEN p2.player_id
+                    ELSE p1.player_id
+                END as player_id,
+                'city_lost' as event_type,
+                'Lost ' || TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) breached', 1)) as title,
+                e.description as details,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.turn_number,
+                        REGEXP_EXTRACT(e.description, '^\\s*(.+?) breached', 1)
+                    ORDER BY e.event_id
+                ) as rn
+            FROM events e
+            CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? LIMIT 1) p1
+            CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? ORDER BY player_id LIMIT 1 OFFSET 1) p2
+            WHERE e.match_id = ?
+              AND e.event_type = 'CITY_BREACHED'
+        ),
+
+        -- 5. Ruler succession events
+        ruler_events AS (
+            SELECT
+                r.succession_turn as turn,
+                r.player_id,
+                'ruler' as event_type,
+                CASE WHEN r.succession_order = 0
+                    THEN 'Starting Ruler: ' || r.ruler_name
+                    ELSE 'Crowned ' || r.ruler_name
+                END as title,
+                r.archetype || COALESCE(' - ' || r.starting_trait, '') as details,
+                r.succession_order
+            FROM rulers r
+            WHERE r.match_id = ?
+        ),
+
+        -- 6. Ruler death events (inferred from next succession - same turn as crowning)
+        death_events AS (
+            SELECT
+                r2.succession_turn as turn,
+                r1.player_id,
+                'death' as event_type,
+                r1.ruler_name || ' Died' as title,
+                'Ruler died' as details
+            FROM rulers r1
+            JOIN rulers r2 ON r1.match_id = r2.match_id
+                AND r1.player_id = r2.player_id
+                AND r2.succession_order = r1.succession_order + 1
+            WHERE r1.match_id = ?
+        ),
+
+        -- 7. Battle detection (20%+ military power drop)
+        military_with_change AS (
+            SELECT
+                m.turn_number,
+                m.player_id,
+                m.military_power,
+                LAG(m.military_power) OVER (
+                    PARTITION BY m.player_id ORDER BY m.turn_number
+                ) as prev_power
+            FROM player_military_history m
+            WHERE m.match_id = ?
+        ),
+        battle_events AS (
+            SELECT
+                turn_number as turn,
+                player_id,
+                'battle' as event_type,
+                'Lost Battle (-' || ROUND(100.0 * (prev_power - military_power) / NULLIF(prev_power, 0), 0) || '%)' as title,
+                'Lost ' || ROUND(100.0 * (prev_power - military_power) / NULLIF(prev_power, 0), 0) || '% military power' as details
+            FROM military_with_change
+            WHERE prev_power > 0
+              AND (prev_power - military_power) * 1.0 / prev_power >= 0.20
+        )
+
+        -- Combine all events
+        SELECT * FROM (
+            SELECT turn, player_id, event_type, title, details, raw_value as subtype
+            FROM tech_events
+
+            UNION ALL
+
+            SELECT turn, player_id,
+                   'law' as event_type,
+                   -- Title case for law names with "Adopted:" prefix
+                   'Adopted: ' || ARRAY_TO_STRING(
+                       LIST_TRANSFORM(
+                           STRING_SPLIT(REPLACE(REPLACE(law, 'LAW_', ''), '_', ' '), ' '),
+                           word -> UPPER(word[1]) || LOWER(word[2:])
+                       ),
+                       ' '
+                   ) as title,
+                   details,
+                   law as subtype
+            FROM law_events_raw
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type,
+                   CASE
+                       WHEN event_type = 'wonder_start' THEN 'Started: ' || wonder_name
+                       ELSE 'Completed: ' || wonder_name
+                   END as title,
+                   details, NULL as subtype
+            FROM wonder_events
+            WHERE rn = 1
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            FROM city_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            FROM city_breach_events
+            WHERE rn = 1
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            FROM ruler_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            FROM death_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            FROM battle_events
+        ) all_events
+        ORDER BY turn, player_id
+        """
+
+        params = [match_id] * 10  # 10 placeholders: tech, law, wonder, city, breach(x3), ruler, death, military
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            # Return empty DataFrame with correct schema
+            return pd.DataFrame(
+                columns=[
+                    "turn",
+                    "player_id",
+                    "event_type",
+                    "title",
+                    "details",
+                    "icon",
+                    "subtype",
+                ]
+            )
+
+        # Post-process: add icons and tech types
+        df["icon"] = df["event_type"].map(TIMELINE_ICONS).fillna("")
+
+        # Add tech type classification
+        def get_subtype(row: pd.Series) -> str | None:
+            if row["event_type"] == "tech" and row["subtype"]:
+                return TECH_TYPES.get(row["subtype"])
+            if row["event_type"] in ("law", "law_swap") and row["subtype"]:
+                # Filter out ignored laws
+                if row["subtype"] in IGNORED_LAWS:
+                    return None
+                return LAW_TO_CLASS.get(row["subtype"])
+            return row["subtype"]
+
+        df["subtype"] = df.apply(get_subtype, axis=1)
+
+        # Filter out ignored laws (titles are now "Adopted: X" format)
+        ignored_law_names = [l.replace("LAW_", "").replace("_", " ").title() for l in IGNORED_LAWS]
+        df = df[~((df["event_type"] == "law") & (df["subtype"].isna()) & (df["title"].str.replace("Adopted: ", "", regex=False).isin(ignored_law_names)))]
+
+        # Detect law swaps (same class adopted twice by same player)
+        law_history: dict[tuple[int, str], str] = {}  # (player_id, class) -> previous law title
+        swap_indices = []
+
+        for idx, row in df[df["event_type"] == "law"].iterrows():
+            player_id = row["player_id"]
+            law_class = row["subtype"]
+            if law_class and pd.notna(law_class):
+                key = (player_id, law_class)
+                if key in law_history:
+                    # This is a swap - extract law names from "Adopted: X" format
+                    prev_title = law_history[key]
+                    prev_law_name = prev_title.replace("Adopted: ", "")
+                    current_law_name = row["title"].replace("Adopted: ", "")
+                    # Update title to show swap
+                    df.at[idx, "title"] = f"Swapped {prev_law_name} → {current_law_name}"
+                    df.at[idx, "event_type"] = "law_swap"
+                    df.at[idx, "icon"] = TIMELINE_ICONS.get("law_swap", "⚖️")
+                # Track this law's title
+                law_history[key] = row["title"]
+
+        # Add UU unlock detection (4th and 7th law for each player)
+        # Only count new law categories, not law swaps (swaps don't unlock UUs)
+        law_counts: dict[int, int] = {}
+        uu_events = []
+
+        for idx, row in df[df["event_type"] == "law"].iterrows():
+            player_id = row["player_id"]
+            if pd.isna(player_id):
+                continue
+            player_id = int(player_id)
+            law_counts[player_id] = law_counts.get(player_id, 0) + 1
+            count = law_counts[player_id]
+
+            if count == 4:
+                uu_events.append(
+                    {
+                        "turn": row["turn"],
+                        "player_id": player_id,
+                        "event_type": "uu_unlock",
+                        "title": "6 Strength UU",
+                        "details": "Unlocked 6 strength unique unit (4th law)",
+                        "icon": TIMELINE_ICONS.get("uu_unlock", "🗡️"),
+                        "subtype": None,
+                    }
+                )
+            elif count == 7:
+                uu_events.append(
+                    {
+                        "turn": row["turn"],
+                        "player_id": player_id,
+                        "event_type": "uu_unlock",
+                        "title": "8 Strength UU",
+                        "details": "Unlocked 8 strength unique unit (7th law)",
+                        "icon": TIMELINE_ICONS.get("uu_unlock", "🗡️"),
+                        "subtype": None,
+                    }
+                )
+
+        if uu_events:
+            uu_df = pd.DataFrame(uu_events)
+            df = pd.concat([df, uu_df], ignore_index=True)
+
+        # Sort by turn, then by event priority
+        df["_priority"] = df["event_type"].map(EVENT_PRIORITY).fillna(99)
+        df = df.sort_values(["turn", "player_id", "_priority"]).drop(columns=["_priority"])
+
+        # Add player names
+        player_query = """
+        SELECT player_id, player_name
+        FROM players
+        WHERE match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            players_df = conn.execute(player_query, [match_id]).df()
+
+        if not players_df.empty:
+            df = df.merge(players_df, on="player_id", how="left")
+        else:
+            df["player_name"] = None
+
+        return df.reset_index(drop=True)
+
 
 # Global queries instance
 queries = TournamentQueries()
