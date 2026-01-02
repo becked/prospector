@@ -4632,20 +4632,26 @@ class TournamentQueries:
         ),
 
         -- 4. City founding events
+        -- Join on founded_turn since city names may differ between events and cities table
+        -- Falls back to family_archetype from event_data for rebel/captured cities
         city_events AS (
             SELECT
                 e.turn_number as turn,
                 e.player_id,
                 CASE WHEN c.is_capital THEN 'capital' ELSE 'city' END as event_type,
                 CASE WHEN c.is_capital
-                    THEN 'Capital: ' || COALESCE(c.city_name, TRIM(REPLACE(e.description, 'Founded', '')))
-                    ELSE 'Founded: ' || COALESCE(c.city_name, TRIM(REPLACE(e.description, 'Founded', '')))
+                    THEN 'Capital: ' || TRIM(REPLACE(e.description, 'Founded', ''))
+                    ELSE 'Founded: ' || TRIM(REPLACE(e.description, 'Founded', ''))
                 END as title,
-                e.description as details
+                COALESCE(
+                    c.family_name,
+                    'ARCHETYPE_' || (e.event_data->>'family_archetype'),
+                    ''
+                ) as details
             FROM events e
             LEFT JOIN cities c ON e.match_id = c.match_id
-                AND TRIM(REPLACE(e.description, 'Founded', '')) = c.city_name
                 AND e.player_id = c.player_id
+                AND e.turn_number = c.founded_turn
             WHERE e.match_id = ?
               AND e.event_type = 'CITY_FOUNDED'
         ),
@@ -4697,7 +4703,8 @@ class TournamentQueries:
                 r1.player_id,
                 'death' as event_type,
                 r1.ruler_name || ' Died' as title,
-                'Ruler died' as details
+                'Ruler died' as details,
+                r1.succession_order
             FROM rulers r1
             JOIN rulers r2 ON r1.match_id = r2.match_id
                 AND r1.player_id = r2.player_id
@@ -4731,7 +4738,7 @@ class TournamentQueries:
 
         -- Combine all events
         SELECT * FROM (
-            SELECT turn, player_id, event_type, title, details, raw_value as subtype
+            SELECT turn, player_id, event_type, title, details, raw_value as subtype, NULL as succession_order
             FROM tech_events
 
             UNION ALL
@@ -4747,7 +4754,8 @@ class TournamentQueries:
                        ' '
                    ) as title,
                    details,
-                   law as subtype
+                   law as subtype,
+                   NULL as succession_order
             FROM law_events_raw
 
             UNION ALL
@@ -4757,37 +4765,37 @@ class TournamentQueries:
                        WHEN event_type = 'wonder_start' THEN 'Started: ' || wonder_name
                        ELSE 'Completed: ' || wonder_name
                    END as title,
-                   details, NULL as subtype
+                   details, NULL as subtype, NULL as succession_order
             FROM wonder_events
             WHERE rn = 1
 
             UNION ALL
 
-            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM city_events
 
             UNION ALL
 
-            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM city_breach_events
             WHERE rn = 1
 
             UNION ALL
 
-            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, succession_order
             FROM ruler_events
 
             UNION ALL
 
-            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, succession_order
             FROM death_events
 
             UNION ALL
 
-            SELECT turn, player_id, event_type, title, details, NULL as subtype
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM battle_events
         ) all_events
-        ORDER BY turn, player_id
+        ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
         params = [match_id] * 10  # 10 placeholders: tech, law, wonder, city, breach(x3), ruler, death, military
@@ -4911,6 +4919,149 @@ class TournamentQueries:
             df["player_name"] = None
 
         return df.reset_index(drop=True)
+
+    def get_match_turn_comparisons(
+        self,
+        match_id: int,
+        player1_id: int,
+        player2_id: int,
+    ) -> pd.DataFrame:
+        """Get per-turn comparison metrics for game state analysis.
+
+        Returns military power, orders, and science for both players at each turn,
+        with interpolation to fill missing values (carry forward last known value).
+
+        Args:
+            match_id: ID of the match
+            player1_id: Database player ID for player 1 (left column)
+            player2_id: Database player ID for player 2 (right column)
+
+        Returns:
+            DataFrame with columns:
+            - turn_number: int
+            - p1_military, p2_military: Military power values
+            - p1_orders, p2_orders: Orders per turn (display-ready, divided by 10)
+            - p1_science, p2_science: Science per turn (display-ready, divided by 10)
+            - mil_ratio, orders_ratio, science_ratio: P1/P2 ratios for comparison
+        """
+        query = """
+        WITH
+        -- Get all turns from military history (most complete source)
+        all_turns AS (
+            SELECT DISTINCT turn_number
+            FROM player_military_history
+            WHERE match_id = ?
+        ),
+
+        -- Military power per player per turn
+        military AS (
+            SELECT turn_number, player_id, military_power
+            FROM player_military_history
+            WHERE match_id = ?
+        ),
+
+        -- Orders per player per turn
+        orders AS (
+            SELECT turn_number, player_id, amount / 10.0 as orders
+            FROM player_yield_history
+            WHERE match_id = ? AND resource_type = 'YIELD_ORDERS'
+        ),
+
+        -- Science per player per turn
+        science AS (
+            SELECT turn_number, player_id, amount / 10.0 as science
+            FROM player_yield_history
+            WHERE match_id = ? AND resource_type = 'YIELD_SCIENCE'
+        ),
+
+        -- Pivot to get p1 and p2 columns, then interpolate
+        combined AS (
+            SELECT
+                t.turn_number,
+                -- Player 1 metrics
+                m1.military_power as p1_military_raw,
+                o1.orders as p1_orders_raw,
+                s1.science as p1_science_raw,
+                -- Player 2 metrics
+                m2.military_power as p2_military_raw,
+                o2.orders as p2_orders_raw,
+                s2.science as p2_science_raw
+            FROM all_turns t
+            LEFT JOIN military m1 ON t.turn_number = m1.turn_number AND m1.player_id = ?
+            LEFT JOIN military m2 ON t.turn_number = m2.turn_number AND m2.player_id = ?
+            LEFT JOIN orders o1 ON t.turn_number = o1.turn_number AND o1.player_id = ?
+            LEFT JOIN orders o2 ON t.turn_number = o2.turn_number AND o2.player_id = ?
+            LEFT JOIN science s1 ON t.turn_number = s1.turn_number AND s1.player_id = ?
+            LEFT JOIN science s2 ON t.turn_number = s2.turn_number AND s2.player_id = ?
+        ),
+
+        -- Forward-fill missing values using last known value
+        interpolated AS (
+            SELECT
+                turn_number,
+                -- Use LAST_VALUE with IGNORE NULLS to carry forward
+                LAST_VALUE(p1_military_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p1_military,
+                LAST_VALUE(p2_military_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p2_military,
+                LAST_VALUE(p1_orders_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p1_orders,
+                LAST_VALUE(p2_orders_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p2_orders,
+                LAST_VALUE(p1_science_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p1_science,
+                LAST_VALUE(p2_science_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p2_science
+            FROM combined
+        )
+
+        SELECT
+            turn_number,
+            COALESCE(p1_military, 0) as p1_military,
+            COALESCE(p2_military, 0) as p2_military,
+            COALESCE(p1_orders, 0) as p1_orders,
+            COALESCE(p2_orders, 0) as p2_orders,
+            COALESCE(p1_science, 0) as p1_science,
+            COALESCE(p2_science, 0) as p2_science,
+            -- Compute ratios (avoid division by zero)
+            CASE
+                WHEN COALESCE(p2_military, 0) = 0 THEN NULL
+                ELSE COALESCE(p1_military, 0) / p2_military
+            END as mil_ratio,
+            CASE
+                WHEN COALESCE(p2_orders, 0) = 0 THEN NULL
+                ELSE COALESCE(p1_orders, 0) / p2_orders
+            END as orders_ratio,
+            CASE
+                WHEN COALESCE(p2_science, 0) = 0 THEN NULL
+                ELSE COALESCE(p1_science, 0) / p2_science
+            END as science_ratio
+        FROM interpolated
+        ORDER BY turn_number
+        """
+
+        # Parameters: match_id (4x), then player IDs for joins (6x alternating p1, p2)
+        params = [
+            match_id,  # all_turns
+            match_id,  # military
+            match_id,  # orders
+            match_id,  # science
+            player1_id,  # m1 join
+            player2_id,  # m2 join
+            player1_id,  # o1 join
+            player2_id,  # o2 join
+            player1_id,  # s1 join
+            player2_id,  # s2 join
+        ]
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
 
 
 # Global queries instance

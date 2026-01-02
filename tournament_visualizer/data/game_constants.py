@@ -4,6 +4,12 @@ This module contains classification dictionaries and mappings used for timeline
 event categorization and display.
 """
 
+from pathlib import Path
+from typing import Optional
+
+# Base path for icon assets on filesystem
+_ASSETS_DIR = Path(__file__).parent.parent / "assets" / "icons"
+
 # Tech types classified by thematic focus: science, civics, training, growth
 # All 43 non-bonus techs from database
 TECH_TYPES: dict[str, str] = {
@@ -108,3 +114,233 @@ EVENT_PRIORITY: dict[str, int] = {
     "wonder_start": 11,
     "battle": 12,
 }
+
+# =============================================================================
+# Icon Path Mappings for Timeline Display
+# =============================================================================
+# All paths are relative to Dash assets folder (/assets/icons/...)
+
+ICON_BASE_PATH = "/assets/icons"
+
+# Ruler archetype icons - maps archetype name to icon filename
+ARCHETYPE_ICONS: dict[str, str] = {
+    "Builder": f"{ICON_BASE_PATH}/traits/TRAIT_BUILDER.png",
+    "Commander": f"{ICON_BASE_PATH}/traits/TRAIT_COMMANDER.png",
+    "Diplomat": f"{ICON_BASE_PATH}/traits/TRAIT_DIPLOMAT.png",
+    "Hero": f"{ICON_BASE_PATH}/traits/TRAIT_HERO.png",
+    "Judge": f"{ICON_BASE_PATH}/traits/TRAIT_JUDGE.png",
+    "Orator": f"{ICON_BASE_PATH}/traits/TRAIT_ORATOR.png",
+    "Schemer": f"{ICON_BASE_PATH}/traits/TRAIT_SCHEMER.png",
+    "Scholar": f"{ICON_BASE_PATH}/traits/TRAIT_SCHOLAR.png",
+    "Tactician": f"{ICON_BASE_PATH}/traits/TRAIT_TACTICIAN.png",
+    "Zealot": f"{ICON_BASE_PATH}/traits/TRAIT_ZEALOT.png",
+}
+
+
+def get_tech_icon_path(tech_name: str) -> Optional[str]:
+    """Get icon path for a technology.
+
+    Args:
+        tech_name: Display name like "Forestry" or "Military Drill"
+
+    Returns:
+        Icon path like "/assets/icons/techs/TECH_FORESTRY.png", or None if not found
+    """
+    tech_key = f"TECH_{tech_name.upper().replace(' ', '_')}"
+    icon_file = _ASSETS_DIR / "techs" / f"{tech_key}.png"
+    if icon_file.exists():
+        return f"{ICON_BASE_PATH}/techs/{tech_key}.png"
+    return None
+
+
+def get_law_icon_path(law_name: str) -> Optional[str]:
+    """Get icon path for a law.
+
+    Args:
+        law_name: Display name like "Slavery" or "Professional Army"
+
+    Returns:
+        Icon path like "/assets/icons/laws/LAW_SLAVERY.png", or None if not found
+    """
+    law_key = f"LAW_{law_name.upper().replace(' ', '_')}"
+    icon_file = _ASSETS_DIR / "laws" / f"{law_key}.png"
+    if icon_file.exists():
+        return f"{ICON_BASE_PATH}/laws/{law_key}.png"
+    return None
+
+
+# Wonder name mappings for localized names and special cases
+WONDER_NAME_MAPPINGS: dict[str, str] = {
+    # English names -> improvement key (without IMPROVEMENT_ prefix)
+    "Acropolis": "ACROPOLIS",
+    "Apadana": "APADANA",
+    "Circus Maximus": "CIRCUS_MAXIMUS",
+    "Colosseum": "COLOSSEUM",
+    "Colossus": "COLOSSUS",
+    "Cothon": "COTHON",
+    "Hanging Gardens": "HANGING_GARDENS",
+    "Heliopolis": "HELIOPOLIS",
+    "Ishtar Gate": "ISHTAR_GATE",
+    "Jebel Barkal": "JEBEL_BARKAL",
+    "Jerwan Aqueduct": "JERWAN_AQUEDUCT",
+    "Lighthouse": "LIGHTHOUSE",
+    "Mausoleum": "MAUSOLEUM",
+    "Musaeum": "MUSAEUM",
+    "Necropolis": "NECROPOLIS",
+    "Oracle": "ORACLE",
+    "Pantheon": "PANTHEON",
+    "Pyramids": "PYRAMIDS",
+    "Yazilikaya": "YAZILIKAYA",
+    "Ziggurat": "GREAT_ZIGGURAT",
+    # German names
+    "Hängende Gärten": "HANGING_GARDENS",
+    "Jervan-Aquädukt": "JERWAN_AQUEDUCT",
+    "Nekropole": "NECROPOLIS",
+    # Russian names (transliterated)
+    "Висячие сады": "HANGING_GARDENS",
+    "Акрополь": "ACROPOLIS",
+    "Джерванский акведук": "JERWAN_AQUEDUCT",
+    "Зиккурат": "GREAT_ZIGGURAT",
+    "Мавзолей": "MAUSOLEUM",
+}
+
+
+# Family-to-archetype mappings by nation
+NATION_FAMILIES: dict[str, dict[str, str]] = {
+    "Assyria": {
+        "Sargonid": "Champions",
+        "Tudiya": "Hunters",
+        "Adasi": "Patrons",
+        "Erishum": "Clerics",
+    },
+    "Babylonia": {
+        "Kassite": "Hunters",
+        "Chaldean": "Artisans",
+        "Isin": "Traders",
+        "Amorite": "Sages",
+    },
+    "Carthage": {
+        "Barcid": "Riders",
+        "Magonid": "Artisans",
+        "Hannonid": "Traders",
+        "Didonian": "Statesmen",
+    },
+    "Egypt": {
+        "Ramesside": "Riders",
+        "Saite": "Landowners",
+        "Amarna": "Clerics",
+        "Thutmosid": "Sages",
+    },
+    "Greece": {
+        "Argead": "Champions",
+        "Cypselid": "Artisans",
+        "Seleucid": "Patrons",
+        "Alcmaeonid": "Sages",
+    },
+    "Persia": {
+        "Sasanid": "Clerics",
+        "Mihranid": "Hunters",
+        "Arsacid": "Riders",
+        "Achaemenid": "Statesmen",
+    },
+    "Rome": {
+        "Fabius": "Champions",
+        "Claudius": "Landowners",
+        "Valerius": "Patrons",
+        "Julius": "Statesmen",
+    },
+    "Hittite": {
+        "Kussaran": "Riders",
+        "Nenassan": "Landowners",
+        "Zalpuwan": "Patrons",
+        "Hattusan": "Traders",
+    },
+    "Kush": {
+        "Yam": "Hunters",
+        "Irtjet": "Artisans",
+        "Wawat": "Traders",
+        "Setju": "Landowners",
+    },
+    "Aksum": {
+        "Agaw": "Champions",
+        "Agazi": "Traders",
+        "Tigrayan": "Clerics",
+        "Barya": "Patrons",
+    },
+}
+
+# Reverse lookup: family name -> archetype (flattened from NATION_FAMILIES)
+FAMILY_TO_ARCHETYPE: dict[str, str] = {
+    family: archetype
+    for nation_families in NATION_FAMILIES.values()
+    for family, archetype in nation_families.items()
+}
+
+
+def get_family_crest_icon_path(family_name: str, is_seat: bool = False) -> Optional[str]:
+    """Get icon path for a family crest based on archetype.
+
+    Args:
+        family_name: Database family name like "FAMILY_BARCID", display name like "Barcid",
+                     or direct archetype like "ARCHETYPE_CLERICS"
+        is_seat: If True, return the seat (capital) version of the crest
+
+    Returns:
+        Icon path like "/assets/icons/crests/CREST_ARCHETYPE_RIDERS.png", or None if not found
+    """
+    # Handle direct archetype reference (from event_data for rebel/captured cities)
+    if family_name.startswith("ARCHETYPE_"):
+        archetype = family_name.replace("ARCHETYPE_", "")
+        suffix = "_SEAT" if is_seat else ""
+        crest_key = f"CREST_ARCHETYPE_{archetype.upper()}{suffix}"
+        icon_file = _ASSETS_DIR / "crests" / f"{crest_key}.png"
+        if icon_file.exists():
+            return f"{ICON_BASE_PATH}/crests/{crest_key}.png"
+        return None
+
+    # Strip FAMILY_ prefix if present and capitalize
+    name = family_name.replace("FAMILY_", "").replace("_", " ").title().replace(" ", "")
+
+    # Handle names like "AKSUM_AGAW" -> "Agaw"
+    if "_" in family_name:
+        parts = family_name.replace("FAMILY_", "").split("_")
+        name = parts[-1].title()  # Take last part (the actual family name)
+
+    archetype = FAMILY_TO_ARCHETYPE.get(name)
+    if not archetype:
+        return None
+
+    suffix = "_SEAT" if is_seat else ""
+    crest_key = f"CREST_ARCHETYPE_{archetype.upper()}{suffix}"
+    icon_file = _ASSETS_DIR / "crests" / f"{crest_key}.png"
+    if icon_file.exists():
+        return f"{ICON_BASE_PATH}/crests/{crest_key}.png"
+    return None
+
+
+def get_wonder_icon_path(wonder_name: str) -> Optional[str]:
+    """Get icon path for a wonder.
+
+    Args:
+        wonder_name: Display name like "The Hanging Gardens" or "Pyramids"
+
+    Returns:
+        Icon path like "/assets/icons/wonders/IMPROVEMENT_HANGING_GARDENS.png",
+        or None if not found
+    """
+    # Strip "The " prefix if present
+    name = wonder_name.strip()
+    if name.startswith("The "):
+        name = name[4:]
+
+    # Check mapping first for localized names
+    if name in WONDER_NAME_MAPPINGS:
+        wonder_key = f"IMPROVEMENT_{WONDER_NAME_MAPPINGS[name]}"
+    else:
+        # Try direct conversion
+        wonder_key = f"IMPROVEMENT_{name.upper().replace(' ', '_')}"
+
+    icon_file = _ASSETS_DIR / "wonders" / f"{wonder_key}.png"
+    if icon_file.exists():
+        return f"{ICON_BASE_PATH}/wonders/{wonder_key}.png"
+    return None

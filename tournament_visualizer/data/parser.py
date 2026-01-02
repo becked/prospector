@@ -5,6 +5,7 @@ tournament data including match information, players, game state, and events.
 """
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime
@@ -547,7 +548,7 @@ class OldWorldSaveParser:
         text = text_elem.text if text_elem is not None else None
 
         # Build event_data based on event type
-        event_data = self._build_logdata_event_data(event_type, data1, data2, data3)
+        event_data = self._build_logdata_event_data(event_type, data1, data2, data3, text)
 
         # Build description
         description = self._format_logdata_event(event_type, event_data, text)
@@ -568,6 +569,7 @@ class OldWorldSaveParser:
         data1: Optional[str],
         data2: Optional[str],
         data3: Optional[str],
+        raw_text: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Build event_data dict based on event type.
 
@@ -575,12 +577,14 @@ class OldWorldSaveParser:
         the event type. Different event types use these fields for different purposes:
         - LAW_ADOPTED: Data1 contains the law constant (e.g., 'LAW_SLAVERY')
         - TECH_DISCOVERED: Data1 contains the tech constant (e.g., 'TECH_WRITING')
+        - CITY_FOUNDED: Family archetype extracted from raw text
 
         Args:
             event_type: Type of LogData event (e.g., 'LAW_ADOPTED', 'TECH_DISCOVERED')
             data1: Primary data field (most commonly used)
             data2: Secondary data field (event-specific usage)
             data3: Tertiary data field (event-specific usage)
+            raw_text: Raw Text element content (contains HTML-like markup with extra data)
 
         Returns:
             Dictionary of event data with event-specific keys, or None if no data to extract
@@ -595,7 +599,13 @@ class OldWorldSaveParser:
         if event_type == "TECH_DISCOVERED" and data1:
             return {"tech": data1}
 
-        # Add more event types as needed (YAGNI - only implement what we need now)
+        if event_type == "CITY_FOUNDED" and raw_text:
+            # Extract family archetype from raw text like:
+            # 'Founded ... name="CREST_ARCHETYPE_CLERICS" ... Nisibis'
+            # The archetype tells us which family the city belongs to
+            match = re.search(r'CREST_ARCHETYPE_(\w+)', raw_text)
+            if match:
+                return {"family_archetype": match.group(1)}
 
         return None
 

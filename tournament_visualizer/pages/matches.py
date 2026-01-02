@@ -57,10 +57,7 @@ from tournament_visualizer.components.tech_tree import (
     get_techs_at_turn,
     TECH_TREE_STYLESHEET,
 )
-from tournament_visualizer.components.timeline import (
-    create_timeline_component,
-    expand_filter_types,
-)
+from tournament_visualizer.components.game_state import create_game_state_component
 from tournament_visualizer.tech_tree import TECHS
 
 logger = logging.getLogger(__name__)
@@ -165,6 +162,7 @@ layout = html.Div(
                 )
             ],
             className="mb-4",
+            style={"position": "relative", "zIndex": 100},
         ),
         # Match details section (shown when match is selected)
         html.Div(id="match-details-section", style={"display": "none"}),
@@ -495,33 +493,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Overview",
                         "tab_id": "overview",
                         "content": [
-                            # Filter checkboxes
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            dbc.Checklist(
-                                                id="match-overview-filters",
-                                                options=[
-                                                    {"label": "Tech", "value": "tech"},
-                                                    {"label": "Laws", "value": "law"},
-                                                    {"label": "Wonders", "value": "wonder"},
-                                                    {"label": "Cities", "value": "city"},
-                                                    {"label": "Rulers", "value": "ruler"},
-                                                    {"label": "Battles", "value": "battle"},
-                                                    {"label": "UU Unlock", "value": "uu"},
-                                                ],
-                                                value=["tech", "law", "ruler", "battle", "uu"],
-                                                inline=True,
-                                                className="mb-2",
-                                            )
-                                        ],
-                                        width=12,
-                                    )
-                                ],
-                                className="mt-3 mb-2",
-                            ),
-                            # Timeline container
+                            # Game state comparison table
                             dbc.Row(
                                 [
                                     dbc.Col(
@@ -531,8 +503,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                     dbc.CardBody(
                                                         [
                                                             html.Div(
-                                                                id="match-overview-timeline",
-                                                                className="timeline-container",
+                                                                id="match-overview-table",
+                                                                className="game-state-container",
                                                             )
                                                         ]
                                                     )
@@ -542,6 +514,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     )
                                 ],
+                                className="mt-3",
                             ),
                         ],
                     },
@@ -1154,25 +1127,22 @@ def update_match_details(match_id: Optional[int]) -> tuple:
 
 
 @callback(
-    Output("match-overview-timeline", "children"),
+    Output("match-overview-table", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
-    Input("match-overview-filters", "value"),
 )
-def update_overview_timeline(
+def update_overview_table(
     active_tab: Optional[str],
     match_id: Optional[int],
-    filters: Optional[list[str]],
 ) -> html.Div:
-    """Update the overview timeline component.
+    """Update the overview comparison table.
 
     Args:
         active_tab: Currently active tab ID
         match_id: Selected match ID
-        filters: List of event type filters to show
 
     Returns:
-        Timeline component HTML
+        Overview comparison component HTML
     """
     # Lazy loading - only update when Overview tab is active
     if active_tab != "overview":
@@ -1181,64 +1151,81 @@ def update_overview_timeline(
     if not match_id:
         return create_empty_state(
             title="Select a Match",
-            message="Choose a match from the dropdown to view the timeline.",
-            icon="bi-calendar3",
+            message="Choose a match from the dropdown to view match overview.",
+            icon="bi-bar-chart",
         )
-
-    if not filters:
-        filters = []
 
     try:
         queries = get_queries()
 
-        # Get timeline events
+        # Get timeline events for the icons column
         events_df = queries.get_match_timeline_events(match_id)
 
-        if events_df.empty:
-            return create_empty_state(
-                title="No Timeline Events",
-                message="No events found for this match.",
-                icon="bi-calendar-x",
-            )
-
-        # Apply filters
-        filter_types = expand_filter_types(filters)
-        if filter_types:
-            events_df = events_df[events_df["event_type"].isin(filter_types)]
-
-        if events_df.empty:
-            return create_empty_state(
-                title="No Matching Events",
-                message="No events match the selected filters.",
-                icon="bi-funnel-fill",
-            )
-
-        # Get player info and colors
-        players_df = queries.get_match_summary()
-        match_info = players_df[players_df["match_id"] == match_id]
-
-        # Get player IDs from the match
-        player_ids = events_df["player_id"].dropna().unique()
-        if len(player_ids) < 2:
-            # Fall back to default colors if we can't determine players
-            player1_id = player_ids[0] if len(player_ids) > 0 else 1
-            player2_id = player_ids[1] if len(player_ids) > 1 else 2
+        # Get player IDs from events or match summary
+        if not events_df.empty:
+            player_ids = events_df["player_id"].dropna().unique()
+            if len(player_ids) >= 2:
+                player1_id = int(min(player_ids))
+                player2_id = int(max(player_ids))
+            else:
+                # Fall back to match summary
+                players_df = queries.get_match_summary()
+                match_info = players_df[players_df["match_id"] == match_id]
+                if not match_info.empty:
+                    player1_id = int(match_info.iloc[0]["player1_id"])
+                    player2_id = int(match_info.iloc[0]["player2_id"])
+                else:
+                    return create_empty_state(
+                        title="No Player Data",
+                        message="Unable to determine players for this match.",
+                        icon="bi-people",
+                    )
         else:
-            player1_id = int(min(player_ids))
-            player2_id = int(max(player_ids))
+            # Get player IDs from match summary
+            players_df = queries.get_match_summary()
+            match_info = players_df[players_df["match_id"] == match_id]
+            if not match_info.empty:
+                player1_id = int(match_info.iloc[0]["player1_id"])
+                player2_id = int(match_info.iloc[0]["player2_id"])
+            else:
+                return create_empty_state(
+                    title="No Match Data",
+                    message="Unable to load match data.",
+                    icon="bi-exclamation-circle",
+                )
+
+        # Get comparison data
+        comparison_df = queries.get_match_turn_comparisons(
+            match_id, player1_id, player2_id
+        )
+
+        if comparison_df.empty:
+            return create_empty_state(
+                title="No Comparison Data",
+                message="No turn-by-turn data available for this match.",
+                icon="bi-bar-chart",
+            )
+
+        # Filter to only turns with events (no interpolation)
+        if not events_df.empty:
+            event_turns = events_df["turn"].unique()
+            comparison_df = comparison_df[
+                comparison_df["turn_number"].isin(event_turns)
+            ]
 
         # Get player names
-        player_names = events_df[["player_id", "player_name"]].drop_duplicates()
         player1_name = "Player 1"
         player2_name = "Player 2"
 
-        for _, row in player_names.iterrows():
-            if row["player_id"] == player1_id:
-                player1_name = row["player_name"] or "Player 1"
-            elif row["player_id"] == player2_id:
-                player2_name = row["player_name"] or "Player 2"
+        if not events_df.empty:
+            player_names = events_df[["player_id", "player_name"]].drop_duplicates()
+            for _, row in player_names.iterrows():
+                if row["player_id"] == player1_id:
+                    player1_name = row["player_name"] or "Player 1"
+                elif row["player_id"] == player2_id:
+                    player2_name = row["player_name"] or "Player 2"
 
-        # Get nation colors (keyed by player name)
+        # Get nation colors
         try:
             colors = get_player_colors_for_match(match_id)
             player1_color = colors.get(player1_name, "#4dabf7")
@@ -1247,7 +1234,8 @@ def update_overview_timeline(
             player1_color = "#4dabf7"
             player2_color = "#ff6b6b"
 
-        return create_timeline_component(
+        return create_game_state_component(
+            comparison_df=comparison_df,
             events_df=events_df,
             player1_name=player1_name,
             player2_name=player2_name,
@@ -1258,10 +1246,10 @@ def update_overview_timeline(
         )
 
     except Exception as e:
-        logger.error(f"Error updating overview timeline: {e}")
+        logger.error(f"Error updating game state table: {e}")
         return create_empty_state(
-            title="Error Loading Timeline",
-            message=f"Unable to load timeline: {str(e)}",
+            title="Error Loading Game State",
+            message=f"Unable to load game state: {str(e)}",
             icon="bi-exclamation-triangle",
         )
 

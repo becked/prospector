@@ -910,8 +910,6 @@ hr {
 
 /* Timeline Component Styles */
 .timeline-container {
-    max-height: 600px;
-    overflow-y: auto;
     font-size: 0.9rem;
 }
 
@@ -961,7 +959,6 @@ hr {
 
 .timeline-event {
     display: block;
-    cursor: help;
     padding: 2px 0;
     white-space: nowrap;
     overflow: hidden;

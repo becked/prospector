@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 
 from tournament_visualizer.components.layouts import create_empty_state
+from tournament_visualizer.data.game_constants import get_tech_icon_path, get_law_icon_path, ARCHETYPE_ICONS
 
 
 def create_timeline_component(
@@ -67,6 +68,7 @@ def create_timeline_component(
         "padding": "6px 12px",
         "textAlign": "right",
         "borderRight": "1px solid var(--bs-border-color)",
+        "backgroundColor": "#0e1b2e",  # Match page background
     }
 
     center_cell_style = {
@@ -84,6 +86,7 @@ def create_timeline_component(
         "padding": "6px 12px",
         "textAlign": "left",
         "borderLeft": "1px solid var(--bs-border-color)",
+        "backgroundColor": "#0e1b2e",  # Match page background
     }
 
     # Header row with player names
@@ -122,7 +125,7 @@ def create_timeline_component(
             **row_style,
             "position": "sticky",
             "top": "0",
-            "backgroundColor": "var(--bs-card-bg, #364c6b)",
+            "backgroundColor": "#172133",  # Dark header background
             "zIndex": "10",
             "borderBottom": "none",
         },
@@ -177,6 +180,7 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
     """Build a list of event components from DataFrame rows.
 
     Consolidates multiple events of the same type into a single line.
+    Pairs death events with their corresponding ruler crowning events.
 
     Args:
         events_df: DataFrame with event data
@@ -187,8 +191,50 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
     if events_df.empty:
         return []
 
+    # Separate death, crowned, starting ruler, and other events
+    death_events = events_df[events_df["event_type"] == "death"]
+    ruler_events = events_df[events_df["event_type"] == "ruler"]
+    crowned_events = ruler_events[ruler_events["title"].str.startswith("Crowned ")]
+    starting_events = ruler_events[ruler_events["title"].str.startswith("Starting Ruler:")]
+    other_events = events_df[~events_df["event_type"].isin(["death", "ruler"])]
+
+    event_items = []
+
+    # Convert to lists - they should already be in succession order from the query
+    death_list = list(death_events.iterrows())
+    crowned_list = list(crowned_events.iterrows())
+
+    # Pair deaths with crownings by position (1:1 in succession order)
+    # Same-name successions are valid (parent → child with same name)
+    for i, (_, death_row) in enumerate(death_list):
+        dead_name = death_row.get("title", "").replace(" Died", "")
+
+        if i < len(crowned_list):
+            _, ruler_row = crowned_list[i]
+            new_ruler_name = ruler_row.get("title", "").replace("Crowned ", "")
+            details = ruler_row.get("details", "")
+
+            # Create archetype icon for the new ruler
+            icon_element = _create_icon_element("ruler", ruler_row.get("title", ""), "👑", details)
+
+            # Format: "OldRuler Died → NewRuler {icon} Crowned"
+            css_class = "timeline-event timeline-event-ruler"
+            event_items.append(
+                html.Div(
+                    [f"{dead_name} Died → {new_ruler_name} ", icon_element, " Crowned"],
+                    className=css_class,
+                    style={"color": "#edf2f7"},
+                )
+            )
+        else:
+            # No matching ruler, show death alone
+            event_items.append(_format_event_item(death_row))
+
+    # Add starting ruler events (not paired with deaths)
+    for _, ruler_row in starting_events.iterrows():
+        event_items.append(_format_event_item(ruler_row))
+
     # Event types that can be consolidated with their prefix to strip
-    # Prefixes must match what's in the database
     consolidatable = {
         "tech": "Discovered: ",
         "law": "Adopted: ",
@@ -196,8 +242,8 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
         "capital": "Capital: ",
     }
 
-    event_items = []
-    grouped = events_df.groupby("event_type")
+    # Process other events
+    grouped = other_events.groupby("event_type")
 
     for event_type, group in grouped:
         if event_type in consolidatable and len(group) > 1:
@@ -206,39 +252,105 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
             items = []
             for _, row in group.iterrows():
                 title = row.get("title", "")
-                # Strip the prefix to get just the item name
                 if title.startswith(prefix):
                     items.append(title[len(prefix):])
                 else:
                     items.append(title)
 
-            icon = group.iloc[0].get("icon", "")
-            # Use prefix as-is (already includes colon/formatting)
+            fallback_icon = group.iloc[0].get("icon", "")
             consolidated_title = f"{prefix}{', '.join(items)}"
             css_class = f"timeline-event timeline-event-{event_type}"
 
-            event_items.append(
-                html.Div(
-                    f"{icon}  {consolidated_title}",
-                    className=css_class,
+            if event_type == "tech":
+                icons = [
+                    html.Img(
+                        src=get_tech_icon_path(name),
+                        className="timeline-icon",
+                        title=name,
+                        style={"width": "36px", "height": "36px", "verticalAlign": "middle", "marginRight": "2px"},
+                    )
+                    for name in items
+                ]
+                event_items.append(
+                    html.Div(icons, className=css_class, style={"color": "#edf2f7"})
                 )
-            )
+            elif event_type == "law":
+                icons = [
+                    html.Img(
+                        src=get_law_icon_path(name),
+                        className="timeline-icon",
+                        title=f"Adopted: {name}",
+                        style={"width": "36px", "height": "36px", "verticalAlign": "middle", "marginRight": "2px"},
+                    )
+                    for name in items
+                ]
+                event_items.append(
+                    html.Div(icons + [f"  {consolidated_title}"], className=css_class, style={"color": "#edf2f7"})
+                )
+            else:
+                event_items.append(
+                    html.Div(
+                        f"{fallback_icon}  {consolidated_title}",
+                        className=css_class,
+                        style={"color": "#edf2f7"},
+                    )
+                )
         else:
-            # Show each event individually
             for _, row in group.iterrows():
                 event_items.append(_format_event_item(row))
 
     return event_items
 
 
-def _format_event_item(row: pd.Series) -> html.Span:
+def _create_icon_element(
+    event_type: str, title: str, fallback_emoji: str, details: str = ""
+) -> html.Img | html.Span:
+    """Create an icon element - game image or fallback emoji.
+
+    Args:
+        event_type: Type of event (tech, law, ruler, etc.)
+        title: Event title to extract name from
+        fallback_emoji: Emoji to use if no game icon available
+        details: Event details (used for ruler archetype)
+
+    Returns:
+        html.Img for game icons, html.Span for emoji fallback
+    """
+    icon_path = None
+    tooltip = title
+
+    if event_type == "tech" and title.startswith("Discovered: "):
+        tech_name = title[12:]  # Strip "Discovered: "
+        icon_path = get_tech_icon_path(tech_name)
+        tooltip = tech_name  # Just the tech name for tooltip
+    elif event_type in ("law", "law_swap") and title.startswith("Adopted: "):
+        law_name = title[9:]  # Strip "Adopted: "
+        icon_path = get_law_icon_path(law_name)
+    elif event_type == "ruler" and details:
+        # Details contains "Archetype" or "Archetype - Trait"
+        archetype = details.split(" - ")[0] if " - " in details else details
+        icon_path = ARCHETYPE_ICONS.get(archetype)
+        tooltip = f"{title} ({details})"
+
+    if icon_path:
+        return html.Img(
+            src=icon_path,
+            className="timeline-icon",
+            title=tooltip,
+            style={"width": "36px", "height": "36px", "verticalAlign": "middle"},
+        )
+    else:
+        return html.Span(fallback_emoji)
+
+
+def _format_event_item(row: pd.Series) -> html.Div:
     """Format a single event for display.
 
     Args:
         row: DataFrame row with event data
 
     Returns:
-        HTML span element with formatted event
+        HTML div element with formatted event
     """
     icon = row.get("icon", "")
     title = row.get("title", "")
@@ -248,10 +360,21 @@ def _format_event_item(row: pd.Series) -> html.Span:
     # Get CSS class for event type styling
     css_class = f"timeline-event timeline-event-{event_type}"
 
-    # Use a consistent format: icon + space + title
+    # Try to use game icon for tech/law/ruler, fall back to emoji
+    icon_element = _create_icon_element(event_type, title, icon, details)
+
+    # Tech events: icon only (tooltip shows name)
+    if event_type == "tech":
+        return html.Div(
+            [icon_element],
+            className=css_class,
+            style={"color": "#edf2f7"},
+        )
+
     return html.Div(
-        f"{icon}  {title}",  # Two spaces for consistent padding
+        [icon_element, f"  {title}"],
         className=css_class,
+        style={"color": "#edf2f7"},
     )
 
 

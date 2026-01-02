@@ -28,7 +28,8 @@ class Config:
 
     # Data directories
     SAVES_DIRECTORY = os.getenv("SAVES_DIRECTORY", "saves")
-    ASSETS_DIRECTORY = "tournament_visualizer/assets"
+    # Relative to app.py location (tournament_visualizer/)
+    ASSETS_DIRECTORY = "assets"
 
     # Override files
     PARTICIPANT_NAME_OVERRIDES_PATH = os.getenv(
