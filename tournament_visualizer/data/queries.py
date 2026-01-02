@@ -4632,7 +4632,8 @@ class TournamentQueries:
         ),
 
         -- 4. City founding events
-        -- Join on founded_turn since city names may differ between events and cities table
+        -- Join on founded_turn AND city name to avoid cross-product when multiple cities
+        -- founded on same turn. City name extracted from event description.
         -- Falls back to family_archetype from event_data for rebel/captured cities
         city_events AS (
             SELECT
@@ -4641,7 +4642,7 @@ class TournamentQueries:
                 CASE WHEN c.is_capital THEN 'capital' ELSE 'city' END as event_type,
                 CASE WHEN c.is_capital
                     THEN 'Capital: ' || TRIM(REPLACE(e.description, 'Founded', ''))
-                    ELSE 'Founded: ' || TRIM(REPLACE(e.description, 'Founded', ''))
+                    ELSE TRIM(REPLACE(e.description, 'Founded', ''))
                 END as title,
                 COALESCE(
                     c.family_name,
@@ -4652,6 +4653,9 @@ class TournamentQueries:
             LEFT JOIN cities c ON e.match_id = c.match_id
                 AND e.player_id = c.player_id
                 AND e.turn_number = c.founded_turn
+                -- Match city name: event has "Founded  Samuha", cities has "CITYNAME_SAMUHA"
+                AND UPPER(TRIM(REPLACE(e.description, 'Founded', ''))) =
+                    REPLACE(REPLACE(c.city_name, 'CITYNAME_', ''), '_', ' ')
             WHERE e.match_id = ?
               AND e.event_type = 'CITY_FOUNDED'
         ),
