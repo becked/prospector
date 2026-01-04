@@ -248,6 +248,7 @@ CREATE TABLE rulers (
     ruler_name VARCHAR,
     archetype VARCHAR,
     starting_trait VARCHAR,
+    cognomen VARCHAR,
     succession_order INTEGER NOT NULL,
     succession_turn INTEGER NOT NULL
 );

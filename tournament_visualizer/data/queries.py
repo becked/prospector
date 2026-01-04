@@ -2119,6 +2119,39 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_legitimacy_bonuses_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get legitimacy bonus counts for all players in a match.
+
+        Returns data from player_statistics filtered to legitimacy-related bonuses.
+        These bonuses track events that affected legitimacy during the game.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - stat_name: The bonus type (e.g., 'BONUS_CONVERT_LEGITIMACY')
+            - value: Number of times this bonus was earned
+        """
+        query = """
+        SELECT
+            ps.player_id,
+            p.player_name,
+            p.civilization,
+            ps.stat_name,
+            ps.value
+        FROM player_statistics ps
+        JOIN players p ON ps.player_id = p.player_id AND ps.match_id = p.match_id
+        WHERE ps.match_id = ?
+            AND ps.stat_category = 'bonus_count'
+            AND ps.stat_name LIKE '%LEGIT%'
+        ORDER BY p.player_id, ps.stat_name
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_family_opinion_history_by_match(
         self, match_id: int, family_names: Optional[List[str]] = None
     ) -> pd.DataFrame:
@@ -5066,6 +5099,185 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
+
+    def get_ruler_legitimacy_breakdown(self, match_id: int) -> pd.DataFrame:
+        """Get rulers with cognomens for legitimacy breakdown calculation.
+
+        Returns all rulers for each player in the match, ordered by succession
+        order (most recent first). The caller should calculate decay based on
+        generations_ago (0 = current ruler, 1 = previous, etc.).
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player ID
+                - player_name: Player name
+                - ruler_name: Name of the ruler
+                - cognomen: Cognomen type (e.g., "Lion", "Great")
+                - succession_order: Order of succession (0 = first ruler)
+                - succession_turn: Turn when this ruler took power
+                - max_succession: Highest succession_order for this player
+                - generations_ago: How many rulers ago (0 = current)
+        """
+        query = """
+        WITH max_succession AS (
+            SELECT player_id, MAX(succession_order) as max_order
+            FROM rulers
+            WHERE match_id = ?
+            GROUP BY player_id
+        )
+        SELECT
+            r.player_id,
+            p.player_name,
+            r.ruler_name,
+            r.cognomen,
+            r.succession_order,
+            r.succession_turn,
+            ms.max_order as max_succession,
+            ms.max_order - r.succession_order as generations_ago
+        FROM rulers r
+        JOIN players p ON r.player_id = p.player_id AND r.match_id = p.match_id
+        JOIN max_succession ms ON r.player_id = ms.player_id
+        WHERE r.match_id = ?
+        ORDER BY r.player_id, r.succession_order DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, match_id]).df()
+
+    def get_ambitions_completed_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get count of completed ambitions (goals) for each player in a match.
+
+        Counts GOAL_FINISHED events which track completed ambitions.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player ID
+                - player_name: Player name
+                - ambitions_completed: Number of GOAL_FINISHED events
+        """
+        query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            COUNT(e.event_id) as ambitions_completed
+        FROM players p
+        LEFT JOIN events e ON p.player_id = e.player_id
+            AND p.match_id = e.match_id
+            AND e.event_type = 'GOAL_FINISHED'
+        WHERE p.match_id = ?
+        GROUP BY p.player_id, p.player_name
+        ORDER BY p.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_legitimacy_events_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get legitimacy-related events with turn numbers for ruler attribution.
+
+        Returns memory events that typically affect legitimacy, with turn numbers
+        so they can be attributed to specific rulers.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player ID
+                - event_type: Event type (e.g., MEMORYFAMILY_FOUNDED_FAMILY_SEAT)
+                - turn_number: Turn when event occurred
+                - count: Number of times this event occurred on this turn
+        """
+        query = """
+        SELECT
+            e.player_id,
+            e.event_type,
+            e.turn_number,
+            COUNT(*) as count
+        FROM events e
+        WHERE e.match_id = ?
+        AND e.event_type LIKE 'MEMORY%'
+        GROUP BY e.player_id, e.event_type, e.turn_number
+        ORDER BY e.player_id, e.turn_number, count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
+    def get_family_opinions_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get final family opinion totals for each player in a match.
+
+        Returns the sum of all family opinions at the last recorded turn.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player ID
+                - player_name: Player name
+                - total_family_opinion: Sum of all family opinions
+        """
+        query = """
+        WITH max_turns AS (
+            SELECT player_id, MAX(turn_number) as max_turn
+            FROM family_opinion_history
+            WHERE match_id = ?
+            GROUP BY player_id
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            COALESCE(SUM(foh.opinion), 0) as total_family_opinion
+        FROM players p
+        LEFT JOIN max_turns mt ON p.player_id = mt.player_id
+        LEFT JOIN family_opinion_history foh ON p.player_id = foh.player_id
+            AND p.match_id = foh.match_id
+            AND foh.turn_number = mt.max_turn
+        WHERE p.match_id = ?
+        GROUP BY p.player_id, p.player_name
+        ORDER BY p.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, match_id]).df()
+
+    def get_legacies_completed_by_match(self, match_id: int) -> pd.DataFrame:
+        """Get count of completed legacies for each player in a match.
+
+        Counts legacy-related memory events.
+
+        Args:
+            match_id: Match ID to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player ID
+                - player_name: Player name
+                - legacies_completed: Number of legacy events
+        """
+        query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            COUNT(e.event_id) as legacies_completed
+        FROM players p
+        LEFT JOIN events e ON p.player_id = e.player_id
+            AND p.match_id = e.match_id
+            AND e.event_type IN ('MEMORYFAMILY_OUR_LEGACY', 'MEMORYRELIGION_OUR_LEGACY')
+        WHERE p.match_id = ?
+        GROUP BY p.player_id, p.player_name
+        ORDER BY p.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
 
 
 # Global queries instance

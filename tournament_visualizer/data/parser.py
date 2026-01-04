@@ -709,6 +709,7 @@ class OldWorldSaveParser:
         # Remove common prefixes
         formatted = (
             value.replace("CITYNAME_", "")
+            .replace("COGNOMEN_", "")
             .replace("NAME_", "")
             .replace("TRIBE_", "")
             .replace("FAMILY_", "")
@@ -1773,6 +1774,7 @@ class OldWorldSaveParser:
                 - ruler_name: Formatted ruler name (e.g., "Yazdegerd")
                 - archetype: Ruler archetype (e.g., "Schemer", "Scholar")
                 - starting_trait: Initial trait chosen (e.g., "Educated")
+                - cognomen: Ruler's title (e.g., "Lion", "Great", "Wise")
                 - succession_order: 0 for starting ruler, 1+ for successors
                 - succession_turn: Turn when ruler took power
 
@@ -1827,6 +1829,12 @@ class OldWorldSaveParser:
                 ruler_name = (
                     self._format_context_value(first_name) if first_name else None
                 )
+
+                # Extract cognomen (e.g., COGNOMEN_LION -> "Lion")
+                cognomen_elem = char_elem.find("Cognomen")
+                cognomen = None
+                if cognomen_elem is not None and cognomen_elem.text:
+                    cognomen = self._format_context_value(cognomen_elem.text)
 
                 # Extract archetype and starting trait from TraitTurn
                 archetype = None
@@ -1892,6 +1900,7 @@ class OldWorldSaveParser:
                     "ruler_name": ruler_name,
                     "archetype": archetype,
                     "starting_trait": starting_trait,
+                    "cognomen": cognomen,
                     "succession_order": succession_order,
                     "succession_turn": succession_turn,
                 }

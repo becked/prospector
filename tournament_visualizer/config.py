@@ -235,6 +235,158 @@ APP_CONSTANTS = {
 }
 
 
+# Cognomen base legitimacy values
+# Values based on in-game mechanics: range from 0 (New) to 100 (Great)
+# Negative cognomens possible for poor performance
+COGNOMEN_LEGITIMACY: Dict[str, int] = {
+    # Starting/Low tier
+    "New": 0,
+    "Able": 10,
+    "Capable": 10,
+    "Ready": 10,
+    # Mid-low tier
+    "Ambitious": 20,
+    "Good": 20,
+    "Just": 20,
+    "Brave": 30,
+    "Noble": 30,
+    "Valiant": 30,
+    "Warrior": 30,
+    # Mid tier
+    "Devout": 40,
+    "Intrepid": 40,
+    "Learned": 40,
+    "Mason": 40,
+    "Settler": 40,
+    "Strong": 40,
+    "Wise": 40,
+    # Mid-high tier
+    "Beloved": 50,
+    "Brilliant": 50,
+    "Explorer": 50,
+    "Fountainhead": 50,
+    "Holy": 50,
+    "Keystone": 50,
+    "Pioneer": 50,
+    # High tier
+    "Architect": 60,
+    "Drillmaster": 60,
+    "Enlightened": 60,
+    "Magnificent": 60,
+    "Subjugator": 60,
+    "Victorious": 60,
+    # Very high tier
+    "Conqueror": 80,
+    "Glorious": 80,
+    "Invincible": 80,
+    "Lion": 80,
+    "Mighty": 80,
+    # Top tier
+    "Great": 100,
+    # Age-based cognomens
+    "Old": 40,
+    "Ancient": 50,
+    # Negative cognomens
+    "Bloody": -20,
+    "Foolish": -10,
+    "Unfortunate": -10,
+    "Unready": -10,
+}
+
+# Cognomen display names (for formatting "X the Lion")
+COGNOMEN_DISPLAY_NAMES: Dict[str, str] = {
+    "Able": "the Able",
+    "Ambitious": "the Ambitious",
+    "Ancient": "the Ancient",
+    "Architect": "the Architect",
+    "Beloved": "the Beloved",
+    "Bloody": "the Bloody",
+    "Brave": "the Brave",
+    "Brilliant": "the Brilliant",
+    "Capable": "the Capable",
+    "Conqueror": "the Conqueror",
+    "Devout": "the Devout",
+    "Drillmaster": "the Drillmaster",
+    "Enlightened": "the Enlightened",
+    "Explorer": "the Explorer",
+    "Foolish": "the Foolish",
+    "Fountainhead": "the Fountainhead",
+    "Glorious": "the Glorious",
+    "Good": "the Good",
+    "Great": "the Great",
+    "Holy": "the Holy",
+    "Intrepid": "the Intrepid",
+    "Invincible": "the Invincible",
+    "Just": "the Just",
+    "Keystone": "the Keystone",
+    "Learned": "the Learned",
+    "Lion": "the Lion",
+    "Magnificent": "the Magnificent",
+    "Mason": "the Mason",
+    "Mighty": "the Mighty",
+    "New": "the New",
+    "Noble": "the Noble",
+    "Old": "the Old",
+    "Pioneer": "the Pioneer",
+    "Ready": "the Ready",
+    "Settler": "the Settler",
+    "Strong": "the Strong",
+    "Subjugator": "the Subjugator",
+    "Unfortunate": "the Unfortunate",
+    "Unready": "the Unready",
+    "Valiant": "the Valiant",
+    "Victorious": "the Victorious",
+    "Warrior": "the Warrior",
+    "Wise": "the Wise",
+}
+
+
+def get_cognomen_decay_rate(generations_ago: int) -> float:
+    """Calculate decay rate for cognomen legitimacy based on how many rulers ago.
+
+    Legitimacy from previous leaders' cognomens decays:
+    - Current ruler: 100%
+    - Previous ruler: 50%
+    - Two rulers ago: 33%
+    - Three rulers ago: 25%
+    - etc.
+
+    Args:
+        generations_ago: 0 for current ruler, 1 for previous, etc.
+
+    Returns:
+        Decay multiplier (1.0 for current, 0.5 for previous, etc.)
+    """
+    if generations_ago < 0:
+        return 0.0
+    return 1.0 / (generations_ago + 1)
+
+
+def format_event_type_display(event_type: str) -> str:
+    """Format an event type for display.
+
+    Converts MEMORYFAMILY_FOUNDED_FAMILY_SEAT to "Founded Family Seat".
+
+    Args:
+        event_type: Raw event type string
+
+    Returns:
+        Human-readable event name
+    """
+    # Remove common prefixes
+    name = event_type
+    for prefix in ["MEMORYFAMILY_", "MEMORYRELIGION_", "MEMORYTRIBE_",
+                   "MEMORYPLAYER_", "MEMORYCHARACTER_"]:
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+
+    # Convert underscores to spaces and title case
+    name = name.replace("_", " ").title()
+
+    return name
+
+
 # Page configuration
 PAGE_CONFIG = {
     "overview": {

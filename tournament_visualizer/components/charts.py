@@ -3584,10 +3584,11 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
         ]
     )
 
+    # Dynamic height: header (35px) + rows (30px each) + small padding
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor=CHART_THEME["paper_bgcolor"],
-        height=max(150, len(df) * 35 + 50),  # Dynamic height based on number of players
+        height=35 + len(df) * 30 + 10,
     )
 
     return fig
@@ -6445,6 +6446,115 @@ def create_military_power_chart(df: pd.DataFrame) -> go.Figure:
     # Calculate y-axis range with padding
     max_power = int(df["military_power"].max()) if not df.empty else 100
     y_range = [0, max_power * 1.1]
+
+    # Set Y-axis with labels on both sides
+    fig.update_layout(
+        yaxis=dict(
+            range=y_range,
+            showgrid=True,
+            ticks="outside",
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            range=y_range,
+            showticklabels=True,
+            ticks="outside",
+            showgrid=False,
+        ),
+        hovermode="closest",
+        hoverdistance=100,
+        showlegend=False,
+    )
+
+    return fig
+
+
+def create_match_legitimacy_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart comparing legitimacy between players over time.
+
+    Shows turn-by-turn legitimacy for each player, allowing comparison
+    of governance stability throughout the match.
+
+    Args:
+        df: DataFrame with columns: player_name, civilization, turn_number, legitimacy
+            (from get_legitimacy_history_by_match())
+
+    Returns:
+        Plotly figure with line chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No legitimacy data available")
+
+    fig = create_base_figure(
+        title="",
+        x_title="Turn Number",
+        y_title="Legitimacy",
+        height=400,
+    )
+
+    # Add a line for each player
+    players = df["player_name"].unique()
+
+    # Collect civilizations to detect same-nation matches
+    player_civs = {}
+    for player in players:
+        player_data = df[df["player_name"] == player]
+        civ = player_data["civilization"].iloc[0] if len(player_data) > 0 else ""
+        player_civs[player] = civ.replace("NATION_", "") if civ else ""
+
+    # Check if same nation (for color fallback)
+    civ_values = list(player_civs.values())
+    same_nation = len(civ_values) == 2 and civ_values[0] == civ_values[1]
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player].sort_values("turn_number")
+
+        # Get civilization for display
+        civ_name = player_civs[player]
+        civ_display = civ_name.replace("_", " ").title() if civ_name else ""
+
+        # Get nation color, with fallback for same-nation matches
+        if same_nation and i == 1:
+            from tournament_visualizer.nation_colors import SAME_NATION_FALLBACK_COLOR
+
+            color = SAME_NATION_FALLBACK_COLOR
+        else:
+            color = get_nation_color(civ_name) if civ_name else Config.PRIMARY_COLORS[i]
+
+        turns = player_data["turn_number"].tolist()
+        legitimacy = player_data["legitimacy"].tolist()
+
+        # Create hover text
+        hover_texts = [
+            f"<b>{player}</b> ({civ_display})<br>Turn {turn}: {int(leg)} legitimacy"
+            for turn, leg in zip(turns, legitimacy)
+        ]
+
+        # Assign last trace to yaxis2 to make right-side labels visible
+        yaxis_ref = "y2" if i == len(players) - 1 else "y"
+
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=legitimacy,
+                mode="lines+markers",
+                name=f"{player} ({civ_display})",
+                line=dict(
+                    color=color,
+                    width=3,
+                ),
+                marker=dict(size=6),
+                hoveron="points",
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_texts,
+                yaxis=yaxis_ref,
+            )
+        )
+
+    # Calculate y-axis range with padding (legitimacy typically 0-100 but can exceed)
+    max_leg = int(df["legitimacy"].max()) if not df.empty else 100
+    y_range = [0, max(100, max_leg * 1.1)]
 
     # Set Y-axis with labels on both sides
     fig.update_layout(

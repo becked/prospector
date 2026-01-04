@@ -24,6 +24,7 @@ from tournament_visualizer.components.charts import (
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
     create_law_adoption_timeline_chart,
+    create_match_legitimacy_chart,
     create_military_power_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
@@ -45,7 +46,15 @@ from tournament_visualizer.components.layouts import (
     create_page_header,
     create_tab_layout,
 )
-from tournament_visualizer.config import MODEBAR_CONFIG, PAGE_CONFIG, Config
+from tournament_visualizer.config import (
+    COGNOMEN_DISPLAY_NAMES,
+    COGNOMEN_LEGITIMACY,
+    MODEBAR_CONFIG,
+    PAGE_CONFIG,
+    Config,
+    format_event_type_display,
+    get_cognomen_decay_rate,
+)
 from tournament_visualizer.data.queries import get_queries
 from tournament_visualizer.nation_colors import get_match_player_colors
 from tournament_visualizer.utils.event_categories import (
@@ -818,10 +827,26 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Ambitions",
-                        "tab_id": "statistics",
+                        "label": "Legitimacy",
+                        "tab_id": "legitimacy",
                         "content": [
-                            # Ambition Summary
+                            # Legitimacy Progression Chart
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Legitimacy Progression",
+                                                chart_id="match-legitimacy-progression",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mt-3 mb-3",
+                            ),
+                            # Ambition Summary (moved from Ambitions tab)
                             dbc.Row(
                                 [
                                     dbc.Col(
@@ -835,8 +860,10 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     ),
                                 ],
-                                className="mt-3 mb-3",
+                                className="mb-3",
                             ),
+                            # Legitimacy Breakdown (populated by callback)
+                            html.Div(id="match-legitimacy-breakdown-container"),
                             # Ambition Timeline Charts (dynamically generated per player)
                             html.Div(id="match-ambition-timelines-container"),
                         ],
@@ -2198,6 +2225,294 @@ def update_all_yield_charts(
 
 
 @callback(
+    Output("match-legitimacy-progression", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_legitimacy_chart(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> go.Figure:
+    """Update legitimacy progression chart.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+
+    Returns:
+        Plotly figure with legitimacy progression
+    """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "legitimacy":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view legitimacy")
+
+    try:
+        queries = get_queries()
+        df = queries.get_legitimacy_history_by_match(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder(
+                "No legitimacy data available for this match"
+            )
+
+        return create_match_legitimacy_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading legitimacy chart: {e}")
+        return create_empty_chart_placeholder(f"Error loading legitimacy: {str(e)}")
+
+
+@callback(
+    Output("match-legitimacy-breakdown-container", "children"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_legitimacy_breakdown(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> html.Div:
+    """Update legitimacy breakdown showing cognomen contributions per ruler.
+
+    Displays each player's legitimacy sources with events grouped under
+    each ruler based on when they occurred during that ruler's reign.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+
+    Returns:
+        HTML Div containing breakdown cards for each player
+    """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "legitimacy":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return html.Div()
+
+    try:
+        queries = get_queries()
+
+        # Get ruler data with cognomens
+        rulers_df = queries.get_ruler_legitimacy_breakdown(match_id)
+
+        # Get ambitions completed
+        ambitions_df = queries.get_ambitions_completed_by_match(match_id)
+
+        # Get legitimacy-related events with turn numbers
+        events_df = queries.get_legitimacy_events_by_match(match_id)
+
+        # Get legacies completed
+        legacies_df = queries.get_legacies_completed_by_match(match_id)
+
+        if rulers_df.empty:
+            return html.Div(
+                "No ruler data available for this match",
+                className="text-muted text-center mt-3",
+            )
+
+        # Get unique player names and IDs
+        players = rulers_df[["player_id", "player_name"]].drop_duplicates()
+
+        # Create a card for each player
+        player_cards = []
+        for _, player_row in players.iterrows():
+            player_id = player_row["player_id"]
+            player_name = player_row["player_name"]
+
+            # Get rulers for this player sorted by succession_order ASC (oldest first)
+            player_rulers = rulers_df[rulers_df["player_id"] == player_id].sort_values(
+                "succession_order", ascending=True
+            )
+
+            # Get events for this player, excluding legacy events
+            player_events = events_df[events_df["player_id"] == player_id]
+            player_events = player_events[
+                ~player_events["event_type"].isin([
+                    "MEMORYFAMILY_OUR_LEGACY",
+                    "MEMORYRELIGION_OUR_LEGACY"
+                ])
+            ]
+
+            # Build turn ranges for each ruler
+            ruler_list = player_rulers.to_dict("records")
+            for i, ruler in enumerate(ruler_list):
+                ruler["start_turn"] = ruler["succession_turn"]
+                if i + 1 < len(ruler_list):
+                    ruler["end_turn"] = ruler_list[i + 1]["succession_turn"] - 1
+                else:
+                    ruler["end_turn"] = 9999  # Current ruler - no end
+
+            # Pre-calculate ambitions and legacies for total
+            player_ambitions = ambitions_df[ambitions_df["player_id"] == player_id]
+            ambitions_count = 0
+            if not player_ambitions.empty:
+                ambitions_count = player_ambitions.iloc[0]["ambitions_completed"]
+            legitimacy_per_ambition = 10
+            ambitions_legitimacy = ambitions_count * legitimacy_per_ambition
+
+            player_legacies = legacies_df[legacies_df["player_id"] == player_id]
+            legacies_count = 0
+            if not player_legacies.empty:
+                legacies_count = player_legacies.iloc[0]["legacies_completed"]
+            legitimacy_per_legacy = 5
+            legacies_legitimacy = legacies_count * legitimacy_per_legacy
+
+            # Calculate total from cognomens first
+            total_from_cognomens = 0
+            for ruler in ruler_list:
+                cognomen = ruler["cognomen"]
+                base_value = COGNOMEN_LEGITIMACY.get(cognomen, 0) if cognomen else 0
+                decay_rate = get_cognomen_decay_rate(ruler["generations_ago"])
+                total_from_cognomens += int(base_value * decay_rate)
+
+            total_legitimacy = total_from_cognomens + ambitions_legitimacy + legacies_legitimacy
+
+            # Build breakdown items with total at top
+            breakdown_items = [
+                html.Div(
+                    html.Strong(f"Calculated Total: {total_legitimacy}"),
+                    className="mb-2",
+                ),
+            ]
+
+            # Add ambitions display right after total
+            if ambitions_count > 0:
+                breakdown_items.append(
+                    html.Div(
+                        [
+                            html.Span(
+                                f"+{ambitions_legitimacy}: ",
+                                className="text-info fw-bold",
+                            ),
+                            html.Span(f"Ambitions Finished (x{ambitions_count})"),
+                        ],
+                        className="mb-1",
+                    )
+                )
+
+            # Add legacies display
+            if legacies_count > 0:
+                breakdown_items.append(
+                    html.Div(
+                        [
+                            html.Span(
+                                f"+{legacies_legitimacy}: ",
+                                className="text-info fw-bold",
+                            ),
+                            html.Span(f"Legacies Finished (x{legacies_count})"),
+                        ],
+                        className="mb-1",
+                    )
+                )
+
+            # Separator before ruler breakdown
+            breakdown_items.append(html.Hr(className="my-2"))
+
+            # Process rulers in reverse order (current ruler first for display)
+            for ruler in reversed(ruler_list):
+                cognomen = ruler["cognomen"]
+                ruler_name = ruler["ruler_name"]
+                generations_ago = ruler["generations_ago"]
+                start_turn = ruler["start_turn"]
+                end_turn = ruler["end_turn"]
+
+                # Get base legitimacy value for this cognomen
+                base_value = COGNOMEN_LEGITIMACY.get(cognomen, 0) if cognomen else 0
+
+                # Calculate decayed value
+                decay_rate = get_cognomen_decay_rate(generations_ago)
+                decayed_value = int(base_value * decay_rate)
+                total_from_cognomens += decayed_value
+
+                # Format display name (e.g., "King Kurigalzu the Great")
+                display_cognomen = COGNOMEN_DISPLAY_NAMES.get(cognomen, f"the {cognomen}") if cognomen else ""
+                ruler_display = f"{ruler_name} {display_cognomen}".strip() if display_cognomen else ruler_name
+
+                # Add decay indicator for previous rulers
+                decay_note = " (decayed)" if generations_ago > 0 else ""
+
+                # Create ruler header with cognomen value
+                value_color = "text-info" if decayed_value >= 0 else "text-danger"
+                value_prefix = "+" if decayed_value >= 0 else ""
+
+                breakdown_items.append(
+                    html.Div(
+                        [
+                            html.Span(
+                                f"{value_prefix}{decayed_value}: ",
+                                className=f"{value_color} fw-bold",
+                            ),
+                            html.Span(f"{ruler_display}"),
+                            html.Span(
+                                decay_note,
+                                className="text-muted small",
+                            ),
+                        ],
+                        className="mb-1",
+                    )
+                )
+
+                # Get events during this ruler's reign
+                ruler_events = player_events[
+                    (player_events["turn_number"] >= start_turn) &
+                    (player_events["turn_number"] <= end_turn)
+                ]
+
+                if not ruler_events.empty:
+                    # Aggregate events by type for this ruler
+                    event_counts = ruler_events.groupby("event_type")["count"].sum().reset_index()
+                    event_counts = event_counts.sort_values("count", ascending=False)
+
+                    for _, event_row in event_counts.iterrows():
+                        event_type = event_row["event_type"]
+                        count = event_row["count"]
+                        display_name = format_event_type_display(event_type)
+
+                        count_str = f" (x{count})" if count > 1 else ""
+                        breakdown_items.append(
+                            html.Div(
+                                f"• {display_name}{count_str}",
+                                className="text-muted small ms-3",
+                            )
+                        )
+
+
+            # Create card for this player
+            player_cards.append(
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardHeader(
+                                html.H6(player_name, className="mb-0"),
+                            ),
+                            dbc.CardBody(
+                                breakdown_items,
+                                className="small",
+                            ),
+                        ],
+                        className="h-100",
+                    ),
+                    md=6,
+                    className="mb-3",
+                )
+            )
+
+        return dbc.Row(
+            player_cards,
+            className="mt-3",
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading legitimacy breakdown: {e}")
+        return html.Div(
+            f"Error loading legitimacy breakdown: {str(e)}",
+            className="text-danger text-center mt-3",
+        )
+
+
+@callback(
     Output("match-ambition-timelines-container", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
@@ -2215,7 +2530,7 @@ def update_ambition_timelines(
         HTML Div containing separate chart cards for each player
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "statistics":
+    if active_tab != "legitimacy":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -2293,7 +2608,7 @@ def update_ambition_summary(
         Plotly figure for ambition summary table
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "statistics":
+    if active_tab != "legitimacy":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
