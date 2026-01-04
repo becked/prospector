@@ -8,6 +8,7 @@ Falls back to Google Drive for files that exceed Challonge's 250KB limit.
 
 import json
 import os
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -116,6 +117,37 @@ def download_attachment(
     except Exception as e:
         print(f"Error downloading {filename}: {e}")
         return False
+
+
+def extract_gdrive_file_id(url: str) -> str | None:
+    """Extract Google Drive file ID from various URL formats.
+
+    Supported formats:
+    - https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    - https://drive.google.com/file/d/FILE_ID/view?usp=drive_link
+    - https://drive.google.com/open?id=FILE_ID
+    - https://docs.google.com/uc?id=FILE_ID
+
+    Args:
+        url: Google Drive sharing URL
+
+    Returns:
+        File ID string, or None if URL doesn't match expected patterns
+    """
+    if not url:
+        return None
+
+    # Pattern 1: /file/d/FILE_ID/
+    match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+    if match:
+        return match.group(1)
+
+    # Pattern 2: id=FILE_ID (query parameter)
+    match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+    if match:
+        return match.group(1)
+
+    return None
 
 
 def load_gdrive_mapping(mapping_path: Path = Path("data/gdrive_match_mapping.json")) -> dict[str, Any]:
@@ -228,10 +260,26 @@ def download_match_save(
                         attachment.get("asset_file_size"),
                     ):
                         return True, "challonge"
+
+                # Check for Google Drive link attachment (no direct upload)
+                elif gdrive_client:
+                    link_url = attachment.get("url")
+                    gdrive_file_id = extract_gdrive_file_id(link_url)
+                    if gdrive_file_id:
+                        # Generate filename from attachment description or match ID
+                        description = attachment.get("description", "")
+                        gdrive_filename = f"match_{match_id}_{description or 'save'}.zip"
+                        safe_filename = "".join(
+                            c for c in gdrive_filename if c.isalnum() or c in "._- "
+                        )
+
+                        print(f"Found Google Drive link attachment for match {match_id}")
+                        if download_from_gdrive(gdrive_client, gdrive_file_id, safe_filename, save_dir):
+                            return True, "gdrive_link"
         except Exception as e:
             print(f"Challonge download failed for match {match_id}: {e}")
 
-    # Fall back to Google Drive
+    # Fall back to Google Drive mapping
     if gdrive_client and str(match_id) in gdrive_mapping.get("matches", {}):
         mapping_entry = gdrive_mapping["matches"][str(match_id)]
         file_id = mapping_entry["gdrive_file_id"]
