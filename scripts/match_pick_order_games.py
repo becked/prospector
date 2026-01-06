@@ -378,6 +378,30 @@ def match_games_to_matches(dry_run: bool = False) -> None:
                     name_matched = True
 
             if not name_matched:
+                # Fallback: use civilization matching to infer sheet names
+                # This handles cases like "Yagman" (sheet) vs "Yagiz" (db) where
+                # names don't match but civilizations do
+                if using_override:
+                    # We already know first_picker picked normalized_first_nation
+                    # Check which sheet player has that nation
+                    if normalized_first_nation == normalize_nation_name(first_nation):
+                        # p1 in sheet has first_pick_nation
+                        first_picker_sheet_name = p1_name
+                        second_picker_sheet_name = p2_name
+                        name_matched = True
+                        logger.debug(
+                            f"  Inferred from civilizations: '{p1_name}' picked {first_nation}"
+                        )
+                    elif normalized_first_nation == normalize_nation_name(second_nation):
+                        # p2 in sheet has first_pick_nation (unusual case)
+                        first_picker_sheet_name = p2_name
+                        second_picker_sheet_name = p1_name
+                        name_matched = True
+                        logger.debug(
+                            f"  Inferred from civilizations: '{p2_name}' picked {first_nation}"
+                        )
+
+            if not name_matched:
                 logger.warning(
                     f"  ⚠️  Cannot match database name '{first_picker_db_name}' to sheet names '{p1_name}'/'{p2_name}'"
                 )
