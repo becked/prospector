@@ -297,6 +297,8 @@ class TournamentDatabase:
             archetype VARCHAR,
             starting_trait VARCHAR,
             cognomen VARCHAR,
+            birth_turn INTEGER,
+            death_turn INTEGER,
             succession_order INTEGER NOT NULL,
             succession_turn INTEGER NOT NULL,
 
@@ -1422,6 +1424,8 @@ class TournamentDatabase:
                         "archetype": ruler.get("archetype"),
                         "starting_trait": ruler.get("starting_trait"),
                         "cognomen": ruler.get("cognomen"),
+                        "birth_turn": ruler.get("birth_turn"),
+                        "death_turn": ruler.get("death_turn"),
                         "succession_order": ruler.get("succession_order", 0),
                         "succession_turn": ruler.get("succession_turn", 1),
                     }
@@ -1436,8 +1440,9 @@ class TournamentDatabase:
                 query = """
                 INSERT INTO rulers (
                     ruler_id, match_id, player_id, character_id, ruler_name,
-                    archetype, starting_trait, cognomen, succession_order, succession_turn
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    archetype, starting_trait, cognomen, birth_turn, death_turn,
+                    succession_order, succession_turn
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
 
                 values = []
@@ -1455,6 +1460,8 @@ class TournamentDatabase:
                             d["archetype"],
                             d["starting_trait"],
                             d["cognomen"],
+                            d["birth_turn"],
+                            d["death_turn"],
                             d["succession_order"],
                             d["succession_turn"],
                         ]

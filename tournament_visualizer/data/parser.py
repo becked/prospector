@@ -1836,6 +1836,15 @@ class OldWorldSaveParser:
                 if cognomen_elem is not None and cognomen_elem.text:
                     cognomen = self._format_context_value(cognomen_elem.text)
 
+                # Extract birth turn (can be negative for pre-game births)
+                birth_turn = self._safe_int(char_elem.get("BirthTurn"))
+
+                # Extract death turn (only present if character has died)
+                death_turn_elem = char_elem.find("DeathTurn")
+                death_turn = None
+                if death_turn_elem is not None and death_turn_elem.text:
+                    death_turn = self._safe_int(death_turn_elem.text)
+
                 # Extract archetype and starting trait from TraitTurn
                 archetype = None
                 starting_trait = None
@@ -1901,6 +1910,8 @@ class OldWorldSaveParser:
                     "archetype": archetype,
                     "starting_trait": starting_trait,
                     "cognomen": cognomen,
+                    "birth_turn": birth_turn,
+                    "death_turn": death_turn,
                     "succession_order": succession_order,
                     "succession_turn": succession_turn,
                 }
