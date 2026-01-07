@@ -1770,6 +1770,10 @@ class TournamentQueries:
         Similar to get_tech_count_by_turn, but for laws. Shows participant names
         when available for consistency with other UI elements.
 
+        Counts unique law classes (pairs) adopted, not total adoptions. When a
+        player switches from Colonies to Serfdom, it doesn't increase their
+        law count since both belong to the same law class.
+
         Args:
             match_id: Match ID to analyze
 
@@ -1779,43 +1783,94 @@ class TournamentQueries:
                 - player_name: Display name (participant if linked, else player name)
                 - participant_id: Participant ID (NULL if unlinked)
                 - turn_number: Turn when law was adopted
-                - cumulative_laws: Total laws up to this turn
-                - law_list: Comma-separated list of all laws adopted
+                - cumulative_laws: Unique law classes adopted up to this turn
+                - law_list: Comma-separated list of current active laws
                 - new_laws: Comma-separated list of laws adopted this turn
         """
         query = """
-        WITH law_events AS (
+        WITH law_class_mapping AS (
+            -- Map each law to its law class (mutually exclusive pairs)
+            SELECT * FROM (VALUES
+                ('LAW_SLAVERY', 'slavery_freedom'),
+                ('LAW_FREEDOM', 'slavery_freedom'),
+                ('LAW_CENTRALIZATION', 'centralization_vassalage'),
+                ('LAW_VASSALAGE', 'centralization_vassalage'),
+                ('LAW_COLONIES', 'colonies_serfdom'),
+                ('LAW_SERFDOM', 'colonies_serfdom'),
+                ('LAW_MONOTHEISM', 'monotheism_polytheism'),
+                ('LAW_POLYTHEISM', 'monotheism_polytheism'),
+                ('LAW_TYRANNY', 'tyranny_constitution'),
+                ('LAW_CONSTITUTION', 'tyranny_constitution'),
+                ('LAW_EPICS', 'epics_exploration'),
+                ('LAW_EXPLORATION', 'epics_exploration'),
+                ('LAW_DIVINE_RULE', 'divine_rule_legal_code'),
+                ('LAW_LEGAL_CODE', 'divine_rule_legal_code'),
+                ('LAW_GUILDS', 'guilds_elites'),
+                ('LAW_ELITES', 'guilds_elites'),
+                ('LAW_ICONOGRAPHY', 'iconography_calligraphy'),
+                ('LAW_CALLIGRAPHY', 'iconography_calligraphy'),
+                ('LAW_PHILOSOPHY', 'philosophy_engineering'),
+                ('LAW_ENGINEERING', 'philosophy_engineering'),
+                ('LAW_PROFESSIONAL_ARMY', 'professional_army_volunteers'),
+                ('LAW_VOLUNTEERS', 'professional_army_volunteers'),
+                ('LAW_TOLERANCE', 'tolerance_orthodoxy'),
+                ('LAW_ORTHODOXY', 'tolerance_orthodoxy')
+            ) AS t(law_name, law_class)
+        ),
+        law_events AS (
             SELECT
                 e.player_id,
-                -- Prefer participant name from join
                 COALESCE(tp.display_name, p.player_name) as player_name,
                 p.participant_id,
                 e.turn_number,
                 e.event_id,
-                json_extract(e.event_data, '$.law') as law_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY e.player_id
-                    ORDER BY e.turn_number, e.event_id
-                ) as cumulative_laws
+                TRIM(BOTH '"' FROM json_extract(e.event_data, '$.law')::VARCHAR) as law_name
             FROM events e
             JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
             LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
             WHERE e.event_type = 'LAW_ADOPTED'
                 AND e.match_id = ?
         ),
-        laws_up_to_turn AS (
+        law_events_with_class AS (
+            SELECT
+                le.*,
+                COALESCE(lcm.law_class, le.law_name) as law_class
+            FROM law_events le
+            LEFT JOIN law_class_mapping lcm ON le.law_name = lcm.law_name
+        ),
+        cumulative_classes AS (
+            -- Count distinct law classes up to each event
             SELECT
                 le1.player_id,
                 le1.player_name,
                 le1.participant_id,
                 le1.turn_number,
-                le1.cumulative_laws,
                 le1.event_id,
-                string_agg(le2.law_name, ', ') FILTER (WHERE le2.law_name IS NOT NULL) as law_list
-            FROM law_events le1
-            LEFT JOIN law_events le2 ON le1.player_id = le2.player_id
-                AND le2.event_id <= le1.event_id
-            GROUP BY le1.player_id, le1.player_name, le1.participant_id, le1.turn_number, le1.cumulative_laws, le1.event_id
+                le1.law_name,
+                (
+                    SELECT COUNT(DISTINCT le2.law_class)
+                    FROM law_events_with_class le2
+                    WHERE le2.player_id = le1.player_id
+                      AND le2.event_id <= le1.event_id
+                ) as cumulative_laws
+            FROM law_events_with_class le1
+        ),
+        current_laws AS (
+            -- Get the most recent law for each class up to each event
+            SELECT
+                cc.player_id,
+                cc.turn_number,
+                cc.event_id,
+                string_agg(DISTINCT latest.law_name, ', ') as law_list
+            FROM cumulative_classes cc
+            CROSS JOIN LATERAL (
+                SELECT DISTINCT ON (lec.law_class) lec.law_name
+                FROM law_events_with_class lec
+                WHERE lec.player_id = cc.player_id
+                  AND lec.event_id <= cc.event_id
+                ORDER BY lec.law_class, lec.event_id DESC
+            ) latest
+            GROUP BY cc.player_id, cc.turn_number, cc.event_id
         ),
         new_laws_this_turn AS (
             SELECT
@@ -1830,18 +1885,21 @@ class TournamentQueries:
             GROUP BY le1.player_id, le1.turn_number, le1.event_id
         )
         SELECT DISTINCT
-            lut.player_id,
-            lut.player_name,
-            lut.participant_id,
-            lut.turn_number,
-            lut.cumulative_laws,
-            lut.law_list,
+            cc.player_id,
+            cc.player_name,
+            cc.participant_id,
+            cc.turn_number,
+            cc.cumulative_laws,
+            cl.law_list,
             nlt.new_laws
-        FROM laws_up_to_turn lut
-        LEFT JOIN new_laws_this_turn nlt ON lut.player_id = nlt.player_id
-            AND lut.turn_number = nlt.turn_number
-            AND lut.event_id = nlt.event_id
-        ORDER BY lut.player_id, lut.turn_number, lut.cumulative_laws
+        FROM cumulative_classes cc
+        LEFT JOIN current_laws cl ON cc.player_id = cl.player_id
+            AND cc.turn_number = cl.turn_number
+            AND cc.event_id = cl.event_id
+        LEFT JOIN new_laws_this_turn nlt ON cc.player_id = nlt.player_id
+            AND cc.turn_number = nlt.turn_number
+            AND cc.event_id = nlt.event_id
+        ORDER BY cc.player_id, cc.turn_number, cc.cumulative_laws
         """
 
         with self.db.get_connection() as conn:

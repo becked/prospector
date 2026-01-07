@@ -600,7 +600,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 ],
                                 className="mt-3 mb-3",
                             ),
-                            # Law Adoption Timeline
+                            # Law Adoption Timeline - height auto to fit dynamic law count
                             dbc.Row(
                                 [
                                     dbc.Col(
@@ -608,7 +608,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                             create_chart_card(
                                                 title="Law Adoption Timeline",
                                                 chart_id="match-law-timeline",
-                                                height="400px",
+                                                height="auto",
                                             )
                                         ],
                                         width=12,
