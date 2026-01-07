@@ -317,6 +317,42 @@ database_player_id = int(xml_id) + 1
 
 **Important:** Player ID="0" is valid and should NOT be skipped!
 
+### Match Winner Queries (Critical!)
+
+**Use `match_winners` table, NOT `matches.winner_player_id`:**
+- `matches.winner_player_id` is often NULL (legacy/incomplete data)
+- `match_winners` table is the source of truth for winner data
+
+**`player_id` is a global unique ID, NOT a 1/2 slot per match:**
+- Players are numbered sequentially across ALL matches
+- Match 1 might have player_id 1, 2; Match 2 has player_id 3, 4; etc.
+- Do NOT assume `player_id = 1` means "player 1 in this match"
+
+**Correct pattern for winner queries:**
+```sql
+-- Find matches where a specific civilization won
+SELECT
+    winner.player_name,
+    opponent.player_name AS opponent_name,
+    opponent.civilization AS opponent_nation
+FROM match_winners mw
+JOIN players winner ON mw.match_id = winner.match_id
+    AND mw.winner_player_id = winner.player_id
+JOIN players opponent ON mw.match_id = opponent.match_id
+    AND opponent.player_id != winner.player_id
+WHERE winner.civilization = 'Carthage';
+```
+
+**Common mistakes:**
+```sql
+-- ❌ WRONG: matches.winner_player_id is often NULL
+SELECT * FROM matches m
+JOIN players p ON m.winner_player_id = p.player_id;
+
+-- ❌ WRONG: player_id is not a slot number
+SELECT * FROM players WHERE player_id = 1;  -- This is ONE specific player, not "player 1" of each match
+```
+
 ### Yield Value Display Scale (Critical!)
 
 **Old World stores all yield values in units of 0.1 internally.**
