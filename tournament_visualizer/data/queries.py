@@ -1830,6 +1830,9 @@ class TournamentQueries:
             LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
             WHERE e.event_type = 'LAW_ADOPTED'
                 AND e.match_id = ?
+                -- Exclude succession laws (not competitive choices)
+                AND TRIM(BOTH '"' FROM json_extract(e.event_data, '$.law')::VARCHAR)
+                    NOT IN ('LAW_PRIMOGENITURE', 'LAW_SENIORITY', 'LAW_ULTIMOGENITURE')
         ),
         law_events_with_class AS (
             SELECT
