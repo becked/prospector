@@ -4681,10 +4681,16 @@ class TournamentQueries:
         ),
 
         -- 3. Wonder events (deduplicated, parsed from description)
+        -- Player name is in parentheses in description: "Carthage (Marauder) has begun..."
         wonder_events AS (
             SELECT
                 e.turn_number as turn,
-                e.player_id,
+                -- Assign to the player whose name appears in description
+                CASE
+                    WHEN e.description LIKE '%(' || p1.player_name || ')%' THEN p1.player_id
+                    WHEN e.description LIKE '%(' || p2.player_name || ')%' THEN p2.player_id
+                    ELSE e.player_id  -- fallback to original if no match
+                END as player_id,
                 CASE
                     WHEN e.description LIKE '%has begun construction%'
                       OR e.description LIKE '%begonnen%'
@@ -4717,10 +4723,12 @@ class TournamentQueries:
                             ELSE 'other'
                         END,
                         -- Dedupe by extracting what looks like a wonder name
-                        REGEXP_EXTRACT(e.description, '(Pyramids|Ishtar|Aqueduct|Jerwan|Colossus|Hanging|Mausoleum|Lighthouse|Library|Oracle|Parthenon|Sphinx|Stonehenge|Temple|Ziggurat|Great Wall|Necropolis|Royal Library|Royal Mint|Hagia Sophia|Tower)', 1)
+                        REGEXP_EXTRACT(e.description, '(Pyramids|Ishtar|Aqueduct|Jerwan|Colossus|Hanging|Mausoleum|Lighthouse|Library|Oracle|Parthenon|Sphinx|Stonehenge|Temple|Ziggurat|Great Wall|Necropolis|Royal Library|Royal Mint|Hagia Sophia|Tower|Apadana)', 1)
                     ORDER BY e.event_id
                 ) as rn
             FROM events e
+            CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? LIMIT 1) p1
+            CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? ORDER BY player_id LIMIT 1 OFFSET 1) p2
             WHERE e.match_id = ?
               AND e.event_type = 'WONDER_ACTIVITY'
         ),
@@ -4896,7 +4904,7 @@ class TournamentQueries:
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [match_id] * 10  # 10 placeholders: tech, law, wonder, city, breach(x3), ruler, death, military
+        params = [match_id] * 12  # 12 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
