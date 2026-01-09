@@ -2722,7 +2722,8 @@ def update_family_city_panels(match_id: Optional[int]) -> dbc.Row:
                         ),
                         className="py-2",
                     ),
-                ]
+                ],
+                className="h-100",
             )
             player_cols.append(dbc.Col(player_card, width=12 // len(players)))
 
