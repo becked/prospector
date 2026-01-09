@@ -974,10 +974,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 className="mb-3",
                             ),
                             # Family City Distribution
-                            html.Div(
-                                id="match-family-city-panels",
-                                className="mb-3",
-                            ),
+                            html.Div(id="match-family-city-panels"),
                             # Cumulative City Count
                             dbc.Row(
                                 [
@@ -2729,7 +2726,7 @@ def update_family_city_panels(match_id: Optional[int]) -> html.Div:
             )
             player_cols.append(dbc.Col(player_card, width=12 // len(players)))
 
-        return dbc.Row(player_cols)
+        return dbc.Row(player_cols, className="mb-3")
 
     except Exception as e:
         logger.error(f"Error loading family city panels: {e}")
