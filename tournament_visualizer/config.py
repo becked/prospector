@@ -341,6 +341,97 @@ COGNOMEN_DISPLAY_NAMES: Dict[str, str] = {
 }
 
 
+# Family class mapping
+# Maps family internal names to their class (game data is static)
+FAMILY_CLASS_MAP: Dict[str, str] = {
+    # Assyria
+    "FAMILY_SARGONID": "Champions",
+    "FAMILY_TUDIYA": "Hunters",
+    "FAMILY_ADASI": "Patrons",
+    "FAMILY_ERISHUM": "Clerics",
+    # Babylon
+    "FAMILY_KASSITE": "Hunters",
+    "FAMILY_CHALDEAN": "Artisans",
+    "FAMILY_ISIN": "Traders",
+    "FAMILY_AMORITE": "Sages",
+    # Carthage
+    "FAMILY_BARCID": "Riders",
+    "FAMILY_MAGONID": "Artisans",
+    "FAMILY_HANNONID": "Traders",
+    "FAMILY_DIDONIAN": "Statesmen",
+    # Egypt
+    "FAMILY_RAMESSIDE": "Riders",
+    "FAMILY_SAITE": "Landowners",
+    "FAMILY_AMARNA": "Clerics",
+    "FAMILY_THUTMOSID": "Sages",
+    # Greece
+    "FAMILY_ARGEAD": "Champions",
+    "FAMILY_CYPSELID": "Artisans",
+    "FAMILY_SELEUCID": "Patrons",
+    "FAMILY_ALCMAEONID": "Sages",
+    # Persia
+    "FAMILY_SASANID": "Clerics",
+    "FAMILY_MIHRANID": "Hunters",
+    "FAMILY_ARSACID": "Riders",
+    "FAMILY_ACHAEMENID": "Statesmen",
+    # Rome
+    "FAMILY_FABIUS": "Champions",
+    "FAMILY_CLAUDIUS": "Landowners",
+    "FAMILY_VALERIUS": "Patrons",
+    "FAMILY_JULIUS": "Statesmen",
+    # Hatti
+    "FAMILY_KUSSARAN": "Riders",
+    "FAMILY_NENASSAN": "Landowners",
+    "FAMILY_ZALPUWAN": "Patrons",
+    "FAMILY_HATTUSAN": "Traders",
+    # Nubia
+    "FAMILY_YAM": "Hunters",
+    "FAMILY_IRTJET": "Artisans",
+    "FAMILY_WAWAT": "Traders",
+    "FAMILY_SETJU": "Landowners",
+    # Aksum
+    "FAMILY_AKSUM_AGAW": "Champions",
+    "FAMILY_AKSUM_AGAZI": "Traders",
+    "FAMILY_AKSUM_TIGRAYAN": "Clerics",
+    "FAMILY_AKSUM_BARYA": "Patrons",
+}
+
+
+def get_family_class(family_name: str) -> str:
+    """Get the class name for a family.
+
+    Args:
+        family_name: Internal family name (e.g., FAMILY_BARCID)
+
+    Returns:
+        Human-readable class name (e.g., "Riders"), or "Unknown" if not found
+    """
+    return FAMILY_CLASS_MAP.get(family_name, "Unknown")
+
+
+def format_family_display_name(family_name: str) -> str:
+    """Format a family name for display.
+
+    Converts FAMILY_BARCID to "Barcid".
+
+    Args:
+        family_name: Internal family name
+
+    Returns:
+        Human-readable family name
+    """
+    if family_name.startswith("FAMILY_"):
+        name = family_name[7:]  # Remove "FAMILY_" prefix
+    else:
+        name = family_name
+
+    # Handle AKSUM families (e.g., AKSUM_TIGRAYAN -> Tigrayan)
+    if name.startswith("AKSUM_"):
+        name = name[6:]
+
+    return name.replace("_", " ").title()
+
+
 def get_cognomen_decay_rate(generations_ago: int) -> float:
     """Calculate decay rate for cognomen legitimacy based on how many rulers ago.
 

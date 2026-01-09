@@ -3653,6 +3653,36 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
 
+    def get_family_city_counts(self, match_id: int) -> pd.DataFrame:
+        """Get city counts grouped by family for each player.
+
+        Args:
+            match_id: Tournament match ID
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - family_name: Family internal name (e.g., FAMILY_BARCID)
+                - city_count: Number of cities owned by this family
+        """
+        query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            c.family_name,
+            COUNT(c.city_id) as city_count
+        FROM players p
+        LEFT JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        WHERE p.match_id = ?
+            AND c.family_name IS NOT NULL
+        GROUP BY p.player_id, p.player_name, c.family_name
+        ORDER BY p.player_id, city_count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id]).df()
+
     def get_production_summary(self, match_id: int) -> pd.DataFrame:
         """Get unit production summary for each player.
 

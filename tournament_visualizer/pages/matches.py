@@ -53,7 +53,9 @@ from tournament_visualizer.config import (
     PAGE_CONFIG,
     Config,
     format_event_type_display,
+    format_family_display_name,
     get_cognomen_decay_rate,
+    get_family_class,
 )
 from tournament_visualizer.data.queries import get_queries
 from tournament_visualizer.nation_colors import get_match_player_colors
@@ -969,6 +971,11 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=4,
                                     ),
                                 ],
+                                className="mb-3",
+                            ),
+                            # Family City Distribution
+                            html.Div(
+                                id="match-family-city-panels",
                                 className="mb-3",
                             ),
                             # Cumulative City Count
@@ -2644,6 +2651,89 @@ def update_ambition_summary(
         return create_empty_chart_placeholder(
             f"Error loading ambition summary: {str(e)}"
         )
+
+
+@callback(
+    Output("match-family-city-panels", "children"),
+    Input("match-selector", "value"),
+)
+def update_family_city_panels(match_id: Optional[int]) -> html.Div:
+    """Update family city distribution panels for each player.
+
+    Shows which families each player has and how many cities per family.
+
+    Args:
+        match_id: Selected match ID
+
+    Returns:
+        HTML content with player panels showing family city counts
+    """
+    if not match_id:
+        return html.Div()
+
+    try:
+        queries = get_queries()
+        df = queries.get_family_city_counts(match_id)
+
+        if df.empty:
+            return html.Div()
+
+        # Get player names in order
+        players = df["player_name"].unique()
+
+        player_cols = []
+        for player in sorted(players):
+            player_data = df[df["player_name"] == player]
+
+            # Build family list with class and count
+            family_items = []
+            total_cities = 0
+            for _, row in player_data.iterrows():
+                family_display = format_family_display_name(row["family_name"])
+                family_class = get_family_class(row["family_name"])
+                city_count = int(row["city_count"])
+                total_cities += city_count
+                family_items.append(
+                    html.Li(
+                        f"{family_display} ({family_class}): {city_count}",
+                        className="mb-1",
+                    )
+                )
+
+            player_card = dbc.Card(
+                [
+                    dbc.CardHeader(
+                        html.H6(
+                            [
+                                f"{player} - Families ",
+                                dbc.Badge(
+                                    f"{total_cities} cities",
+                                    color="info",
+                                    pill=True,
+                                ),
+                            ],
+                            className="mb-0",
+                        )
+                    ),
+                    dbc.CardBody(
+                        html.Ul(
+                            family_items if family_items else [
+                                html.Span("No family data", className="text-muted")
+                            ],
+                            style={"fontSize": "0.9rem", "marginBottom": "0"},
+                            className="ps-3",
+                        ),
+                        className="py-2",
+                    ),
+                ]
+            )
+            player_cols.append(dbc.Col(player_card, width=12 // len(players)))
+
+        return dbc.Row(player_cols)
+
+    except Exception as e:
+        logger.error(f"Error loading family city panels: {e}")
+        return html.Div(f"Error loading data: {str(e)}", className="text-danger")
 
 
 @callback(
