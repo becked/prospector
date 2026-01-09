@@ -974,7 +974,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 className="mb-3",
                             ),
                             # Family City Distribution
-                            html.Div(id="match-family-city-panels"),
+                            dbc.Row(id="match-family-city-panels", className="mb-3"),
                             # Cumulative City Count
                             dbc.Row(
                                 [
@@ -2654,7 +2654,7 @@ def update_ambition_summary(
     Output("match-family-city-panels", "children"),
     Input("match-selector", "value"),
 )
-def update_family_city_panels(match_id: Optional[int]) -> html.Div:
+def update_family_city_panels(match_id: Optional[int]) -> List[dbc.Col]:
     """Update family city distribution panels for each player.
 
     Shows which families each player has and how many cities per family.
@@ -2663,17 +2663,17 @@ def update_family_city_panels(match_id: Optional[int]) -> html.Div:
         match_id: Selected match ID
 
     Returns:
-        HTML content with player panels showing family city counts
+        List of columns with player panels showing family city counts
     """
     if not match_id:
-        return html.Div()
+        return []
 
     try:
         queries = get_queries()
         df = queries.get_family_city_counts(match_id)
 
         if df.empty:
-            return html.Div()
+            return []
 
         # Get player names in order
         players = df["player_name"].unique()
@@ -2726,11 +2726,11 @@ def update_family_city_panels(match_id: Optional[int]) -> html.Div:
             )
             player_cols.append(dbc.Col(player_card, width=12 // len(players)))
 
-        return dbc.Row(player_cols, className="mb-3")
+        return player_cols
 
     except Exception as e:
         logger.error(f"Error loading family city panels: {e}")
-        return html.Div(f"Error loading data: {str(e)}", className="text-danger")
+        return [dbc.Col(html.Div(f"Error loading data: {str(e)}", className="text-danger"))]
 
 
 @callback(
