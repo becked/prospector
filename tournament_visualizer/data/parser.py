@@ -431,6 +431,95 @@ class OldWorldSaveParser:
 
         return events
 
+    def extract_religion_adoptions(self) -> List[Dict[str, Any]]:
+        """Extract religion adoption events from Player elements.
+
+        Religion adoption data is stored in Player elements as tags in the format:
+        RELIGION_X.EVENTSTORY_ADOPT_RELIGION = turn_number
+
+        For example:
+        <RELIGION_ZOROASTRIANISM.EVENTSTORY_ADOPT_RELIGION>74</...>
+
+        This provides the specific religion that was adopted, unlike the generic
+        MEMORYPLAYER_ADOPTED_RELIGION events which only say "Adopted Religion".
+
+        Returns:
+            List of event dictionaries with keys:
+                - turn_number: Turn when adoption occurred
+                - event_type: "RELIGION_ADOPTED"
+                - player_id: Database player ID (1-based)
+                - description: "Adopted {ReligionName}" (e.g., "Adopted Zoroastrianism")
+                - x_coordinate: None
+                - y_coordinate: None
+                - event_data: JSON with religion name
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        events = []
+        seen = set()  # Track (player_id, religion, turn) to avoid duplicates
+
+        for player_element in self.root.findall(".//Player[@ID]"):
+            player_xml_id = self._safe_int(player_element.get("ID"))
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based database player_id
+            player_id = player_xml_id + 1
+
+            # Search for RELIGION_X.EVENTSTORY_ADOPT_RELIGION tags
+            # These are direct children or nested in various data containers
+            for elem in player_element.iter():
+                tag = elem.tag
+                # Match pattern: RELIGION_X.EVENTSTORY_ADOPT_RELIGION (not PAGAN, not MISSION)
+                if ".EVENTSTORY_ADOPT_RELIGION" in tag and "PAGAN" not in tag:
+                    # Skip mission-related adoptions (these are ambition completions)
+                    if "MISSION" in tag:
+                        continue
+
+                    turn = self._safe_int(elem.text)
+                    if turn is None:
+                        continue
+
+                    # Extract religion name from tag: RELIGION_ZOROASTRIANISM.EVENTSTORY...
+                    religion_key = tag.split(".")[0]  # e.g., "RELIGION_ZOROASTRIANISM"
+                    religion_name = self._format_religion_name(religion_key)
+
+                    # Deduplicate
+                    key = (player_id, religion_name, turn)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+
+                    event_data = {
+                        "turn_number": turn,
+                        "event_type": "RELIGION_ADOPTED",
+                        "player_id": player_id,
+                        "description": f"Adopted {religion_name}",
+                        "x_coordinate": None,
+                        "y_coordinate": None,
+                        "event_data": f'{{"religion": "{religion_name}"}}',
+                    }
+                    events.append(event_data)
+
+        # Sort by turn number
+        events.sort(key=lambda e: (e["turn_number"], e["player_id"]))
+        return events
+
+    def _format_religion_name(self, religion_key: str) -> str:
+        """Format a religion key into a display name.
+
+        Args:
+            religion_key: Key like "RELIGION_ZOROASTRIANISM" or "RELIGION_JUDAISM"
+
+        Returns:
+            Display name like "Zoroastrianism" or "Judaism"
+        """
+        # Remove RELIGION_ prefix
+        name = religion_key.replace("RELIGION_", "")
+        # Title case
+        return name.replace("_", " ").title()
+
     def extract_logdata_events(self) -> List[Dict[str, Any]]:
         """Extract game events from LogData elements in Player/PermanentLogList sections.
 
@@ -2157,13 +2246,17 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
     logdata_events = (
         parser.extract_logdata_events()
     )  # LogData: LAW_ADOPTED, TECH_DISCOVERED, etc. (comprehensive logs)
+    religion_adoptions = (
+        parser.extract_religion_adoptions()
+    )  # Religion adoption events with specific religion names
 
-    # Merge both event sources
-    # No deduplication needed - MemoryData and LogData have completely separate event type namespaces:
+    # Merge all event sources
+    # No deduplication needed - each source has separate event type namespaces:
     #   - MemoryData: MEMORYPLAYER_*, MEMORYFAMILY_*, etc.
     #   - LogData: LAW_ADOPTED, TECH_DISCOVERED, GOAL_STARTED, etc.
+    #   - Religion: RELIGION_ADOPTED (with specific religion in description)
     # They capture different types of historical information and can be safely concatenated.
-    events = memory_events + logdata_events
+    events = memory_events + logdata_events + religion_adoptions
 
     # Note: territories are now extracted in ETL pipeline after match_id is known
     # territories = parser.extract_territories()

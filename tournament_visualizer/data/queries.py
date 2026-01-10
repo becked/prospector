@@ -4942,6 +4942,20 @@ class TournamentQueries:
             WHERE e.match_id = ?
               AND e.event_type = 'THEOLOGY_ESTABLISHED'
               AND e.description LIKE '%(' || p.player_name || ')%'
+        ),
+
+        -- 11. Religion adoption events (RELIGION_ADOPTED)
+        -- Shows when a player adopted a world religion as their state religion
+        religion_adopted_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                'religion_adopted' as event_type,
+                e.description as title,  -- "Adopted Zoroastrianism"
+                e.description as details
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'RELIGION_ADOPTED'
         )
 
         -- Combine all events
@@ -5017,11 +5031,16 @@ class TournamentQueries:
 
             SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM theology_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
+            FROM religion_adopted_events
         ) all_events
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [match_id] * 15  # 15 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology
+        params = [match_id] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()

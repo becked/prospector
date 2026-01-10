@@ -909,8 +909,14 @@ def _create_event_icon(
     elif event_type == "religion":
         # Title is "Founded: Carthaginian Paganism" or "Founded: Judaism"
         religion_name = title.replace("Founded: ", "")
-        tooltip = religion_name
+        tooltip = f"Founded {religion_name}"
         # Look up specific icon, fall back to generic for pagan religions
+        icon_path = RELIGION_ICONS.get(religion_name, RELIGION_ICON_DEFAULT)
+    elif event_type == "religion_adopted":
+        # Title is "Adopted Zoroastrianism"
+        religion_name = title.replace("Adopted ", "")
+        tooltip = f"Adopted {religion_name}"
+        # Look up specific icon, fall back to generic
         icon_path = RELIGION_ICONS.get(religion_name, RELIGION_ICON_DEFAULT)
     elif event_type == "theology":
         # Title is "Legalism (Zoroastrianism)" - extract theology name for icon lookup

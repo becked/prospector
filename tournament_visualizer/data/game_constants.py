@@ -98,6 +98,7 @@ TIMELINE_ICONS: dict[str, str] = {
     "uu_unlock": "🗡️",
     "ambition": "🏆",
     "religion": "⛪",
+    "religion_adopted": "⛪",
     "theology": "📿",
 }
 
@@ -107,18 +108,19 @@ EVENT_PRIORITY: dict[str, int] = {
     "death": 1,
     "ruler": 2,
     "capital": 3,
-    "religion": 4,  # Religion founding after capital, before city
-    "theology": 5,  # Theology after religion
-    "city": 6,
-    "city_lost": 6,
-    "uu_unlock": 7,
-    "ambition": 8,  # Ambition completion after uu_unlock, before law
-    "law": 9,
-    "law_swap": 10,
-    "tech": 11,
-    "wonder_complete": 12,
-    "wonder_start": 13,
-    "battle": 14,
+    "religion": 4,  # Religion founding after capital, before adoption
+    "religion_adopted": 5,  # Religion adoption after founding
+    "theology": 6,  # Theology after religion adoption
+    "city": 7,
+    "city_lost": 7,
+    "uu_unlock": 8,
+    "ambition": 9,  # Ambition completion after uu_unlock, before law
+    "law": 10,
+    "law_swap": 11,
+    "tech": 12,
+    "wonder_complete": 13,
+    "wonder_start": 14,
+    "battle": 15,
 }
 
 # =============================================================================
