@@ -156,6 +156,12 @@ app.index_string = """<!DOCTYPE html>
             .modebar-btn:hover path {
                 fill: #ffffff !important;
             }
+            /* Switch/checkbox toggles - pointer cursor on hover */
+            .form-check,
+            .form-check-label,
+            .form-check-input {
+                cursor: pointer;
+            }
         </style>
     </head>
     <body>
