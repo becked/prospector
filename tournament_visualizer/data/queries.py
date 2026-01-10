@@ -4744,17 +4744,26 @@ class TournamentQueries:
                     -- German completed: "X (abgeschlossen|fertiggestellt)"
                     WHEN e.description LIKE '%abgeschlossen%' OR e.description LIKE '%fertiggestellt%'
                     THEN TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (abgeschlossen|fertiggestellt)', 1))
+                    -- Russian: "строительство {wonder}." or "строительство {wonder}!"
+                    WHEN e.description LIKE '%строительство%'
+                    THEN TRIM(RTRIM(REGEXP_EXTRACT(e.description, 'строительство (.+)', 1), '.!'))
                     ELSE e.description
                 END as wonder_name,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.turn_number,
                         CASE
-                            WHEN e.description LIKE '%has begun construction%' THEN 'start'
-                            WHEN e.description LIKE '%completed by%' THEN 'complete'
+                            WHEN e.description LIKE '%has begun construction%'
+                              OR e.description LIKE '%начинает строительство%'
+                              OR e.description LIKE '%begonnen%'
+                            THEN 'start'
+                            WHEN e.description LIKE '%completed by%'
+                              OR e.description LIKE '%завершает строительство%'
+                              OR e.description LIKE '%fertiggestellt%'
+                            THEN 'complete'
                             ELSE 'other'
-                        END,
-                        -- Dedupe by extracting what looks like a wonder name
-                        REGEXP_EXTRACT(e.description, '(Pyramids|Ishtar|Aqueduct|Jerwan|Colossus|Hanging|Mausoleum|Lighthouse|Library|Oracle|Parthenon|Sphinx|Stonehenge|Temple|Ziggurat|Great Wall|Necropolis|Royal Library|Royal Mint|Hagia Sophia|Tower|Apadana)', 1)
+                        END
+                    -- Dedupe by turn + event type only (two wonders completing same turn is rare)
+                    -- Previous approach using English wonder names failed for non-English saves
                     ORDER BY e.event_id
                 ) as rn
             FROM events e

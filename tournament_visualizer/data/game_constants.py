@@ -204,12 +204,47 @@ WONDER_NAME_MAPPINGS: dict[str, str] = {
     "Hängende Gärten": "HANGING_GARDENS",
     "Jervan-Aquädukt": "JERWAN_AQUEDUCT",
     "Nekropole": "NECROPOLIS",
-    # Russian names (transliterated)
+    # Russian names
     "Висячие сады": "HANGING_GARDENS",
+    "Висячих садов": "HANGING_GARDENS",  # genitive case
     "Акрополь": "ACROPOLIS",
+    "Акрополя": "ACROPOLIS",  # genitive
     "Джерванский акведук": "JERWAN_AQUEDUCT",
+    "Джерванского акведука": "JERWAN_AQUEDUCT",  # genitive
     "Зиккурат": "GREAT_ZIGGURAT",
+    "Зиккурата": "GREAT_ZIGGURAT",  # genitive
     "Мавзолей": "MAUSOLEUM",
+    "Мавзолея": "MAUSOLEUM",  # genitive
+    "Ворота Иштар": "ISHTAR_GATE",
+    "Ворот Иштар": "ISHTAR_GATE",  # genitive case (строительство Ворот Иштар)
+    "Оракул": "ORACLE",
+    "Оракула": "ORACLE",  # genitive
+    "Пирамиды": "PYRAMIDS",
+    "Пирамид": "PYRAMIDS",  # genitive
+    "Колосс": "COLOSSUS",
+    "Колосса": "COLOSSUS",  # genitive
+    "Маяк": "LIGHTHOUSE",
+    "Маяка": "LIGHTHOUSE",  # genitive
+    "Пантеон": "PANTHEON",
+    "Пантеона": "PANTHEON",  # genitive
+    "Некрополь": "NECROPOLIS",
+    "Некрополя": "NECROPOLIS",  # genitive
+    "Мусейон": "MUSAEUM",
+    "Мусейона": "MUSAEUM",  # genitive
+    "Ападана": "APADANA",
+    "Ападаны": "APADANA",  # genitive
+    "Котон": "COTHON",
+    "Котона": "COTHON",  # genitive
+    "Цирк Максимус": "CIRCUS_MAXIMUS",
+    "Цирка Максимус": "CIRCUS_MAXIMUS",  # genitive
+    "Колизей": "COLOSSEUM",
+    "Колизея": "COLOSSEUM",  # genitive
+    "Гелиополь": "HELIOPOLIS",
+    "Гелиополя": "HELIOPOLIS",  # genitive
+    "Джебель-Баркал": "JEBEL_BARKAL",
+    "Джебель-Баркала": "JEBEL_BARKAL",  # genitive
+    "Язылыкая": "YAZILIKAYA",
+    "Язылыкаи": "YAZILIKAYA",  # genitive
 }
 
 
