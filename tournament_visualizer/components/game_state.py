@@ -20,6 +20,7 @@ from tournament_visualizer.data.game_constants import (
     get_nation_crest_icon_path,
     ARCHETYPE_ICONS,
     FAMILY_TO_ARCHETYPE,
+    EVENT_FILTER_CATEGORIES,
 )
 
 
@@ -309,6 +310,7 @@ def create_game_state_component(
     player1_civilization: str = "",
     player2_civilization: str = "",
     show_text: bool = False,
+    enabled_categories: Optional[list[str]] = None,
 ) -> html.Div:
     """Create 7-column game state comparison table.
 
@@ -338,6 +340,17 @@ def create_game_state_component(
             message="No comparison data found for this match.",
             icon="bi-bar-chart",
         )
+
+    # Filter events by enabled categories
+    if enabled_categories is not None and not events_df.empty:
+        # Build list of enabled event types from categories
+        enabled_event_types = set()
+        for category in enabled_categories:
+            if category in EVENT_FILTER_CATEGORIES:
+                enabled_event_types.update(EVENT_FILTER_CATEGORIES[category])
+
+        # Filter events to only include enabled event types
+        events_df = events_df[events_df["event_type"].isin(enabled_event_types)]
 
     # Get nation crest paths for winner indicators
     p1_crest = get_nation_crest_icon_path(player1_civilization)

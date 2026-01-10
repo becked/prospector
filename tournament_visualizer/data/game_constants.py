@@ -123,6 +123,25 @@ EVENT_PRIORITY: dict[str, int] = {
     "battle": 15,
 }
 
+# Event filter categories - groups related event types for user filtering
+EVENT_FILTER_CATEGORIES: dict[str, list[str]] = {
+    "Ambitions": ["ambition"],
+    "Battles": ["battle"],
+    "Cities": ["capital", "city", "city_lost"],
+    "Laws": ["law", "law_swap"],
+    "Religion": ["religion", "religion_adopted", "theology"],
+    "Rulers": ["ruler", "death"],
+    "Techs": ["uu_unlock", "tech"],
+    "Wonders": ["wonder_start", "wonder_complete"],
+}
+
+# Reverse lookup: event_type -> category name
+EVENT_TYPE_TO_CATEGORY: dict[str, str] = {
+    event_type: category
+    for category, event_types in EVENT_FILTER_CATEGORIES.items()
+    for event_type in event_types
+}
+
 # =============================================================================
 # Icon Path Mappings for Timeline Display
 # =============================================================================

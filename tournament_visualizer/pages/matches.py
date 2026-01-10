@@ -151,6 +151,22 @@ layout = html.Div(
         dcc.Location(id="match-url", refresh=False),
         # Persistent storage for show text toggle (localStorage)
         dcc.Store(id="show-event-text-store", storage_type="local", data=False),
+        # Persistent storage for event filter preferences (localStorage)
+        # Default: all categories enabled
+        dcc.Store(
+            id="event-filter-store",
+            storage_type="local",
+            data={
+                "Ambitions": True,
+                "Battles": True,
+                "Cities": True,
+                "Laws": True,
+                "Religion": True,
+                "Rulers": True,
+                "Techs": True,
+                "Wonders": True,
+            },
+        ),
         # Page header
         create_page_header(
             title=PAGE_CONFIG["matches"]["title"],
@@ -506,23 +522,74 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Overview",
                         "tab_id": "overview",
                         "content": [
-                            # Toggle for showing/hiding event text
+                            # Toggle for showing/hiding event text and filter
                             dbc.Row(
                                 [
                                     dbc.Col(
-                                        [
+                                        html.Div(
+                                            [
+                                                html.I(
+                                                    className="bi bi-funnel me-2 text-muted"
+                                                ),
+                                                dbc.Checklist(
+                                                    id="event-filter-checklist",
+                                                    options=[
+                                                        {"label": cat, "value": cat}
+                                                        for cat in [
+                                                            "Ambitions",
+                                                            "Battles",
+                                                            "Cities",
+                                                            "Laws",
+                                                            "Religion",
+                                                            "Rulers",
+                                                            "Techs",
+                                                            "Wonders",
+                                                        ]
+                                                    ],
+                                                    value=[
+                                                        "Ambitions",
+                                                        "Battles",
+                                                        "Cities",
+                                                        "Laws",
+                                                        "Religion",
+                                                        "Rulers",
+                                                        "Techs",
+                                                        "Wonders",
+                                                    ],
+                                                    inline=True,
+                                                    className="event-filter-checklist d-inline-flex",
+                                                    switch=True,
+                                                ),
+                                            ],
+                                            className="py-1 px-2 d-flex align-items-center",
+                                            style={
+                                                "backgroundColor": "rgba(255,255,255,0.05)",
+                                                "border": "1px solid rgba(255,255,255,0.1)",
+                                                "borderRadius": "0.375rem",
+                                            },
+                                        ),
+                                        width="auto",
+                                    ),
+                                    dbc.Col(
+                                        html.Div(
                                             dbc.Switch(
                                                 id="show-event-text-toggle",
                                                 label="Display text",
                                                 value=False,
                                                 className="mb-0",
                                             ),
-                                        ],
+                                            className="py-1 px-2 d-flex align-items-center",
+                                            style={
+                                                "backgroundColor": "rgba(255,255,255,0.05)",
+                                                "border": "1px solid rgba(255,255,255,0.1)",
+                                                "borderRadius": "0.375rem",
+                                            },
+                                        ),
                                         width="auto",
-                                        className="d-flex align-items-center",
-                                    )
+                                        className="ms-auto",
+                                    ),
                                 ],
-                                className="mt-3 mb-2 justify-content-end",
+                                className="mt-3 mb-2 align-items-center g-3",
                             ),
                             # Game state comparison table
                             dbc.Row(
@@ -1213,22 +1280,55 @@ def sync_store_from_toggle(toggle_value: bool) -> bool:
     return toggle_value
 
 
+# Event filter callbacks
+@callback(
+    Output("event-filter-checklist", "value"),
+    Input("event-filter-store", "modified_timestamp"),
+    State("event-filter-store", "data"),
+    prevent_initial_call=False,
+)
+def sync_filter_from_store(
+    modified_ts: Optional[int], store_data: Optional[dict]
+) -> list[str]:
+    """Initialize filter checklist from localStorage on page load."""
+    if store_data is None:
+        # Default: all enabled
+        return ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders"]
+    # Return list of enabled categories
+    return [cat for cat, enabled in store_data.items() if enabled]
+
+
+@callback(
+    Output("event-filter-store", "data"),
+    Input("event-filter-checklist", "value"),
+    prevent_initial_call=True,
+)
+def sync_store_from_filter(selected_categories: list[str]) -> dict:
+    """Save filter state to localStorage when user changes selection."""
+    all_categories = ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders"]
+    return {cat: (cat in selected_categories) for cat in all_categories}
+
+
 @callback(
     Output("match-overview-table", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
     Input("show-event-text-toggle", "value"),
+    Input("event-filter-checklist", "value"),
 )
 def update_overview_table(
     active_tab: Optional[str],
     match_id: Optional[int],
     show_text: bool,
+    enabled_categories: Optional[list[str]],
 ) -> html.Div:
     """Update the overview comparison table.
 
     Args:
         active_tab: Currently active tab ID
         match_id: Selected match ID
+        show_text: Whether to show event text labels
+        enabled_categories: List of enabled event filter categories
 
     Returns:
         Overview comparison component HTML
@@ -1346,6 +1446,7 @@ def update_overview_table(
             player1_civilization=player1_civilization,
             player2_civilization=player2_civilization,
             show_text=show_text,
+            enabled_categories=enabled_categories,
         )
 
     except Exception as e:
