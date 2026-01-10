@@ -4918,20 +4918,30 @@ class TournamentQueries:
         ),
 
         -- 10. Theology established events (THEOLOGY_ESTABLISHED)
+        -- Only show for the player who actually established it (player name in description)
         theology_events AS (
             SELECT
                 e.turn_number as turn,
                 e.player_id,
                 'theology' as event_type,
-                -- Extract theology name from "Zoroastrian Legalism established by ..."
-                'Theology: ' || COALESCE(
+                -- Extract theology and religion: "Zoroastrian Legalism" -> "Legalism (Zoroastrianism)"
+                COALESCE(
                     REGEXP_EXTRACT(e.description, '^[A-Za-z]+ ([A-Za-z]+) established', 1),
-                    e.description
-                ) as title,
+                    'Theology'
+                ) || ' (' ||
+                CASE REGEXP_EXTRACT(e.description, '^([A-Za-z]+) ', 1)
+                    WHEN 'Zoroastrian' THEN 'Zoroastrianism'
+                    WHEN 'Jewish' THEN 'Judaism'
+                    WHEN 'Christian' THEN 'Christianity'
+                    WHEN 'Manichaean' THEN 'Manichaeism'
+                    ELSE REGEXP_EXTRACT(e.description, '^([A-Za-z]+) ', 1)
+                END || ')' as title,
                 e.description as details
             FROM events e
+            JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
             WHERE e.match_id = ?
               AND e.event_type = 'THEOLOGY_ESTABLISHED'
+              AND e.description LIKE '%(' || p.player_name || ')%'
         )
 
         -- Combine all events

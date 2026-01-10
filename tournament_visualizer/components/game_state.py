@@ -4,6 +4,7 @@ This module provides a 7-column table showing per-turn game state comparisons
 between two players, including events, orders, and winner indicators.
 """
 
+import re
 from typing import Dict, Optional, Tuple
 
 import pandas as pd
@@ -28,8 +29,16 @@ YIELD_SCIENCE_ICON = "/assets/icons/yields/YIELD_SCIENCE.png"
 YIELD_TRAINING_ICON = "/assets/icons/other/Cycle_Military.png"
 YIELD_VP_ICON = "/assets/icons/other/VICTORY_Normal.png"
 AMBITION_ICON = "/assets/icons/other/TURN_SUMMARY_AMBITION.png"
-RELIGION_ICON = "/assets/icons/other/RELIGION_FOUNDED.png"
+RELIGION_ICON_DEFAULT = "/assets/icons/other/RELIGION_FOUNDED.png"
 CITY_FOUNDED_ICON = "/assets/icons/other/CITY_FOUNDED.png"
+
+# Religion icons mapping (falls back to RELIGION_FOUNDED.png for pagan religions)
+RELIGION_ICONS = {
+    "Christianity": "/assets/icons/other/RELIGION_CHRISTIANITY.png",
+    "Judaism": "/assets/icons/other/RELIGION_JUDAISM.png",
+    "Manichaeism": "/assets/icons/other/RELIGION_MANICHAEISM.png",
+    "Zoroastrianism": "/assets/icons/other/RELIGION_ZOROASTRIANISM.png",
+}
 
 # Theology icons mapping
 THEOLOGY_ICONS = {
@@ -898,14 +907,17 @@ def _create_event_icon(
         # Title is "Ambition: Control Six Mines"
         tooltip = title.replace("Ambition: ", "")
     elif event_type == "religion":
-        icon_path = RELIGION_ICON
-        # Title is "Founded: Carthaginian Paganism"
-        tooltip = title.replace("Founded: ", "")
+        # Title is "Founded: Carthaginian Paganism" or "Founded: Judaism"
+        religion_name = title.replace("Founded: ", "")
+        tooltip = religion_name
+        # Look up specific icon, fall back to generic for pagan religions
+        icon_path = RELIGION_ICONS.get(religion_name, RELIGION_ICON_DEFAULT)
     elif event_type == "theology":
-        # Title is "Theology: Legalism" - extract theology name for icon lookup
-        theology_name = title.replace("Theology: ", "")
+        # Title is "Legalism (Zoroastrianism)" - extract theology name for icon lookup
+        match = re.match(r'^(\w+)\s*\(', title)
+        theology_name = match.group(1) if match else title
         icon_path = THEOLOGY_ICONS.get(theology_name)
-        tooltip = theology_name
+        tooltip = title  # Show full "Legalism (Zoroastrianism)"
 
     icon_style = {
         "width": "28px",
