@@ -396,6 +396,32 @@ FAMILY_CLASS_MAP: Dict[str, str] = {
     "FAMILY_AKSUM_BARYA": "Patrons",
 }
 
+# Family class color mapping for charts
+FAMILY_CLASS_COLORS: Dict[str, str] = {
+    "Champions": "#e63946",  # Red - aggressive military
+    "Riders": "#f4a261",  # Orange - mobile cavalry
+    "Hunters": "#2a9d8f",  # Teal - wilderness/nature
+    "Artisans": "#e9c46a",  # Gold - crafting/production
+    "Traders": "#457b9d",  # Blue - commerce
+    "Sages": "#9b5de5",  # Purple - knowledge/wisdom
+    "Statesmen": "#264653",  # Dark blue - politics/governance
+    "Patrons": "#a8dadc",  # Light blue - support/nobility
+    "Clerics": "#f1faee",  # Off-white - religious
+    "Landowners": "#8d6e63",  # Brown - land/agriculture
+}
+
+
+def get_family_class_color(family_class: str) -> str:
+    """Get the color for a family class.
+
+    Args:
+        family_class: Class name (e.g., "Champions", "Riders")
+
+    Returns:
+        Hex color string, or gray fallback if not found
+    """
+    return FAMILY_CLASS_COLORS.get(family_class, "#808080")
+
 
 def get_family_class(family_name: str) -> str:
     """Get the class name for a family.

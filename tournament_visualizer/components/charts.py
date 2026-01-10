@@ -11,7 +11,12 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..config import CIVILIZATION_COLORS, DEFAULT_CHART_LAYOUT, Config
+from ..config import (
+    CIVILIZATION_COLORS,
+    DEFAULT_CHART_LAYOUT,
+    Config,
+    get_family_class_color,
+)
 from ..nation_colors import get_nation_color
 from ..theme import CHART_THEME
 
@@ -6574,6 +6579,704 @@ def create_match_legitimacy_chart(df: pd.DataFrame) -> go.Figure:
         hovermode="closest",
         hoverdistance=100,
         showlegend=False,
+    )
+
+    return fig
+
+
+# =============================================================================
+# Family Class Charts
+# =============================================================================
+
+
+def create_family_class_win_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a horizontal bar chart showing family class win rates.
+
+    Args:
+        df: DataFrame with family_class, wins, total_picks, win_percentage columns
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No family class data available")
+
+    # Sort by win percentage ascending (for horizontal bar display)
+    df_sorted = df.sort_values("win_percentage", ascending=True)
+
+    fig = create_base_figure(
+        x_title="Win Rate (%)",
+        y_title="Family Class",
+        show_legend=False,
+    )
+
+    colors = [get_family_class_color(fc) for fc in df_sorted["family_class"]]
+
+    hover_text = [
+        f"<b>{row['family_class']}</b><br>"
+        f"Win Rate: {row['win_percentage']:.1f}%<br>"
+        f"Wins: {int(row['wins'])}<br>"
+        f"Total Picks: {int(row['total_picks'])}"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["win_percentage"],
+            y=df_sorted["family_class"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{pct:.1f}%" for pct in df_sorted["win_percentage"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+        xaxis={"range": [0, 100]},
+    )
+
+    return fig
+
+
+def create_family_class_popularity_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a horizontal bar chart showing family class popularity.
+
+    Args:
+        df: DataFrame with family_class, pick_count, pick_percentage columns
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No family class data available")
+
+    # Sort by pick count ascending
+    df_sorted = df.sort_values("pick_count", ascending=True)
+
+    fig = create_base_figure(
+        x_title="Times Picked",
+        y_title="Family Class",
+        show_legend=False,
+    )
+
+    colors = [get_family_class_color(fc) for fc in df_sorted["family_class"]]
+
+    hover_text = [
+        f"<b>{row['family_class']}</b><br>"
+        f"Times Picked: {int(row['pick_count'])}<br>"
+        f"Pick Rate: {row['pick_percentage']:.1f}%"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["pick_count"],
+            y=df_sorted["family_class"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{int(cnt)}" for cnt in df_sorted["pick_count"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+    )
+
+    return fig
+
+
+def create_family_class_counter_pick_heatmap(
+    df: pd.DataFrame, min_games: int = 1
+) -> go.Figure:
+    """Create a heatmap showing family class counter-pick effectiveness.
+
+    Shows win rates when one player's family classes face opponent's classes.
+
+    Args:
+        df: DataFrame with player_class, opponent_class, games, player_wins, win_rate
+        min_games: Minimum games for filtering (used for hover text info)
+
+    Returns:
+        Plotly figure with heatmap
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No family class matchup data available"
+        )
+
+    # Pivot the data for heatmap
+    pivot_data = df.pivot_table(
+        index="player_class",
+        columns="opponent_class",
+        values="win_rate",
+        aggfunc="first",
+    )
+
+    games_pivot = df.pivot_table(
+        index="player_class",
+        columns="opponent_class",
+        values="games",
+        aggfunc="first",
+    )
+
+    # Create hover text
+    hover_text = []
+    for i, player_class in enumerate(pivot_data.index):
+        hover_row = []
+        for j, opponent_class in enumerate(pivot_data.columns):
+            win_rate = pivot_data.iloc[i, j]
+            games = games_pivot.iloc[i, j]
+            if pd.notna(win_rate) and pd.notna(games):
+                hover_row.append(
+                    f"<b>{player_class} vs {opponent_class}</b><br>"
+                    f"Win Rate: {win_rate:.1f}%<br>"
+                    f"Games: {int(games)}<br>"
+                    f"<i>{'Advantage' if win_rate >= 55 else 'Disadvantage' if win_rate <= 45 else 'Even'}</i>"
+                )
+            else:
+                hover_row.append(
+                    f"<b>{player_class} vs {opponent_class}</b><br>No data"
+                )
+        hover_text.append(hover_row)
+
+    fig = create_base_figure(show_legend=False, height=500)
+
+    colorscale = [
+        [0.0, "#EF5350"],  # Red (0% - disadvantage)
+        [0.5, "#FFF59D"],  # Yellow (50% - even)
+        [1.0, "#66BB6A"],  # Green (100% - advantage)
+    ]
+
+    fig.add_trace(
+        go.Heatmap(
+            z=pivot_data.values,
+            x=pivot_data.columns,
+            y=pivot_data.index,
+            colorscale=colorscale,
+            zmin=0,
+            zmax=100,
+            hovertext=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(
+                title=dict(text="Win<br>Rate", side="right"),
+                ticksuffix="%",
+                tickvals=[0, 25, 50, 75, 100],
+                ticktext=["0%", "25%", "50%", "75%", "100%"],
+                len=0.75,
+                thickness=15,
+                x=1.02,
+            ),
+            text=[
+                [f"{val:.0f}%" if pd.notna(val) else "-" for val in row]
+                for row in pivot_data.values
+            ],
+            texttemplate="%{text}",
+            textfont={"size": 10},
+        )
+    )
+
+    fig.update_layout(
+        xaxis_title="Opponent's Class",
+        yaxis_title="Your Class",
+    )
+
+    return fig
+
+
+def create_family_class_omission_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a chart showing which family classes are omitted most often.
+
+    Shows dual metrics: omission count and win rate when that class is omitted.
+
+    Args:
+        df: DataFrame with omitted_class, omission_count, omission_percentage,
+            win_rate_when_omitted columns
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No omission data available")
+
+    # Sort by omission count
+    df_sorted = df.sort_values("omission_count", ascending=True)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    apply_dark_theme(fig)
+
+    colors = [get_family_class_color(fc) for fc in df_sorted["omitted_class"]]
+
+    # Bar for omission count
+    hover_text = [
+        f"<b>{row['omitted_class']}</b><br>"
+        f"Times Omitted: {int(row['omission_count'])}<br>"
+        f"Omission Rate: {row['omission_percentage']:.1f}%<br>"
+        f"Win Rate When Omitted: {row['win_rate_when_omitted']:.1f}%"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["omitted_class"],
+            y=df_sorted["omission_count"],
+            name="Times Omitted",
+            marker=dict(color=colors, opacity=0.8),
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        ),
+        secondary_y=False,
+    )
+
+    # Line for win rate when omitted
+    fig.add_trace(
+        go.Scatter(
+            x=df_sorted["omitted_class"],
+            y=df_sorted["win_rate_when_omitted"],
+            name="Win Rate When Omitted",
+            mode="lines+markers",
+            line=dict(color="#FF9800", width=3),
+            marker=dict(size=10, color="#FF9800"),
+            hovertemplate="<b>%{x}</b><br>Win Rate: %{y:.1f}%<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_layout(
+        xaxis_title="Omitted Class",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        barmode="group",
+    )
+
+    fig.update_yaxes(title_text="Times Omitted", secondary_y=False)
+    fig.update_yaxes(
+        title_text="Win Rate (%)", secondary_y=True, range=[0, 100]
+    )
+
+    return fig
+
+
+def create_family_class_combo_chart(df: pd.DataFrame, top_n: int = 15) -> go.Figure:
+    """Create a horizontal bar chart showing top family class combinations.
+
+    Args:
+        df: DataFrame with combo, games, wins, win_percentage columns
+        top_n: Number of top combinations to show
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No combo data available")
+
+    # Take top N by win percentage, but require at least some games
+    df_filtered = df.head(top_n)
+
+    # Sort for display (ascending for horizontal bar)
+    df_sorted = df_filtered.sort_values("win_percentage", ascending=True)
+
+    fig = create_base_figure(
+        x_title="Win Rate (%)",
+        y_title="Class Combination",
+        show_legend=False,
+    )
+
+    # Use a gradient based on win percentage
+    colors = [
+        f"rgba(76, 175, 80, {max(0.4, pct/100)})"
+        for pct in df_sorted["win_percentage"]
+    ]
+
+    hover_text = [
+        f"<b>{row['combo']}</b><br>"
+        f"Win Rate: {row['win_percentage']:.1f}%<br>"
+        f"Wins: {int(row['wins'])}<br>"
+        f"Games: {int(row['games'])}"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["win_percentage"],
+            y=df_sorted["combo"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{pct:.0f}% ({int(g)}g)" for pct, g in zip(
+                df_sorted["win_percentage"], df_sorted["games"]
+            )],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+        xaxis={"range": [0, 100]},
+        height=max(400, len(df_sorted) * 25 + 100),  # Dynamic height
+    )
+
+    return fig
+
+
+def create_nation_family_heatmap(df: pd.DataFrame) -> go.Figure:
+    """Create a heatmap showing nation to family class affinity.
+
+    Shows how often each nation picks each family class.
+
+    Args:
+        df: DataFrame with nation, family_class, pick_count, pick_percentage columns
+
+    Returns:
+        Plotly figure with heatmap
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No nation-family data available")
+
+    # Pivot for heatmap
+    pivot_data = df.pivot_table(
+        index="nation",
+        columns="family_class",
+        values="pick_percentage",
+        aggfunc="first",
+        fill_value=0,
+    )
+
+    count_pivot = df.pivot_table(
+        index="nation",
+        columns="family_class",
+        values="pick_count",
+        aggfunc="first",
+        fill_value=0,
+    )
+
+    # Create hover text
+    hover_text = []
+    for i, nation in enumerate(pivot_data.index):
+        hover_row = []
+        for j, family_class in enumerate(pivot_data.columns):
+            pct = pivot_data.iloc[i, j]
+            count = count_pivot.iloc[i, j]
+            hover_row.append(
+                f"<b>{nation} + {family_class}</b><br>"
+                f"Pick Rate: {pct:.1f}%<br>"
+                f"Times Picked: {int(count)}"
+            )
+        hover_text.append(hover_row)
+
+    fig = create_base_figure(show_legend=False, height=450)
+
+    # Blue color scale for frequency
+    colorscale = [
+        [0.0, "#1a237e"],    # Dark blue (never picked)
+        [0.5, "#42a5f5"],    # Medium blue
+        [1.0, "#e3f2fd"],    # Light blue (frequently picked)
+    ]
+
+    fig.add_trace(
+        go.Heatmap(
+            z=pivot_data.values,
+            x=pivot_data.columns,
+            y=pivot_data.index,
+            colorscale=colorscale,
+            hovertext=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(
+                title=dict(text="Pick<br>Rate", side="right"),
+                ticksuffix="%",
+                len=0.75,
+                thickness=15,
+                x=1.02,
+            ),
+            text=[
+                [f"{val:.0f}%" if val > 0 else "-" for val in row]
+                for row in pivot_data.values
+            ],
+            texttemplate="%{text}",
+            textfont={"size": 9},
+        )
+    )
+
+    fig.update_layout(
+        xaxis_title="Family Class",
+        yaxis_title="Nation",
+    )
+
+    return fig
+
+
+def create_family_city_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a grouped bar chart comparing city distribution for winners vs losers.
+
+    Args:
+        df: DataFrame with result, family_class, avg_cities, total_cities columns
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No city distribution data available")
+
+    fig = create_base_figure(
+        x_title="Family Class",
+        y_title="Average Cities",
+        show_legend=True,
+    )
+
+    # Get unique classes and results
+    results = df["result"].unique()
+
+    # Colors for winner/loser
+    result_colors = {
+        "Winner": "#4CAF50",  # Green
+        "Loser": "#F44336",   # Red
+    }
+
+    for result in results:
+        result_df = df[df["result"] == result]
+
+        hover_text = [
+            f"<b>{row['family_class']} ({row['result']})</b><br>"
+            f"Avg Cities: {row['avg_cities']:.2f}<br>"
+            f"Total Cities: {int(row['total_cities'])}"
+            for _, row in result_df.iterrows()
+        ]
+
+        fig.add_trace(
+            go.Bar(
+                x=result_df["family_class"],
+                y=result_df["avg_cities"],
+                name=result,
+                marker=dict(color=result_colors.get(result, "#808080")),
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_text,
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+    )
+
+    return fig
+
+
+def create_family_opinion_scatter_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a scatter plot showing family opinion vs match outcome.
+
+    Args:
+        df: DataFrame with player_name, match_id, avg_family_opinion, is_winner columns
+
+    Returns:
+        Plotly figure with scatter plot and box plots
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No family opinion data available")
+
+    fig = create_base_figure(
+        x_title="Match Outcome",
+        y_title="Average Family Opinion",
+        show_legend=False,
+    )
+
+    # Convert is_winner to labels
+    df = df.copy()
+    df["outcome"] = df["is_winner"].map({1: "Winner", 0: "Loser"})
+
+    # Create box plot for each outcome
+    for outcome, color in [("Loser", "#F44336"), ("Winner", "#4CAF50")]:
+        outcome_df = df[df["outcome"] == outcome]
+
+        fig.add_trace(
+            go.Box(
+                y=outcome_df["avg_family_opinion"],
+                x=[outcome] * len(outcome_df),
+                name=outcome,
+                marker=dict(color=color, opacity=0.7),
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=0,
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "Family Opinion: %{y:.1f}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Calculate and display means
+    winner_mean = df[df["is_winner"] == 1]["avg_family_opinion"].mean()
+    loser_mean = df[df["is_winner"] == 0]["avg_family_opinion"].mean()
+
+    # Add annotation with stats
+    if pd.notna(winner_mean) and pd.notna(loser_mean):
+        diff = winner_mean - loser_mean
+        fig.add_annotation(
+            x=0.5,
+            y=1.1,
+            xref="paper",
+            yref="paper",
+            text=f"Winner Avg: {winner_mean:.1f} | Loser Avg: {loser_mean:.1f} | Diff: {diff:+.1f}",
+            showarrow=False,
+            font=dict(size=12, color=CHART_THEME["font_color"]),
+        )
+
+    fig.update_layout(
+        showlegend=False,
+    )
+
+    return fig
+
+
+def create_family_opinion_over_time_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing family opinion trends over game progress.
+
+    Args:
+        df: DataFrame with game_pct, result, avg_opinion columns
+
+    Returns:
+        Plotly figure with line chart comparing winners vs losers
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No family opinion data available")
+
+    fig = create_base_figure(
+        x_title="Game Progress (%)",
+        y_title="Average Family Opinion",
+        show_legend=True,
+    )
+
+    colors = {"Winner": "#4CAF50", "Loser": "#F44336"}
+
+    for result in ["Winner", "Loser"]:
+        result_df = df[df["result"] == result].sort_values("game_pct")
+
+        if result_df.empty:
+            continue
+
+        fig.add_trace(
+            go.Scatter(
+                x=result_df["game_pct"],
+                y=result_df["avg_opinion"],
+                mode="lines+markers",
+                name=result,
+                line=dict(color=colors.get(result, "#808080"), width=3),
+                marker=dict(size=8),
+                hovertemplate=(
+                    f"<b>{result}</b><br>"
+                    "Game Progress: %{x}%<br>"
+                    "Avg Opinion: %{y:.1f}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Calculate final difference
+    winner_final = df[(df["result"] == "Winner") & (df["game_pct"] >= 90)][
+        "avg_opinion"
+    ].mean()
+    loser_final = df[(df["result"] == "Loser") & (df["game_pct"] >= 90)][
+        "avg_opinion"
+    ].mean()
+
+    if pd.notna(winner_final) and pd.notna(loser_final):
+        diff = winner_final - loser_final
+        fig.add_annotation(
+            x=1.0,
+            y=1.0,
+            xref="paper",
+            yref="paper",
+            xanchor="right",
+            yanchor="top",
+            text=f"End-game diff: {diff:+.1f}",
+            showarrow=False,
+            font=dict(size=11, color=CHART_THEME["font_color"]),
+        )
+
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
+        xaxis=dict(
+            tickmode="array",
+            tickvals=[0, 20, 40, 60, 80, 100],
+            ticktext=["0%", "20%", "40%", "60%", "80%", "100%"],
+        ),
+    )
+
+    return fig
+
+
+def create_family_opinion_timeline_chart(df: pd.DataFrame) -> go.Figure:
+    """Create line chart showing family opinion over time for each player.
+
+    Each line represents one player's average family opinion across all their matches.
+
+    Args:
+        df: DataFrame with columns: player_name, turn_number, avg_opinion
+
+    Returns:
+        Plotly figure with line chart (one trace per player)
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No family opinion data available")
+
+    fig = create_base_figure(
+        show_legend=True,
+        x_title="Turn",
+        y_title="Average Family Opinion",
+    )
+
+    # Use a color palette for players
+    colors = Config.PRIMARY_COLORS
+
+    # Group by player and create one trace per player
+    for i, (player_name, group) in enumerate(df.groupby("player_name")):
+        group = group.sort_values("turn_number")
+        color = colors[i % len(colors)]
+
+        fig.add_trace(
+            go.Scatter(
+                x=group["turn_number"],
+                y=group["avg_opinion"],
+                mode="lines",
+                name=player_name,
+                line=dict(color=color, width=2),
+                hovertemplate=(
+                    f"<b>{player_name}</b><br>"
+                    "Turn: %{x}<br>"
+                    "Avg Opinion: %{y:.1f}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        hovermode="closest",
+        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
     )
 
     return fig

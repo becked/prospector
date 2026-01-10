@@ -16,12 +16,22 @@ from plotly import graph_objects as go
 from tournament_visualizer.components.charts import (
     create_aggregated_event_category_timeline_chart,
     create_empty_chart_placeholder,
+    create_family_city_distribution_chart,
+    create_family_class_combo_chart,
+    create_family_class_counter_pick_heatmap,
+    create_family_class_omission_chart,
+    create_family_class_popularity_chart,
+    create_family_class_win_chart,
+    create_family_opinion_scatter_chart,
+    create_family_opinion_over_time_chart,
+    create_family_opinion_timeline_chart,
     create_law_efficiency_scatter,
     create_law_milestone_distribution_chart,
     create_legitimacy_progression_chart,
     create_map_breakdown_actual_sunburst_chart,
     create_military_progression_chart,
     create_nation_counter_pick_heatmap,
+    create_nation_family_heatmap,
     create_nation_loss_percentage_chart,
     create_nation_popularity_chart,
     create_nation_win_percentage_chart,
@@ -483,7 +493,162 @@ layout = html.Div(
                         ),
                     ],
                 ),
-                # Tab 3: Rulers
+                # Tab 3: Families
+                dbc.Tab(
+                    label="Families",
+                    tab_id="family-tab",
+                    children=[
+                        # Row 1: Win rate + Popularity
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Family Class Win Rate",
+                                            chart_id="overview-family-win-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Family Class Popularity",
+                                            chart_id="overview-family-popularity-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4 mt-3",
+                        ),
+                        # Row 2: Omission + Combo chart
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="The Omitted Class",
+                                            chart_id="overview-family-omission-chart",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Top Class Combinations",
+                                            chart_id="overview-family-combo-chart",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 3: Counter-pick heatmap (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Class Counter-Pick Effectiveness",
+                                            chart_id="overview-family-counter-heatmap",
+                                            height="550px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 4: Nation affinity (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Nation × Family Class Affinity",
+                                            chart_id="overview-nation-family-heatmap",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 5: City distribution (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="City Distribution by Class",
+                                            chart_id="overview-family-city-chart",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 6: Opinion over time (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Family Opinion Over Time",
+                                            chart_id="overview-family-opinion-time-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 7: Opinion timeline per player (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Family Opinion Timeline",
+                                            chart_id="overview-family-opinion-timeline-chart",
+                                            height="450px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 8: Opinion impact (full width)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Family Opinion Impact on Victory",
+                                            chart_id="overview-family-opinion-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                    ],
+                ),
+                # Tab 4: Rulers
                 dbc.Tab(
                     label="Rulers",
                     tab_id="rulers-tab",
@@ -1112,6 +1277,213 @@ def update_nations_tab_charts(
     return fig_win, fig_loss, fig_pop, fig_counter, fig_pick
 
 
+# Consolidated Family Tab Callback
+@callback(
+    Output("overview-family-win-chart", "figure"),
+    Output("overview-family-popularity-chart", "figure"),
+    Output("overview-family-omission-chart", "figure"),
+    Output("overview-family-counter-heatmap", "figure"),
+    Output("overview-family-combo-chart", "figure"),
+    Output("overview-nation-family-heatmap", "figure"),
+    Output("overview-family-city-chart", "figure"),
+    Output("overview-family-opinion-time-chart", "figure"),
+    Output("overview-family-opinion-timeline-chart", "figure"),
+    Output("overview-family-opinion-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+)
+def update_family_tab_charts(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+) -> tuple:
+    """Update all Family tab charts in a single callback.
+
+    Args:
+        active_tab: Currently active tab
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff (None means no filter)
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
+        result_filter: Filter by match result (winners/losers/all)
+
+    Returns:
+        Tuple of 10 Plotly figures for all Family tab charts
+    """
+    # Lazy loading: skip if tab not active
+    if active_tab != "family-tab":
+        raise dash.exceptions.PreventUpdate
+
+    queries = get_queries()
+    min_turns, max_turns = parse_turn_length(turn_length)
+
+    # Common filter parameters
+    filter_params = {
+        "tournament_round": round_num,
+        "bracket": None,
+        "min_turns": min_turns,
+        "max_turns": max_turns,
+        "map_size": map_size,
+        "map_class": map_class,
+        "map_aspect": map_aspect,
+        "nations": nations if nations else None,
+        "players": players if players else None,
+        "result_filter": result_filter if result_filter != "all" else None,
+    }
+
+    # Filter params without result_filter for charts that need both winners and losers
+    filter_params_no_result = {k: v for k, v in filter_params.items() if k != "result_filter"}
+
+    # 1. Family Class Win Rate
+    try:
+        df_win = queries.get_family_class_win_stats(**filter_params)
+        fig_win = (
+            create_family_class_win_chart(df_win)
+            if not df_win.empty
+            else create_empty_chart_placeholder("No family data for selected filters")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family win stats: {e}")
+        fig_win = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 2. Family Class Popularity
+    try:
+        df_pop = queries.get_family_class_popularity(**filter_params)
+        fig_pop = (
+            create_family_class_popularity_chart(df_pop)
+            if not df_pop.empty
+            else create_empty_chart_placeholder("No family data for selected filters")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family popularity: {e}")
+        fig_pop = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 3. The Omitted Class
+    try:
+        df_omission = queries.get_family_class_omission_stats(**filter_params)
+        fig_omission = (
+            create_family_class_omission_chart(df_omission)
+            if not df_omission.empty
+            else create_empty_chart_placeholder("No omission data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family omission stats: {e}")
+        fig_omission = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 4. Class Counter-Pick Effectiveness
+    try:
+        df_counter = queries.get_family_class_counter_pick_matrix(
+            min_games=1, **filter_params_no_result
+        )
+        fig_counter = (
+            create_family_class_counter_pick_heatmap(df_counter)
+            if not df_counter.empty
+            else create_empty_chart_placeholder("No matchup data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family counter-pick matrix: {e}")
+        fig_counter = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 5. Top Class Combinations
+    try:
+        df_combo = queries.get_family_class_combo_stats(min_games=2, **filter_params)
+        fig_combo = (
+            create_family_class_combo_chart(df_combo)
+            if not df_combo.empty
+            else create_empty_chart_placeholder("No combo data available (need min 2 games)")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family combo stats: {e}")
+        fig_combo = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 6. Nation × Family Class Affinity
+    try:
+        df_affinity = queries.get_nation_family_class_affinity(**filter_params)
+        fig_affinity = (
+            create_nation_family_heatmap(df_affinity)
+            if not df_affinity.empty
+            else create_empty_chart_placeholder("No nation-family data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading nation-family affinity: {e}")
+        fig_affinity = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 7. City Distribution by Class
+    try:
+        df_city = queries.get_family_city_distribution_by_result(**filter_params_no_result)
+        fig_city = (
+            create_family_city_distribution_chart(df_city)
+            if not df_city.empty
+            else create_empty_chart_placeholder("No city distribution data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family city distribution: {e}")
+        fig_city = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 8. Family Opinion Over Time
+    try:
+        df_opinion_time = queries.get_family_opinion_over_time(**filter_params_no_result)
+        fig_opinion_time = (
+            create_family_opinion_over_time_chart(df_opinion_time)
+            if not df_opinion_time.empty
+            else create_empty_chart_placeholder("No family opinion data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family opinion over time: {e}")
+        fig_opinion_time = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 9. Family Opinion Timeline (per player)
+    try:
+        df_opinion_timeline = queries.get_family_opinion_timeline(**filter_params)
+        fig_opinion_timeline = (
+            create_family_opinion_timeline_chart(df_opinion_timeline)
+            if not df_opinion_timeline.empty
+            else create_empty_chart_placeholder("No family opinion data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family opinion timeline: {e}")
+        fig_opinion_timeline = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    # 10. Family Opinion Impact
+    try:
+        df_opinion = queries.get_family_opinion_correlation(**filter_params_no_result)
+        fig_opinion = (
+            create_family_opinion_scatter_chart(df_opinion)
+            if not df_opinion.empty
+            else create_empty_chart_placeholder("No family opinion data available")
+        )
+    except Exception as e:
+        logger.error(f"Error loading family opinion correlation: {e}")
+        fig_opinion = create_empty_chart_placeholder(f"Error: {str(e)}")
+
+    return (
+        fig_win,
+        fig_pop,
+        fig_omission,
+        fig_counter,
+        fig_combo,
+        fig_affinity,
+        fig_city,
+        fig_opinion_time,
+        fig_opinion_timeline,
+        fig_opinion,
+    )
 
 
 @callback(

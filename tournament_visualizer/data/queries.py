@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import pandas as pd
 
+from ..config import FAMILY_CLASS_MAP, get_family_class
 from .database import TournamentDatabase, get_database
 
 # Type alias for result filtering (winners/losers)
@@ -5377,6 +5378,1011 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
+
+    # =========================================================================
+    # Family Class Analytics (Tournament-wide)
+    # =========================================================================
+
+    def get_family_class_win_stats(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get family class win statistics across matches.
+
+        Family classes are derived from city family assignments. A player "uses"
+        a family class if they have at least one city belonging to that class.
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns: family_class, wins, total_picks, win_percentage
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(filtered, result_filter)
+
+        # Query family usage per player-match, then transform to class in Python
+        query = f"""
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            c.family_name,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as is_winner
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE {where_clause}
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform family_name to family_class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Aggregate by family class
+        result = (
+            df.groupby("family_class")
+            .agg(
+                wins=("is_winner", "sum"),
+                total_picks=("is_winner", "count"),
+            )
+            .reset_index()
+        )
+        result["win_percentage"] = (
+            result["wins"] * 100.0 / result["total_picks"]
+        ).round(2)
+
+        return result.sort_values("wins", ascending=False)
+
+    def get_family_class_popularity(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get family class popularity (how often each class is picked).
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns: family_class, pick_count, pick_percentage
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(filtered, result_filter)
+
+        # Get distinct family per player-match
+        query = f"""
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            c.family_name
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        WHERE {where_clause}
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Count picks per class
+        result = df.groupby("family_class").size().reset_index(name="pick_count")
+        total_picks = result["pick_count"].sum()
+        result["pick_percentage"] = (result["pick_count"] * 100.0 / total_picks).round(
+            2
+        )
+
+        return result.sort_values("pick_count", ascending=False)
+
+    def get_family_class_counter_pick_matrix(
+        self,
+        min_games: int = 1,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get family class counter-pick effectiveness matrix.
+
+        Calculates win rate when one player's classes face opponent's classes.
+
+        Args:
+            min_games: Minimum games for a matchup to be included
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+
+        Returns:
+            DataFrame with columns: player_class, opponent_class, games,
+                player_wins, win_rate
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=None,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        match_ids = (
+            filtered
+            if not isinstance(filtered[0], tuple)
+            else list(set(m for m, _ in filtered))
+        )
+
+        # Get all player family assignments with winner info
+        query = """
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            c.family_name,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as is_winner
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE p.match_id = ANY($match_ids)
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, {"match_ids": match_ids}).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Build matchup matrix
+        # For each match, get unique classes per player, then cross-join
+        matchups = []
+        for match_id in df["match_id"].unique():
+            match_df = df[df["match_id"] == match_id]
+            players_in_match = match_df["player_id"].unique()
+            if len(players_in_match) != 2:
+                continue
+
+            p1, p2 = players_in_match
+            p1_classes = match_df[match_df["player_id"] == p1]["family_class"].unique()
+            p2_classes = match_df[match_df["player_id"] == p2]["family_class"].unique()
+            p1_won = match_df[match_df["player_id"] == p1]["is_winner"].iloc[0]
+
+            for c1 in p1_classes:
+                for c2 in p2_classes:
+                    matchups.append(
+                        {
+                            "player_class": c1,
+                            "opponent_class": c2,
+                            "player_won": p1_won,
+                        }
+                    )
+                    # Also add reverse perspective
+                    matchups.append(
+                        {
+                            "player_class": c2,
+                            "opponent_class": c1,
+                            "player_won": 1 - p1_won,
+                        }
+                    )
+
+        if not matchups:
+            return pd.DataFrame()
+
+        matchup_df = pd.DataFrame(matchups)
+        result = (
+            matchup_df.groupby(["player_class", "opponent_class"])
+            .agg(
+                games=("player_won", "count"),
+                player_wins=("player_won", "sum"),
+            )
+            .reset_index()
+        )
+        result["win_rate"] = (result["player_wins"] * 100.0 / result["games"]).round(2)
+
+        # Filter by min_games
+        result = result[result["games"] >= min_games]
+
+        return result.sort_values(["player_class", "opponent_class"])
+
+    def get_family_class_omission_stats(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get statistics on which family class players omit (don't pick).
+
+        Players pick 3 of 4 available family classes. This analyzes which class
+        is left out most often and how it correlates with winning.
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns: omitted_class, omission_count,
+                omission_percentage, win_rate_when_omitted
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(filtered, result_filter)
+
+        # Get player families with civilization and win info
+        query = f"""
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            p.civilization,
+            c.family_name,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as is_winner
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE {where_clause}
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Get all classes available per civilization
+        civ_classes: Dict[str, set] = {}
+        for family_name, family_class in FAMILY_CLASS_MAP.items():
+            # Extract civilization from family name pattern
+            civ = self._get_civ_from_family(family_name)
+            if civ:
+                civ_classes.setdefault(civ, set()).add(family_class)
+
+        # Find omitted class per player-match
+        omissions = []
+        for (match_id, player_id), group in df.groupby(["match_id", "player_id"]):
+            civ = group["civilization"].iloc[0]
+            is_winner = group["is_winner"].iloc[0]
+            picked_classes = set(group["family_class"].unique())
+
+            available = civ_classes.get(civ, set())
+            omitted = available - picked_classes
+
+            for omitted_class in omitted:
+                omissions.append(
+                    {
+                        "omitted_class": omitted_class,
+                        "is_winner": is_winner,
+                    }
+                )
+
+        if not omissions:
+            return pd.DataFrame()
+
+        omission_df = pd.DataFrame(omissions)
+        result = (
+            omission_df.groupby("omitted_class")
+            .agg(
+                omission_count=("is_winner", "count"),
+                wins_when_omitted=("is_winner", "sum"),
+            )
+            .reset_index()
+        )
+
+        total_omissions = result["omission_count"].sum()
+        result["omission_percentage"] = (
+            result["omission_count"] * 100.0 / total_omissions
+        ).round(2)
+        result["win_rate_when_omitted"] = (
+            result["wins_when_omitted"] * 100.0 / result["omission_count"]
+        ).round(2)
+
+        return result.sort_values("omission_count", ascending=False)
+
+    def _get_civ_from_family(self, family_name: str) -> Optional[str]:
+        """Get civilization name from family name.
+
+        Based on the FAMILY_CLASS_MAP structure in config.py.
+        """
+        # Map family prefixes to civilizations
+        family_civ_map = {
+            "FAMILY_SARGONID": "Assyria",
+            "FAMILY_TUDIYA": "Assyria",
+            "FAMILY_ADASI": "Assyria",
+            "FAMILY_ERISHUM": "Assyria",
+            "FAMILY_KASSITE": "Babylonia",
+            "FAMILY_CHALDEAN": "Babylonia",
+            "FAMILY_ISIN": "Babylonia",
+            "FAMILY_AMORITE": "Babylonia",
+            "FAMILY_BARCID": "Carthage",
+            "FAMILY_MAGONID": "Carthage",
+            "FAMILY_HANNONID": "Carthage",
+            "FAMILY_DIDONIAN": "Carthage",
+            "FAMILY_RAMESSIDE": "Egypt",
+            "FAMILY_SAITE": "Egypt",
+            "FAMILY_AMARNA": "Egypt",
+            "FAMILY_THUTMOSID": "Egypt",
+            "FAMILY_ARGEAD": "Greece",
+            "FAMILY_CYPSELID": "Greece",
+            "FAMILY_SELEUCID": "Greece",
+            "FAMILY_ALCMAEONID": "Greece",
+            "FAMILY_SASANID": "Persia",
+            "FAMILY_MIHRANID": "Persia",
+            "FAMILY_ARSACID": "Persia",
+            "FAMILY_ACHAEMENID": "Persia",
+            "FAMILY_FABIUS": "Rome",
+            "FAMILY_CLAUDIUS": "Rome",
+            "FAMILY_VALERIUS": "Rome",
+            "FAMILY_JULIUS": "Rome",
+            "FAMILY_KUSSARAN": "Hatti",
+            "FAMILY_NENASSAN": "Hatti",
+            "FAMILY_ZALPUWAN": "Hatti",
+            "FAMILY_HATTUSAN": "Hatti",
+            "FAMILY_YAM": "Nubia",
+            "FAMILY_IRTJET": "Nubia",
+            "FAMILY_WAWAT": "Nubia",
+            "FAMILY_SETJU": "Nubia",
+            "FAMILY_AKSUM_AGAW": "Aksum",
+            "FAMILY_AKSUM_AGAZI": "Aksum",
+            "FAMILY_AKSUM_TIGRAYAN": "Aksum",
+            "FAMILY_AKSUM_BARYA": "Aksum",
+        }
+        return family_civ_map.get(family_name)
+
+    def get_family_class_combo_stats(
+        self,
+        min_games: int = 2,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get statistics for 3-class family combinations.
+
+        Analyzes which combinations of 3 family classes are most successful.
+
+        Args:
+            min_games: Minimum games for a combo to be included
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns: combo, games, wins, win_percentage
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(filtered, result_filter)
+
+        query = f"""
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            c.family_name,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as is_winner
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE {where_clause}
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Build combo per player-match
+        combos = []
+        for (match_id, player_id), group in df.groupby(["match_id", "player_id"]):
+            is_winner = group["is_winner"].iloc[0]
+            classes = sorted(group["family_class"].unique())
+            # Create combo string (sorted for consistency)
+            combo = " + ".join(classes)
+            combos.append({"combo": combo, "is_winner": is_winner})
+
+        if not combos:
+            return pd.DataFrame()
+
+        combo_df = pd.DataFrame(combos)
+        result = (
+            combo_df.groupby("combo")
+            .agg(
+                games=("is_winner", "count"),
+                wins=("is_winner", "sum"),
+            )
+            .reset_index()
+        )
+        result["win_percentage"] = (result["wins"] * 100.0 / result["games"]).round(2)
+
+        # Filter by min_games
+        result = result[result["games"] >= min_games]
+
+        return result.sort_values("win_percentage", ascending=False)
+
+    def get_nation_family_class_affinity(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get nation to family class affinity (how often each nation picks each class).
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns: nation, family_class, pick_count, pick_percentage
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(filtered, result_filter)
+
+        query = f"""
+        SELECT DISTINCT
+            p.player_id,
+            p.match_id,
+            p.civilization as nation,
+            c.family_name
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        WHERE {where_clause}
+            AND c.family_name IS NOT NULL
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Count picks per nation-class combination
+        result = (
+            df.groupby(["nation", "family_class"]).size().reset_index(name="pick_count")
+        )
+
+        # Calculate percentage within each nation
+        nation_totals = result.groupby("nation")["pick_count"].sum()
+        result["pick_percentage"] = result.apply(
+            lambda row: round(row["pick_count"] * 100.0 / nation_totals[row["nation"]], 2),
+            axis=1,
+        )
+
+        return result.sort_values(["nation", "pick_count"], ascending=[True, False])
+
+    def get_family_city_distribution_by_result(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get city distribution across family classes for winners vs losers.
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+
+        Returns:
+            DataFrame with columns: result, family_class, avg_cities, total_cities
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=None,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        match_ids = (
+            filtered
+            if not isinstance(filtered[0], tuple)
+            else list(set(m for m, _ in filtered))
+        )
+
+        query = """
+        SELECT
+            p.player_id,
+            p.match_id,
+            c.family_name,
+            COUNT(c.city_id) as city_count,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 'Winner' ELSE 'Loser' END as result
+        FROM players p
+        JOIN cities c ON p.match_id = c.match_id AND p.player_id = c.player_id
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE p.match_id = ANY($match_ids)
+            AND c.family_name IS NOT NULL
+        GROUP BY p.player_id, p.match_id, c.family_name, mw.winner_player_id
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, {"match_ids": match_ids}).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # Transform to family class
+        df["family_class"] = df["family_name"].apply(get_family_class)
+        df = df[df["family_class"] != "Unknown"]
+
+        # Aggregate by result and class
+        result = (
+            df.groupby(["result", "family_class"])
+            .agg(
+                avg_cities=("city_count", "mean"),
+                total_cities=("city_count", "sum"),
+            )
+            .reset_index()
+        )
+        result["avg_cities"] = result["avg_cities"].round(2)
+
+        return result.sort_values(["result", "family_class"])
+
+    def get_family_opinion_correlation(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get average family opinion by match outcome.
+
+        Analyzes whether higher family opinion correlates with winning.
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+
+        Returns:
+            DataFrame with columns: player_name, match_id, avg_family_opinion, is_winner
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=None,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        match_ids = (
+            filtered
+            if not isinstance(filtered[0], tuple)
+            else list(set(m for m, _ in filtered))
+        )
+
+        # Get final turn family opinions for each player
+        query = """
+        WITH max_turns AS (
+            SELECT
+                match_id,
+                player_id,
+                MAX(turn_number) as max_turn
+            FROM family_opinion_history
+            WHERE match_id = ANY($match_ids)
+            GROUP BY match_id, player_id
+        )
+        SELECT
+            p.player_name,
+            p.match_id,
+            AVG(foh.opinion) as avg_family_opinion,
+            CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as is_winner
+        FROM players p
+        JOIN max_turns mt ON p.match_id = mt.match_id AND p.player_id = mt.player_id
+        JOIN family_opinion_history foh ON p.match_id = foh.match_id
+            AND p.player_id = foh.player_id
+            AND foh.turn_number = mt.max_turn
+        LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        WHERE p.match_id = ANY($match_ids)
+        GROUP BY p.player_name, p.match_id, mw.winner_player_id, p.player_id
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, {"match_ids": match_ids}).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        df["avg_family_opinion"] = df["avg_family_opinion"].round(2)
+        return df
+
+    def get_family_opinion_over_time(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get average family opinion over game progress for winners vs losers.
+
+        Normalizes turn numbers to game percentage (0-100%) to compare
+        across matches of different lengths.
+
+        Args:
+            tournament_round: Specific round numbers to filter
+            bracket: Bracket filter
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+
+        Returns:
+            DataFrame with columns: game_pct, result, avg_opinion
+        """
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+        )
+
+        if not match_ids:
+            return pd.DataFrame()
+
+        # Normalize turns to game percentage and aggregate by winner/loser
+        query = """
+        WITH match_max_turns AS (
+            SELECT match_id, MAX(turn_number) as max_turn
+            FROM family_opinion_history
+            WHERE match_id = ANY($match_ids)
+            GROUP BY match_id
+        ),
+        opinion_with_pct AS (
+            SELECT
+                foh.match_id,
+                foh.player_id,
+                foh.turn_number,
+                foh.opinion,
+                mmt.max_turn,
+                -- Bucket into 10% increments (0-10%, 10-20%, etc.)
+                FLOOR((foh.turn_number::FLOAT / mmt.max_turn) * 10) * 10 as game_pct,
+                CASE WHEN mw.winner_player_id = foh.player_id THEN 'Winner' ELSE 'Loser' END as result
+            FROM family_opinion_history foh
+            JOIN match_max_turns mmt ON foh.match_id = mmt.match_id
+            LEFT JOIN match_winners mw ON foh.match_id = mw.match_id
+            WHERE foh.match_id = ANY($match_ids)
+              AND mmt.max_turn > 0
+        )
+        SELECT
+            CAST(game_pct AS INTEGER) as game_pct,
+            result,
+            AVG(opinion) as avg_opinion
+        FROM opinion_with_pct
+        GROUP BY game_pct, result
+        ORDER BY game_pct, result
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, {"match_ids": match_ids}).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        df["avg_opinion"] = df["avg_opinion"].round(2)
+        return df
+
+    def get_family_opinion_timeline(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get average family opinion per turn for each player across all their matches.
+
+        Shows how each player's family relationships evolved throughout their games.
+        Each player gets one line showing their average family opinion over time,
+        aggregated across all their matches.
+
+        Args:
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket
+            min_turns: Minimum turns
+            max_turns: Maximum turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result
+
+        Returns:
+            DataFrame with columns: player_name, turn_number, avg_opinion
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        # Build player-level filter
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="p"
+        )
+
+        query = f"""
+        SELECT
+            p.player_name,
+            foh.turn_number,
+            AVG(foh.opinion) as avg_opinion
+        FROM family_opinion_history foh
+        JOIN players p ON foh.match_id = p.match_id AND foh.player_id = p.player_id
+        WHERE {where_clause}
+        GROUP BY p.player_name, foh.turn_number
+        ORDER BY p.player_name, foh.turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        df["avg_opinion"] = df["avg_opinion"].round(2)
+        return df
 
 
 # Global queries instance
