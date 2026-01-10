@@ -1008,3 +1008,120 @@ hr {
 .timeline-event-uu_unlock {
     color: #20c997;
 }
+
+/* =============================================================================
+   Winner Indicator Custom Tooltips
+   ============================================================================= */
+
+.winner-indicator {
+    cursor: pointer;
+    position: relative;
+}
+
+.winner-indicator .winner-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1a2332;
+    color: #c8d4e3;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid #3a5a7e;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    margin-bottom: 8px;
+}
+
+.winner-indicator:hover .winner-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Arrow for tooltip */
+.winner-indicator::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #3a5a7e;
+    margin-bottom: 2px;
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.winner-indicator:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* =============================================================================
+   Event Icon Custom Tooltips (left/right columns)
+   ============================================================================= */
+
+.event-icon-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    padding: 0;
+}
+
+.event-icon-wrapper .event-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1a2332;
+    color: #c8d4e3;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    border: 1px solid #3a5a7e;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-icon-wrapper:hover .event-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Arrow for event tooltip */
+.event-icon-wrapper::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #3a5a7e;
+    margin-bottom: 1px;
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.event-icon-wrapper:hover::before {
+    opacity: 1;
+    visibility: visible;
+}

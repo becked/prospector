@@ -96,6 +96,8 @@ TIMELINE_ICONS: dict[str, str] = {
     "death": "💀",
     "battle": "⚔️",
     "uu_unlock": "🗡️",
+    "ambition": "🏆",
+    "religion": "⛪",
 }
 
 # Event type priority for sorting (lower number = higher priority)
@@ -104,15 +106,17 @@ EVENT_PRIORITY: dict[str, int] = {
     "death": 1,
     "ruler": 2,
     "capital": 3,
-    "city": 4,
-    "city_lost": 5,
-    "uu_unlock": 6,
-    "law": 7,
-    "law_swap": 8,
-    "tech": 9,
-    "wonder_complete": 10,
-    "wonder_start": 11,
-    "battle": 12,
+    "religion": 4,  # Religion founding after capital, before city
+    "city": 5,
+    "city_lost": 6,
+    "uu_unlock": 7,
+    "ambition": 8,  # Ambition completion after uu_unlock, before law
+    "law": 9,
+    "law_swap": 10,
+    "tech": 11,
+    "wonder_complete": 12,
+    "wonder_start": 13,
+    "battle": 14,
 }
 
 # =============================================================================
@@ -343,4 +347,25 @@ def get_wonder_icon_path(wonder_name: str) -> Optional[str]:
     icon_file = _ASSETS_DIR / "wonders" / f"{wonder_key}.png"
     if icon_file.exists():
         return f"{ICON_BASE_PATH}/wonders/{wonder_key}.png"
+    return None
+
+
+def get_nation_crest_icon_path(civilization: str) -> Optional[str]:
+    """Get icon path for a nation crest.
+
+    Args:
+        civilization: Civilization name like "Carthage", "CARTHAGE", or "NATION_CARTHAGE"
+
+    Returns:
+        Icon path like "/assets/icons/crests/CREST_NATION_CARTHAGE.png" or None
+    """
+    if not civilization:
+        return None
+    name = civilization.upper().replace("NATION_", "")
+    # Handle HATTI/HITTITE alias (game uses Hatti internally, assets use Hittite)
+    if name == "HATTI":
+        name = "HITTITE"
+    icon_file = _ASSETS_DIR / "crests" / f"CREST_NATION_{name}.png"
+    if icon_file.exists():
+        return f"{ICON_BASE_PATH}/crests/CREST_NATION_{name}.png"
     return None

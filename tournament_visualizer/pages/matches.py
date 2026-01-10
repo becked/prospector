@@ -11,7 +11,7 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 import dash_cytoscape as cyto
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, dcc, html
 from plotly import graph_objects as go
 
 from tournament_visualizer.components.charts import (
@@ -149,6 +149,8 @@ layout = html.Div(
     [
         # URL tracking
         dcc.Location(id="match-url", refresh=False),
+        # Persistent storage for show text toggle (localStorage)
+        dcc.Store(id="show-event-text-store", storage_type="local", data=False),
         # Page header
         create_page_header(
             title=PAGE_CONFIG["matches"]["title"],
@@ -504,6 +506,24 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Overview",
                         "tab_id": "overview",
                         "content": [
+                            # Toggle for showing/hiding event text
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            dbc.Switch(
+                                                id="show-event-text-toggle",
+                                                label="Display text",
+                                                value=False,
+                                                className="mb-0",
+                                            ),
+                                        ],
+                                        width="auto",
+                                        className="d-flex align-items-center",
+                                    )
+                                ],
+                                className="mt-3 mb-2 justify-content-end",
+                            ),
                             # Game state comparison table
                             dbc.Row(
                                 [
@@ -525,7 +545,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         width=12,
                                     )
                                 ],
-                                className="mt-3",
                             ),
                         ],
                     },
@@ -1172,13 +1191,38 @@ def update_match_details(match_id: Optional[int]) -> tuple:
 
 
 @callback(
+    Output("show-event-text-toggle", "value"),
+    Input("show-event-text-store", "modified_timestamp"),
+    State("show-event-text-store", "data"),
+    prevent_initial_call=False,
+)
+def sync_toggle_from_store(
+    modified_ts: Optional[int], store_value: Optional[bool]
+) -> bool:
+    """Initialize toggle from localStorage on page load."""
+    return store_value if store_value is not None else False
+
+
+@callback(
+    Output("show-event-text-store", "data"),
+    Input("show-event-text-toggle", "value"),
+    prevent_initial_call=True,
+)
+def sync_store_from_toggle(toggle_value: bool) -> bool:
+    """Save toggle state to localStorage when user changes toggle."""
+    return toggle_value
+
+
+@callback(
     Output("match-overview-table", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    Input("show-event-text-toggle", "value"),
 )
 def update_overview_table(
     active_tab: Optional[str],
     match_id: Optional[int],
+    show_text: bool,
 ) -> html.Div:
     """Update the overview comparison table.
 
@@ -1270,14 +1314,25 @@ def update_overview_table(
                 elif row["player_id"] == player2_id:
                     player2_name = row["player_name"] or "Player 2"
 
-        # Get nation colors
+        # Get nation colors and civilizations from yield history
+        player1_color = "#4dabf7"
+        player2_color = "#ff6b6b"
+        player1_civilization = ""
+        player2_civilization = ""
         try:
-            colors = get_player_colors_for_match(match_id)
-            player1_color = colors.get(player1_name, "#4dabf7")
-            player2_color = colors.get(player2_name, "#ff6b6b")
+            yield_df = queries.get_yield_history_by_match(match_id)
+            if not yield_df.empty and "civilization" in yield_df.columns:
+                colors = get_player_colors_from_df(yield_df)
+                player1_color = colors.get(player1_name, "#4dabf7")
+                player2_color = colors.get(player2_name, "#ff6b6b")
+                # Extract civilizations
+                civ_by_name = (
+                    yield_df.groupby("player_name")["civilization"].first().to_dict()
+                )
+                player1_civilization = civ_by_name.get(player1_name, "")
+                player2_civilization = civ_by_name.get(player2_name, "")
         except Exception:
-            player1_color = "#4dabf7"
-            player2_color = "#ff6b6b"
+            pass
 
         return create_game_state_component(
             comparison_df=comparison_df,
@@ -1288,6 +1343,9 @@ def update_overview_table(
             player2_id=player2_id,
             player1_color=player1_color,
             player2_color=player2_color,
+            player1_civilization=player1_civilization,
+            player2_civilization=player2_civilization,
+            show_text=show_text,
         )
 
     except Exception as e:

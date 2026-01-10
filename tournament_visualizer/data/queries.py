@@ -4871,6 +4871,50 @@ class TournamentQueries:
             FROM military_with_change
             WHERE prev_power > 0
               AND (prev_power - military_power) * 1.0 / prev_power >= 0.20
+        ),
+
+        -- 8. Ambition completion events (GOAL_FINISHED)
+        ambition_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                'ambition' as event_type,
+                -- Extract ambition name from "Completed link(CONCEPT_AMBITION,1): Control Six Mines"
+                'Ambition: ' || COALESCE(
+                    REGEXP_EXTRACT(e.description, ': (.+)$', 1),
+                    e.description
+                ) as title,
+                e.description as details
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'GOAL_FINISHED'
+        ),
+
+        -- 9. Religion founding events (RELIGION_FOUNDED)
+        -- Only show for the player who actually founded it (first player to see it)
+        religion_events_raw AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                'religion' as event_type,
+                -- Extract religion name: "Carthaginian Paganism founded in  Carthago"
+                'Founded: ' || COALESCE(
+                    TRIM(REGEXP_EXTRACT(e.description, '^(.+?) founded', 1)),
+                    e.description
+                ) as title,
+                e.description as details,
+                ROW_NUMBER() OVER (
+                    PARTITION BY e.turn_number, REGEXP_EXTRACT(e.description, '^(.+?) founded', 1)
+                    ORDER BY e.player_id
+                ) as rn
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'RELIGION_FOUNDED'
+        ),
+        religion_events AS (
+            SELECT turn, player_id, event_type, title, details
+            FROM religion_events_raw
+            WHERE rn = 1
         )
 
         -- Combine all events
@@ -4931,11 +4975,21 @@ class TournamentQueries:
 
             SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM battle_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
+            FROM ambition_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
+            FROM religion_events
         ) all_events
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [match_id] * 12  # 12 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military
+        params = [match_id] * 14  # 14 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
@@ -5065,8 +5119,9 @@ class TournamentQueries:
     ) -> pd.DataFrame:
         """Get per-turn comparison metrics for game state analysis.
 
-        Returns military power, orders, and science for both players at each turn,
-        with interpolation to fill missing values (carry forward last known value).
+        Returns military power, orders, science, and victory points for both players
+        at each turn, with interpolation to fill missing values (carry forward last
+        known value).
 
         Args:
             match_id: ID of the match
@@ -5078,8 +5133,9 @@ class TournamentQueries:
             - turn_number: int
             - p1_military, p2_military: Military power values
             - p1_orders, p2_orders: Orders per turn (display-ready, divided by 10)
-            - p1_science, p2_science: Science per turn (display-ready, divided by 10)
-            - mil_ratio, orders_ratio, science_ratio: P1/P2 ratios for comparison
+            - p1_science, p2_science: Cumulative science (total accumulated)
+            - p1_vp, p2_vp: Victory points
+            - mil_ratio, orders_ratio, science_ratio, vp_ratio: P1/P2 ratios
         """
         query = """
         WITH
@@ -5104,11 +5160,21 @@ class TournamentQueries:
             WHERE match_id = ? AND resource_type = 'YIELD_ORDERS'
         ),
 
-        -- Science per player per turn
+        -- Cumulative science per player per turn (total accumulated, not rate)
         science AS (
-            SELECT turn_number, player_id, amount / 10.0 as science
+            SELECT turn_number, player_id,
+                   SUM(amount / 10.0) OVER (
+                       PARTITION BY player_id ORDER BY turn_number
+                   ) as science
             FROM player_yield_history
             WHERE match_id = ? AND resource_type = 'YIELD_SCIENCE'
+        ),
+
+        -- Victory points per player per turn
+        points AS (
+            SELECT turn_number, player_id, points as vp
+            FROM player_points_history
+            WHERE match_id = ?
         ),
 
         -- Pivot to get p1 and p2 columns, then interpolate
@@ -5119,10 +5185,12 @@ class TournamentQueries:
                 m1.military_power as p1_military_raw,
                 o1.orders as p1_orders_raw,
                 s1.science as p1_science_raw,
+                vp1.vp as p1_vp_raw,
                 -- Player 2 metrics
                 m2.military_power as p2_military_raw,
                 o2.orders as p2_orders_raw,
-                s2.science as p2_science_raw
+                s2.science as p2_science_raw,
+                vp2.vp as p2_vp_raw
             FROM all_turns t
             LEFT JOIN military m1 ON t.turn_number = m1.turn_number AND m1.player_id = ?
             LEFT JOIN military m2 ON t.turn_number = m2.turn_number AND m2.player_id = ?
@@ -5130,6 +5198,8 @@ class TournamentQueries:
             LEFT JOIN orders o2 ON t.turn_number = o2.turn_number AND o2.player_id = ?
             LEFT JOIN science s1 ON t.turn_number = s1.turn_number AND s1.player_id = ?
             LEFT JOIN science s2 ON t.turn_number = s2.turn_number AND s2.player_id = ?
+            LEFT JOIN points vp1 ON t.turn_number = vp1.turn_number AND vp1.player_id = ?
+            LEFT JOIN points vp2 ON t.turn_number = vp2.turn_number AND vp2.player_id = ?
         ),
 
         -- Forward-fill missing values using last known value
@@ -5154,7 +5224,13 @@ class TournamentQueries:
                 ) as p1_science,
                 LAST_VALUE(p2_science_raw IGNORE NULLS) OVER (
                     ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                ) as p2_science
+                ) as p2_science,
+                LAST_VALUE(p1_vp_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p1_vp,
+                LAST_VALUE(p2_vp_raw IGNORE NULLS) OVER (
+                    ORDER BY turn_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as p2_vp
             FROM combined
         )
 
@@ -5166,6 +5242,8 @@ class TournamentQueries:
             COALESCE(p2_orders, 0) as p2_orders,
             COALESCE(p1_science, 0) as p1_science,
             COALESCE(p2_science, 0) as p2_science,
+            COALESCE(p1_vp, 0) as p1_vp,
+            COALESCE(p2_vp, 0) as p2_vp,
             -- Compute ratios (avoid division by zero)
             CASE
                 WHEN COALESCE(p2_military, 0) = 0 THEN NULL
@@ -5178,23 +5256,30 @@ class TournamentQueries:
             CASE
                 WHEN COALESCE(p2_science, 0) = 0 THEN NULL
                 ELSE COALESCE(p1_science, 0) / p2_science
-            END as science_ratio
+            END as science_ratio,
+            CASE
+                WHEN COALESCE(p2_vp, 0) = 0 THEN NULL
+                ELSE COALESCE(p1_vp, 0) * 1.0 / p2_vp
+            END as vp_ratio
         FROM interpolated
         ORDER BY turn_number
         """
 
-        # Parameters: match_id (4x), then player IDs for joins (6x alternating p1, p2)
+        # Parameters: match_id (5x), then player IDs for joins (8x alternating p1, p2)
         params = [
             match_id,  # all_turns
             match_id,  # military
             match_id,  # orders
             match_id,  # science
+            match_id,  # points
             player1_id,  # m1 join
             player2_id,  # m2 join
             player1_id,  # o1 join
             player2_id,  # o2 join
             player1_id,  # s1 join
             player2_id,  # s2 join
+            player1_id,  # vp1 join
+            player2_id,  # vp2 join
         ]
 
         with self.db.get_connection() as conn:

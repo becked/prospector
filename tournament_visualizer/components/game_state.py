@@ -1,10 +1,10 @@
 """Game state comparison component for match analysis.
 
 This module provides a 7-column table showing per-turn game state comparisons
-between two players, including events, orders, and mini bar comparators.
+between two players, including events, orders, and winner indicators.
 """
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 import dash_bootstrap_components as dbc
@@ -16,7 +16,9 @@ from tournament_visualizer.data.game_constants import (
     get_law_icon_path,
     get_wonder_icon_path,
     get_family_crest_icon_path,
+    get_nation_crest_icon_path,
     ARCHETYPE_ICONS,
+    FAMILY_TO_ARCHETYPE,
 )
 
 
@@ -24,129 +26,253 @@ from tournament_visualizer.data.game_constants import (
 YIELD_ORDERS_ICON = "/assets/icons/yields/YIELD_ORDERS.png"
 YIELD_SCIENCE_ICON = "/assets/icons/yields/YIELD_SCIENCE.png"
 YIELD_TRAINING_ICON = "/assets/icons/other/Cycle_Military.png"
+YIELD_VP_ICON = "/assets/icons/other/VICTORY_Normal.png"
+AMBITION_ICON = "/assets/icons/other/TURN_SUMMARY_AMBITION.png"
+RELIGION_ICON = "/assets/icons/other/RELIGION_FOUNDED.png"
+CITY_FOUNDED_ICON = "/assets/icons/other/CITY_FOUNDED.png"
 
 
-def _create_mini_bar_comparator(
-    p1_value: float,
-    p2_value: float,
-    p1_color: str,
-    p2_color: str,
-    icon_path: Optional[str] = None,
-) -> html.Div:
-    """Create a mini two-bar comparator showing relative values.
-
-    Shows an optional icon, two horizontal bars (P1 on top, P2 on bottom)
-    with widths proportional to their values, plus a delta indicator.
+def _create_styled_tooltip(text: str) -> html.Div:
+    """Create a styled tooltip element.
 
     Args:
-        p1_value: Player 1's value
-        p2_value: Player 2's value
-        p1_color: Color for player 1's bar
-        p2_color: Color for player 2's bar
-        icon_path: Optional path to yield icon
+        text: Tooltip text to display
 
     Returns:
-        HTML div containing the mini bar comparator
+        HTML div for the tooltip
+    """
+    return html.Div(
+        text,
+        className="event-tooltip",
+    )
+
+
+def _create_colored_crest(
+    crest_path: str,
+    color: str,
+    size: str = "16px",
+) -> html.Div:
+    """Create a nation crest icon tinted with the nation's color.
+
+    Uses CSS mask-image to display the white crest icon in the specified color.
+
+    Args:
+        crest_path: URL path to the crest icon
+        color: Hex color to tint the crest (e.g., "#4dabf7")
+        size: CSS size for width and height
+
+    Returns:
+        HTML div styled as a colored crest icon
+    """
+    return html.Div(
+        style={
+            "width": size,
+            "height": size,
+            "backgroundColor": color,
+            "maskImage": f"url({crest_path})",
+            "WebkitMaskImage": f"url({crest_path})",
+            "maskSize": "contain",
+            "WebkitMaskSize": "contain",
+            "maskRepeat": "no-repeat",
+            "WebkitMaskRepeat": "no-repeat",
+            "maskPosition": "center",
+            "WebkitMaskPosition": "center",
+            "display": "inline-block",
+            "verticalAlign": "middle",
+        }
+    )
+
+
+def _create_winner_indicator(
+    p1_value: float,
+    p2_value: float,
+    p1_crest_path: Optional[str],
+    p2_crest_path: Optional[str],
+    p1_color: str,
+    p2_color: str,
+    p1_name: str = "Player 1",
+    p2_name: str = "Player 2",
+    metric_label: str = "",
+) -> html.Div:
+    """Create compact winner indicator showing nation crest + percentage.
+
+    Shows the leading player's nation crest with percentage ahead.
+    For ties (equal values), shows both crests.
+
+    Args:
+        p1_value: Player 1's metric value
+        p2_value: Player 2's metric value
+        p1_crest_path: Path to P1's nation crest icon
+        p2_crest_path: Path to P2's nation crest icon
+        p1_color: Fallback color for P1 if no crest
+        p2_color: Fallback color for P2 if no crest
+        p1_name: Player 1's display name
+        p2_name: Player 2's display name
+        metric_label: Fallback label if no crests (e.g., "VP")
+
+    Returns:
+        HTML div with winner crest and percentage
     """
     # Handle zero/null values
     p1_val = p1_value if p1_value and p1_value > 0 else 0
     p2_val = p2_value if p2_value and p2_value > 0 else 0
 
-    # Calculate percentages (normalize to max)
-    max_val = max(p1_val, p2_val, 1)  # Avoid division by zero
-    p1_pct = (p1_val / max_val) * 100
-    p2_pct = (p2_val / max_val) * 100
+    # Both zero - show dash
+    if p1_val == 0 and p2_val == 0:
+        return html.Div(
+            "—",
+            style={
+                "textAlign": "center",
+                "color": "#868e96",
+                "fontSize": "0.8rem",
+            },
+            title="No data",
+        )
 
-    # Calculate delta
-    delta = p1_val - p2_val
-
-    # Determine delta color and sign
-    if delta > 0:
-        delta_color = "#69db7c"  # Green - P1 ahead
-        delta_text = f"+{delta:.0f}"
-    elif delta < 0:
-        delta_color = "#ff6b6b"  # Red - P1 behind
-        delta_text = f"{delta:.0f}"
+    # Determine winner/loser for tooltip formatting
+    if p1_val >= p2_val:
+        winner_name, winner_val = p1_name, p1_val
+        loser_name, loser_val = p2_name, p2_val
     else:
-        delta_color = "#868e96"  # Gray - equal
-        delta_text = "0"
+        winner_name, winner_val = p2_name, p2_val
+        loser_name, loser_val = p1_name, p1_val
 
-    bar_height = "4px"
-    bar_container_style = {
-        "display": "flex",
-        "flexDirection": "column",
-        "gap": "2px",
-        "flex": "1",
-        "minWidth": "40px",
-    }
+    # Determine crests for tooltip (winner first, loser second)
+    if p1_val >= p2_val:
+        winner_crest_path, loser_crest_path = p1_crest_path, p2_crest_path
+        winner_crest_color, loser_crest_color = p1_color, p2_color
+    else:
+        winner_crest_path, loser_crest_path = p2_crest_path, p1_crest_path
+        winner_crest_color, loser_crest_color = p2_color, p1_color
 
-    bar_bg_style = {
-        "backgroundColor": "#2d3748",
-        "borderRadius": "2px",
-        "height": bar_height,
-        "width": "100%",
-        "overflow": "hidden",
-    }
+    # Calculate percentage difference
+    if p1_val == p2_val:
+        # Tie - show both crests
+        pct_text = "="
+        is_tie = True
+        winner_crest = None
+    elif p1_val > p2_val:
+        # P1 leads
+        if p2_val > 0:
+            pct = ((p1_val - p2_val) / p2_val) * 100
+            pct_text = f"+{pct:.0f}%" if pct < 1000 else ">999%"
+        else:
+            pct_text = "∞"
+        is_tie = False
+        winner_crest = p1_crest_path
+        winner_color = p1_color
+    else:
+        # P2 leads
+        if p1_val > 0:
+            pct = ((p2_val - p1_val) / p1_val) * 100
+            pct_text = f"+{pct:.0f}%" if pct < 1000 else ">999%"
+        else:
+            pct_text = "∞"
+        is_tie = False
+        winner_crest = p2_crest_path
+        winner_color = p2_color
 
-    p1_bar = html.Div(
-        html.Div(
-            style={
-                "backgroundColor": p1_color,
-                "height": "100%",
-                "width": f"{p1_pct}%",
-                "borderRadius": "2px",
-            }
-        ),
-        style=bar_bg_style,
-    )
-
-    p2_bar = html.Div(
-        html.Div(
-            style={
-                "backgroundColor": p2_color,
-                "height": "100%",
-                "width": f"{p2_pct}%",
-                "borderRadius": "2px",
-            }
-        ),
-        style=bar_bg_style,
-    )
-
-    delta_style = {
-        "color": delta_color,
-        "fontSize": "0.7rem",
-        "fontWeight": "bold",
-        "textAlign": "right",
-    }
-
-    # Build children list
+    icon_size = "16px"
     children = []
 
-    # Add icon if provided
-    if icon_path:
+    if is_tie:
+        # Show both crests for tie
+        if p1_crest_path:
+            children.append(_create_colored_crest(p1_crest_path, p1_color, icon_size))
+        if p2_crest_path:
+            children.append(_create_colored_crest(p2_crest_path, p2_color, icon_size))
+        if not p1_crest_path and not p2_crest_path:
+            children.append(html.Span(pct_text, style={"color": "#868e96"}))
+    else:
+        # Show winner crest + percentage
+        if winner_crest:
+            children.append(_create_colored_crest(winner_crest, winner_color, icon_size))
+        else:
+            # Fallback: colored circle
+            children.append(
+                html.Div(
+                    style={
+                        "width": icon_size,
+                        "height": icon_size,
+                        "borderRadius": "50%",
+                        "backgroundColor": winner_color,
+                    }
+                )
+            )
         children.append(
-            html.Img(
-                src=icon_path,
+            html.Span(
+                pct_text,
                 style={
-                    "width": "14px",
-                    "height": "14px",
-                    "opacity": "0.7",
+                    "color": "#69db7c",
+                    "fontSize": "0.7rem",
+                    "fontWeight": "bold",
                 },
             )
         )
 
-    children.append(html.Div([p1_bar, p2_bar], style=bar_container_style))
-    children.append(html.Div(delta_text, style=delta_style))
+    # Create HTML tooltip with icons
+    tooltip_icon_size = "14px"
+    tooltip_row_style = {
+        "display": "flex",
+        "alignItems": "center",
+        "gap": "6px",
+        "whiteSpace": "nowrap",
+    }
+    tooltip_name_style = {
+        "minWidth": "80px",
+        "textAlign": "right",
+    }
+    tooltip_value_style = {
+        "fontWeight": "bold",
+        "minWidth": "50px",
+        "textAlign": "right",
+    }
 
-    return html.Div(
-        children,
+    # Winner row
+    winner_icon = _create_colored_crest(winner_crest_path, winner_crest_color, tooltip_icon_size) if winner_crest_path else html.Span()
+    winner_row = html.Div(
+        [
+            winner_icon,
+            html.Span(winner_name, style=tooltip_name_style),
+            html.Span(":", style={"color": "#868e96"}),
+            html.Span(f"{winner_val:,.0f}", style=tooltip_value_style),
+        ],
+        style=tooltip_row_style,
+    )
+
+    # Loser row
+    loser_icon = _create_colored_crest(loser_crest_path, loser_crest_color, tooltip_icon_size) if loser_crest_path else html.Span()
+    loser_row = html.Div(
+        [
+            loser_icon,
+            html.Span(loser_name, style=tooltip_name_style),
+            html.Span(":", style={"color": "#868e96"}),
+            html.Span(f"{loser_val:,.0f}", style=tooltip_value_style),
+        ],
+        style=tooltip_row_style,
+    )
+
+    tooltip_div = html.Div(
+        [winner_row, loser_row],
+        className="winner-tooltip",
         style={
             "display": "flex",
-            "alignItems": "center",
+            "flexDirection": "column",
             "gap": "4px",
-            "padding": "2px 0",
         },
-        title=f"{p1_val:.0f} vs {p2_val:.0f} ({delta_text})",
+    )
+
+    return html.Div(
+        [*children, tooltip_div],
+        className="winner-indicator",
+        style={
+            "display": "flex",
+            "flexDirection": "column",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "gap": "0px",
+            "position": "relative",
+        },
     )
 
 
@@ -159,15 +285,18 @@ def create_game_state_component(
     player2_id: int,
     player1_color: str = "#4dabf7",
     player2_color: str = "#ff6b6b",
+    player1_civilization: str = "",
+    player2_civilization: str = "",
+    show_text: bool = False,
 ) -> html.Div:
     """Create 7-column game state comparison table.
 
-    Layout: Turn | P1 Icons | P1 Orders | Mil Comp | Sci Comp | P2 Orders | P2 Icons
+    Layout: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
 
     Args:
         comparison_df: DataFrame from get_match_turn_comparisons() with columns:
             turn_number, p1_military, p2_military, p1_orders, p2_orders,
-            p1_science, p2_science, mil_ratio, orders_ratio, science_ratio
+            p1_science, p2_science, p1_vp, p2_vp, and ratio columns
         events_df: DataFrame from get_match_timeline_events() with event data
         player1_name: Display name for player 1
         player2_name: Display name for player 2
@@ -175,6 +304,9 @@ def create_game_state_component(
         player2_id: Database player ID for player 2
         player1_color: Nation color for player 1 (hex)
         player2_color: Nation color for player 2 (hex)
+        player1_civilization: Civilization name for player 1 (for crest icon)
+        player2_civilization: Civilization name for player 2 (for crest icon)
+        show_text: Whether to show text labels next to event icons (default False)
 
     Returns:
         Dash HTML component with 7-column table
@@ -185,6 +317,10 @@ def create_game_state_component(
             message="No comparison data found for this match.",
             icon="bi-bar-chart",
         )
+
+    # Get nation crest paths for winner indicators
+    p1_crest = get_nation_crest_icon_path(player1_civilization)
+    p2_crest = get_nation_crest_icon_path(player2_civilization)
 
     # Common styles
     row_style = {
@@ -197,8 +333,7 @@ def create_game_state_component(
         "backgroundColor": "#0e1b2e",
     }
 
-    # Column styles - 6 columns (Turn, P1 Events, 3x Comparisons, P2 Events)
-    # Unified background color to avoid visual artifacts
+    # Column styles - 7 columns (Turn, P1 Events, 4x Comparisons, P2 Events)
     turn_col_style = {
         "flex": "0 0 50px",
         "width": "50px",
@@ -209,21 +344,21 @@ def create_game_state_component(
     }
 
     events_col_style = {
-        "flex": "1 1 25%",
+        "flex": "1 1 22%",
         "padding": "6px 8px",
         "color": "#edf2f7",
     }
 
     comparison_col_style = {
-        "flex": "0 0 105px",
-        "width": "105px",
-        "padding": "4px 12px 4px 4px",  # Extra right padding for visual separation
+        "flex": "0 0 44px",
+        "width": "44px",
+        "padding": "4px 2px",
     }
 
     # Header comparison column style (shared)
     header_comparison_style = {
         **comparison_col_style,
-        "fontSize": "0.75rem",
+        "fontSize": "0.7rem",
         "fontWeight": "bold",
         "textAlign": "center",
         "color": "#edf1f6",
@@ -246,39 +381,67 @@ def create_game_state_component(
             ),
             html.Div(
                 [
-                    html.Img(
-                        src=YIELD_ORDERS_ICON,
-                        style={"width": "16px", "height": "16px", "marginRight": "4px", "verticalAlign": "middle"},
-                        title="Orders per Turn",
+                    html.Span(
+                        [
+                            html.Img(
+                                src=YIELD_ORDERS_ICON,
+                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
+                            ),
+                            _create_styled_tooltip("Orders per Turn"),
+                        ],
+                        className="event-icon-wrapper",
+                        style={"position": "relative"},
                     ),
-                    "Ord",
                 ],
                 style=header_comparison_style,
-                title="Orders per Turn Comparison",
             ),
             html.Div(
                 [
-                    html.Img(
-                        src=YIELD_TRAINING_ICON,
-                        style={"width": "16px", "height": "16px", "marginRight": "4px", "verticalAlign": "middle"},
-                        title="Military Power",
+                    html.Span(
+                        [
+                            html.Img(
+                                src=YIELD_TRAINING_ICON,
+                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
+                            ),
+                            _create_styled_tooltip("Military Power"),
+                        ],
+                        className="event-icon-wrapper",
+                        style={"position": "relative"},
                     ),
-                    "Mil",
                 ],
                 style=header_comparison_style,
-                title="Military Power Comparison",
             ),
             html.Div(
                 [
-                    html.Img(
-                        src=YIELD_SCIENCE_ICON,
-                        style={"width": "16px", "height": "16px", "marginRight": "4px", "verticalAlign": "middle"},
-                        title="Science Rate",
+                    html.Span(
+                        [
+                            html.Img(
+                                src=YIELD_SCIENCE_ICON,
+                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
+                            ),
+                            _create_styled_tooltip("Total Science"),
+                        ],
+                        className="event-icon-wrapper",
+                        style={"position": "relative"},
                     ),
-                    "Sci",
                 ],
                 style=header_comparison_style,
-                title="Science Rate Comparison",
+            ),
+            html.Div(
+                [
+                    html.Span(
+                        [
+                            html.Img(
+                                src=YIELD_VP_ICON,
+                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
+                            ),
+                            _create_styled_tooltip("Victory Points"),
+                        ],
+                        className="event-icon-wrapper",
+                        style={"position": "relative"},
+                    ),
+                ],
+                style=header_comparison_style,
             ),
             html.Div(
                 player2_name,
@@ -303,15 +466,15 @@ def create_game_state_component(
             # Turn column - no border
             html.Div(style={"flex": "0 0 50px", "height": "3px"}),
             # P1 events - player1 color
-            html.Div(style={"flex": "1 1 25%", "height": "3px", "backgroundColor": player1_color}),
-            # Comparison columns - gradient
+            html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color}),
+            # Comparison columns - gradient (4 x 44px = 176px)
             html.Div(style={
-                "flex": "0 0 315px",  # 3 x 105px
+                "flex": "0 0 176px",
                 "height": "3px",
                 "background": f"linear-gradient(to right, {player1_color}, {player2_color})",
             }),
             # P2 events - player2 color
-            html.Div(style={"flex": "1 1 25%", "height": "3px", "backgroundColor": player2_color}),
+            html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player2_color}),
         ],
         style={"display": "flex", "width": "100%"},
     )
@@ -340,47 +503,72 @@ def create_game_state_component(
         int(row["turn_number"]): row for _, row in comparison_df.iterrows()
     } if not comparison_df.empty else {}
 
+    # Track city counts: family counts and total counts per player
+    family_city_counts: Dict[Tuple[int, str], int] = {}  # (player_id, family_name) -> count
+    player_city_counts: Dict[int, int] = {}  # player_id -> total count
+
     for turn in all_turns:
         # Get events for this turn
         turn_events = events_df[events_df["turn"] == turn] if not events_df.empty else pd.DataFrame()
         p1_events = turn_events[turn_events["player_id"] == player1_id] if not turn_events.empty else pd.DataFrame()
         p2_events = turn_events[turn_events["player_id"] == player2_id] if not turn_events.empty else pd.DataFrame()
 
-        # Build event icons
-        p1_icons = _build_event_icons(p1_events)
-        p2_icons = _build_event_icons(p2_events)
+        # Build event icons (with city count tracking)
+        p1_icons = _build_event_icons(p1_events, player1_id, family_city_counts, player_city_counts, show_text)
+        p2_icons = _build_event_icons(p2_events, player2_id, family_city_counts, player_city_counts, show_text)
 
         # Get comparison data if available
         comp_row = comparison_by_turn.get(turn)
 
         if comp_row is not None:
-            # Create mini bar comparators with yield icons
-            ord_bars = _create_mini_bar_comparator(
+            # Create winner indicators
+            ord_indicator = _create_winner_indicator(
                 comp_row["p1_orders"],
                 comp_row["p2_orders"],
+                p1_crest,
+                p2_crest,
                 player1_color,
                 player2_color,
-                icon_path=YIELD_ORDERS_ICON,
+                player1_name,
+                player2_name,
             )
-            mil_bars = _create_mini_bar_comparator(
+            mil_indicator = _create_winner_indicator(
                 comp_row["p1_military"],
                 comp_row["p2_military"],
+                p1_crest,
+                p2_crest,
                 player1_color,
                 player2_color,
-                icon_path=YIELD_TRAINING_ICON,
+                player1_name,
+                player2_name,
             )
-            sci_bars = _create_mini_bar_comparator(
+            sci_indicator = _create_winner_indicator(
                 comp_row["p1_science"],
                 comp_row["p2_science"],
+                p1_crest,
+                p2_crest,
                 player1_color,
                 player2_color,
-                icon_path=YIELD_SCIENCE_ICON,
+                player1_name,
+                player2_name,
+            )
+            vp_indicator = _create_winner_indicator(
+                comp_row.get("p1_vp", 0),
+                comp_row.get("p2_vp", 0),
+                p1_crest,
+                p2_crest,
+                player1_color,
+                player2_color,
+                player1_name,
+                player2_name,
+                metric_label="VP",
             )
         else:
-            # No comparison data - show empty comparators
-            ord_bars = _create_mini_bar_comparator(0, 0, player1_color, player2_color, icon_path=YIELD_ORDERS_ICON)
-            mil_bars = _create_mini_bar_comparator(0, 0, player1_color, player2_color, icon_path=YIELD_TRAINING_ICON)
-            sci_bars = _create_mini_bar_comparator(0, 0, player1_color, player2_color, icon_path=YIELD_SCIENCE_ICON)
+            # No comparison data - show dashes
+            ord_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
+            mil_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
+            sci_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
+            vp_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
 
         data_row = html.Div(
             [
@@ -389,9 +577,10 @@ def create_game_state_component(
                     p1_icons,
                     style={**events_col_style, "textAlign": "right"},
                 ),
-                html.Div(ord_bars, style=comparison_col_style),
-                html.Div(mil_bars, style=comparison_col_style),
-                html.Div(sci_bars, style=comparison_col_style),
+                html.Div(ord_indicator, style=comparison_col_style),
+                html.Div(mil_indicator, style=comparison_col_style),
+                html.Div(sci_indicator, style=comparison_col_style),
+                html.Div(vp_indicator, style=comparison_col_style),
                 html.Div(
                     p2_icons,
                     style={**events_col_style, "textAlign": "left"},
@@ -408,11 +597,23 @@ def create_game_state_component(
     )
 
 
-def _build_event_icons(events_df: pd.DataFrame) -> list:
+def _build_event_icons(
+    events_df: pd.DataFrame,
+    player_id: int,
+    family_city_counts: Dict[Tuple[int, str], int],
+    player_city_counts: Dict[int, int],
+    show_text: bool = False,
+) -> list:
     """Build compact icon list from events DataFrame.
 
     Args:
         events_df: DataFrame with event data for one player on one turn
+        player_id: Database player ID for tracking cities
+        family_city_counts: Dict tracking (player_id, family_name) -> count
+            This is mutated to track running counts across turns.
+        player_city_counts: Dict tracking player_id -> total city count
+            This is mutated to track running counts across turns.
+        show_text: Whether to show text labels next to icons
 
     Returns:
         List of HTML elements (icons with tooltips)
@@ -427,28 +628,192 @@ def _build_event_icons(events_df: pd.DataFrame) -> list:
         details = event.get("details", "")
         icon_emoji = event.get("icon", "")
 
-        icon_element = _create_event_icon(event_type, title, icon_emoji, details)
+        # Track city counts for city/capital events
+        family_count = None
+        total_count = None
+        if event_type in ("city", "capital") and details:
+            family_name = details  # details contains family_name
+            key = (player_id, family_name)
+            family_city_counts[key] = family_city_counts.get(key, 0) + 1
+            family_count = family_city_counts[key]
+            player_city_counts[player_id] = player_city_counts.get(player_id, 0) + 1
+            total_count = player_city_counts[player_id]
+
+        icon_element = _create_event_icon(event_type, title, icon_emoji, details, family_count, total_count, show_text)
         icons.append(icon_element)
 
     return icons
 
 
+def _create_city_event_icons(
+    city_name: str,
+    family_name: str,
+    family_icon_path: Optional[str],
+    family_count: Optional[int],
+    total_count: Optional[int],
+    show_text: bool = False,
+) -> html.Span:
+    """Create combined city event display: city icon + family icon in one wrapper.
+
+    Args:
+        city_name: Name of the city
+        family_name: Raw family name like "FAMILY_BARCID"
+        family_icon_path: Path to the family crest icon
+        family_count: Running count of cities for this family
+        total_count: Total cities for this player
+        show_text: Whether to show text label
+
+    Returns:
+        html.Span containing both icons in a single wrapper
+    """
+    icon_style = {
+        "width": "28px",
+        "height": "28px",
+        "verticalAlign": "middle",
+    }
+
+    icon_container_style = {
+        "position": "relative",
+        "display": "inline-flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "width": "28px",
+        "height": "28px",
+        "marginRight": "4px",
+        "flexShrink": "0",
+    }
+
+    badge_style = {
+        "position": "absolute",
+        "bottom": "-3px",
+        "right": "-5px",
+        "fontSize": "10px",
+        "borderRadius": "50%",
+        "width": "14px",
+        "height": "14px",
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "lineHeight": "1",
+        "color": "#fff",
+    }
+
+    wrapper_style = {
+        "display": "inline-flex",
+        "alignItems": "center",
+        "verticalAlign": "middle",
+        "backgroundColor": "rgba(255,255,255,0.05)",
+        "borderRadius": "4px",
+        "margin": "2px",
+    }
+
+    label_style = {
+        "fontSize": "14px",
+        "verticalAlign": "middle",
+        "color": "#c8d4e3",
+    }
+
+    # Parse family display name and class from raw name like "FAMILY_BARCID"
+    # Handle direct archetype reference (e.g., "ARCHETYPE_PATRONS" for captured/rebel cities)
+    if family_name.startswith("ARCHETYPE_"):
+        # No family name, just class
+        display_family_name = ""
+        family_class = family_name.replace("ARCHETYPE_", "").title()
+    else:
+        # Normal family name like "FAMILY_BARCID" or "EGYPT_RAMESSIDE"
+        if "_" in family_name.replace("FAMILY_", ""):
+            parts = family_name.replace("FAMILY_", "").split("_")
+            display_family_name = parts[-1].title()
+        else:
+            display_family_name = family_name.replace("FAMILY_", "").title()
+
+        # Look up the archetype/class
+        family_class = FAMILY_TO_ARCHETYPE.get(display_family_name, "")
+
+    children = []
+
+    # City founded icon with total count badge
+    city_img = html.Img(src=CITY_FOUNDED_ICON, style=icon_style)
+    city_badge = None
+    if total_count is not None:
+        city_badge = html.Span(
+            str(total_count),
+            style={**badge_style, "backgroundColor": "#40c057"}  # Green
+        )
+    city_container = html.Div(
+        [city_img] + ([city_badge] if city_badge else []),
+        style={**icon_container_style, "marginRight": "8px"},
+    )
+    children.append(city_container)
+
+    # Family crest icon with family count badge
+    if family_icon_path:
+        family_img = html.Img(src=family_icon_path, style=icon_style)
+        family_badge = None
+        if family_count is not None:
+            family_badge = html.Span(
+                str(family_count),
+                style={**badge_style, "backgroundColor": "#339af0"}  # Blue
+            )
+        family_container = html.Div(
+            [family_img] + ([family_badge] if family_badge else []),
+            style={**icon_container_style, "marginRight": "6px"},
+        )
+        children.append(family_container)
+
+    # Build tooltip: "CityName (FamilyName Class)"
+    if display_family_name and family_class:
+        family_info = f"{display_family_name} {family_class}"
+    elif display_family_name:
+        family_info = display_family_name
+    elif family_class:
+        family_info = family_class
+    else:
+        family_info = ""
+
+    tooltip_text = f"{city_name} ({family_info})" if family_info else city_name
+    children.append(_create_styled_tooltip(tooltip_text))
+
+    # Add text label if enabled
+    if show_text:
+        children.append(html.Span(tooltip_text, style=label_style))
+
+    return html.Span(
+        children,
+        className="event-icon-wrapper",
+        style={**wrapper_style, "position": "relative"},
+    )
+
+
 def _create_event_icon(
-    event_type: str, title: str, fallback_emoji: str, details: str = ""
+    event_type: str,
+    title: str,
+    fallback_emoji: str,
+    details: str = "",
+    family_count: Optional[int] = None,
+    total_count: Optional[int] = None,
+    show_text: bool = False,
 ) -> html.Img | html.Span:
     """Create an icon element for an event.
 
     Args:
-        event_type: Type of event (tech, law, ruler, wonder_start, wonder_complete, etc.)
+        event_type: Type of event (tech, law, ruler, wonder_start, wonder_complete,
+            city, capital, ambition, religion, etc.)
         title: Event title
         fallback_emoji: Emoji to use if no game icon available
-        details: Event details (used for ruler archetype)
+        details: Event details (used for ruler archetype, family name)
+        family_count: For city/capital events, the running count for this family
+        total_count: For city/capital events, the total city count for this player
+        show_text: Whether to show text label next to icon
 
     Returns:
         html.Img for game icons, html.Span for emoji fallback
     """
     icon_path = None
     tooltip = title
+    badge_text = None
+    badge_bg = None
+    is_4th_law = False  # Default for uu_unlock check
 
     if event_type == "tech" and title.startswith("Discovered: "):
         tech_name = title[12:]
@@ -464,25 +829,35 @@ def _create_event_icon(
         icon_path = get_law_icon_path(law_name)
         # Show "X → Y" without "Swapped " prefix
         tooltip = title.replace("Swapped ", "")
+        badge_text = "🔄"
+        badge_bg = "#748ffc"  # Blue/purple
     elif event_type == "wonder_start" and title.startswith("Started: "):
         wonder_name = title[9:]
         icon_path = get_wonder_icon_path(wonder_name)
         tooltip = f"Started: {wonder_name}"
+        badge_text = "🔨"
+        badge_bg = "#f59f00"  # Orange
     elif event_type == "wonder_complete" and title.startswith("Completed: "):
         wonder_name = title[11:]
         icon_path = get_wonder_icon_path(wonder_name)
         tooltip = f"Completed: {wonder_name}"
+        badge_text = "✓"
+        badge_bg = "#40c057"  # Green
     elif event_type in ("city", "capital") and details:
         # details contains family_name like "FAMILY_BARCID"
         is_capital = event_type == "capital"
-        icon_path = get_family_crest_icon_path(details, is_seat=is_capital)
+        family_icon_path = get_family_crest_icon_path(details, is_seat=is_capital)
         # Extract just the city name without "Founded: " or "Capital: " prefix
         if title.startswith("Founded: "):
-            tooltip = title[9:]
+            city_name = title[9:]
         elif title.startswith("Capital: "):
-            tooltip = title[9:]
+            city_name = title[9:]
         else:
-            tooltip = title
+            city_name = title
+        # Return early with both icons for city events
+        return _create_city_event_icons(
+            city_name, details, family_icon_path, family_count, total_count, show_text
+        )
     elif event_type == "ruler" and details:
         # Icon shows archetype, so tooltip just needs ruler name
         archetype = details.split(" - ")[0] if " - " in details else details
@@ -500,12 +875,24 @@ def _create_event_icon(
         is_4th_law = "6 Strength" in title
         if is_4th_law:
             tooltip = "4 laws adopted"
+            badge_text = "4"
+            badge_bg = "#339af0"  # Blue
         else:
             tooltip = "7 laws adopted"
+            badge_text = "7"
+            badge_bg = "#fab005"  # Gold
+    elif event_type == "ambition":
+        icon_path = AMBITION_ICON
+        # Title is "Ambition: Control Six Mines"
+        tooltip = title.replace("Ambition: ", "")
+    elif event_type == "religion":
+        icon_path = RELIGION_ICON
+        # Title is "Founded: Carthaginian Paganism"
+        tooltip = title.replace("Founded: ", "")
 
     icon_style = {
-        "width": "20px",
-        "height": "20px",
+        "width": "28px",
+        "height": "28px",
         "verticalAlign": "middle",
     }
 
@@ -515,26 +902,40 @@ def _create_event_icon(
         "display": "inline-flex",
         "alignItems": "center",
         "justifyContent": "center",
-        "width": "20px",
-        "height": "20px",
-        "marginRight": "5px",
+        "width": "28px",
+        "height": "28px",
+        "marginRight": "6px",
         "flexShrink": "0",
     }
 
     label_style = {
-        "fontSize": "11px",
+        "fontSize": "14px",
         "verticalAlign": "middle",
-        "color": "#adb5bd",
+        "color": "#c8d4e3",
     }
 
     wrapper_style = {
         "display": "inline-flex",
         "alignItems": "center",
+        "verticalAlign": "middle",
         "backgroundColor": "rgba(255,255,255,0.05)",
         "borderRadius": "4px",
-        "padding": "4px 8px 4px 6px",
-        "marginRight": "6px",
-        "marginBottom": "3px",
+        "margin": "2px",
+    }
+
+    badge_style = {
+        "position": "absolute",
+        "bottom": "-3px",
+        "right": "-5px",
+        "fontSize": "10px",
+        "borderRadius": "50%",
+        "width": "14px",
+        "height": "14px",
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "lineHeight": "1",
+        "color": "#fff",
     }
 
     if icon_path:
@@ -545,63 +946,56 @@ def _create_event_icon(
             style=icon_style,
         )
 
-        # Add corner badge for wonder, law_swap, and uu_unlock events
-        if event_type in ("wonder_start", "wonder_complete", "law_swap", "uu_unlock"):
-            if event_type == "wonder_start":
-                badge_text = "🔨"
-                badge_bg = "#f59f00"  # Orange
-            elif event_type == "wonder_complete":
-                badge_text = "✓"
-                badge_bg = "#40c057"  # Green
-            elif event_type == "law_swap":
-                badge_text = "🔄"
-                badge_bg = "#748ffc"  # Blue/purple
-            else:  # uu_unlock
-                badge_text = "4" if is_4th_law else "7"
-                badge_bg = "#339af0" if is_4th_law else "#fab005"  # Blue for 4, Gold for 7
-            badge_style = {
-                "position": "absolute",
-                "bottom": "-2px",
-                "right": "-4px",
-                "fontSize": "8px",
-                "backgroundColor": badge_bg,
-                "borderRadius": "50%",
-                "width": "11px",
-                "height": "11px",
-                "display": "flex",
-                "alignItems": "center",
-                "justifyContent": "center",
-                "lineHeight": "1",
-            }
+        # Add corner badge if specified
+        if badge_text and badge_bg:
             icon_with_badge = html.Div(
                 [
                     img_element,
-                    html.Span(badge_text, style=badge_style),
+                    html.Span(badge_text, style={**badge_style, "backgroundColor": badge_bg}),
                 ],
                 style=icon_container_style,
             )
+            children = [icon_with_badge]
+            if show_text:
+                children.append(html.Span(tooltip, style=label_style))
+            children.append(_create_styled_tooltip(tooltip))
             return html.Span(
-                [icon_with_badge, html.Span(tooltip, style=label_style)],
-                style=wrapper_style,
-                title=tooltip,
+                children,
+                className="event-icon-wrapper",
+                style={**wrapper_style, "position": "relative"},
             )
 
         # Wrap icon in fixed-size container for consistent alignment
         icon_container = html.Div([img_element], style=icon_container_style)
+        children = [icon_container]
+        if show_text:
+            children.append(html.Span(tooltip, style=label_style))
+        children.append(_create_styled_tooltip(tooltip))
         return html.Span(
-            [icon_container, html.Span(tooltip, style=label_style)],
-            style=wrapper_style,
-            title=tooltip,
+            children,
+            className="event-icon-wrapper",
+            style={**wrapper_style, "position": "relative"},
         )
     else:
-        emoji_container = html.Div(
-            [html.Span(fallback_emoji)],
-            style=icon_container_style,
-        )
+        # Emoji fallback - style to match icon sizing
+        emoji_style = {
+            "fontSize": "24px",
+            "width": "28px",
+            "height": "28px",
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+        }
+        emoji_element = html.Span(fallback_emoji, style=emoji_style)
+        icon_container = html.Div([emoji_element], style=icon_container_style)
+        children = [icon_container]
+        if show_text:
+            children.append(html.Span(tooltip, style=label_style))
+        children.append(_create_styled_tooltip(tooltip))
         return html.Span(
-            [emoji_container, html.Span(tooltip, style=label_style)],
-            style=wrapper_style,
-            title=tooltip,
+            children,
+            className="event-icon-wrapper",
+            style={**wrapper_style, "position": "relative"},
         )
 
 
@@ -630,8 +1024,63 @@ def get_game_state_styles() -> str:
     }
 
     .game-state-icon {
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         vertical-align: middle;
+    }
+
+    /* Custom tooltip for winner indicators */
+    .winner-indicator {
+        cursor: pointer;
+    }
+
+    .winner-indicator::after {
+        content: attr(data-tooltip-line1) "\\A" attr(data-tooltip-line2);
+        white-space: pre;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #1a2332;
+        color: #c8d4e3;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: monospace;
+        line-height: 1.5;
+        border: 1px solid #3a5a7e;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        z-index: 1000;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.15s ease, visibility 0.15s ease;
+        margin-bottom: 8px;
+    }
+
+    .winner-indicator:hover::after {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Arrow for tooltip */
+    .winner-indicator::before {
+        content: "";
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: #3a5a7e;
+        margin-bottom: 2px;
+        z-index: 1001;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.15s ease, visibility 0.15s ease;
+    }
+
+    .winner-indicator:hover::before {
+        opacity: 1;
+        visibility: visible;
     }
     """
