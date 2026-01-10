@@ -6009,6 +6009,7 @@ class TournamentQueries:
 
         where_clause, params = self._build_player_filter(filtered, result_filter)
 
+        # Get distinct family classes per player (each player picks 3 of 4 families)
         query = f"""
         SELECT DISTINCT
             p.player_id,
@@ -6031,15 +6032,30 @@ class TournamentQueries:
         df["family_class"] = df["family_name"].apply(get_family_class)
         df = df[df["family_class"] != "Unknown"]
 
-        # Count picks per nation-class combination
-        result = (
-            df.groupby(["nation", "family_class"]).size().reset_index(name="pick_count")
+        # Get unique player-class combinations (did this player pick this class?)
+        player_picks = df.drop_duplicates(
+            subset=["player_id", "match_id", "nation", "family_class"]
         )
 
-        # Calculate percentage within each nation
-        nation_totals = result.groupby("nation")["pick_count"].sum()
+        # Count how many players picked each class per nation
+        result = (
+            player_picks.groupby(["nation", "family_class"])
+            .size()
+            .reset_index(name="pick_count")
+        )
+
+        # Count total players per nation
+        total_players_per_nation = (
+            player_picks.groupby("nation")[["player_id", "match_id"]]
+            .apply(lambda x: x.drop_duplicates().shape[0])
+            .to_dict()
+        )
+
+        # Calculate percentage: what % of nation's players picked this class
         result["pick_percentage"] = result.apply(
-            lambda row: round(row["pick_count"] * 100.0 / nation_totals[row["nation"]], 2),
+            lambda row: round(
+                row["pick_count"] * 100.0 / total_players_per_nation[row["nation"]], 2
+            ),
             axis=1,
         )
 
