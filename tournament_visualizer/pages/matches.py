@@ -589,7 +589,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                         className="ms-auto",
                                     ),
                                 ],
-                                className="mt-3 mb-2 align-items-center g-3",
+                                className="mt-2 mb-2 align-items-center g-3",
                             ),
                             # Game state comparison table
                             dbc.Row(
