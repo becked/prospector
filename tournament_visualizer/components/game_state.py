@@ -31,6 +31,18 @@ AMBITION_ICON = "/assets/icons/other/TURN_SUMMARY_AMBITION.png"
 RELIGION_ICON = "/assets/icons/other/RELIGION_FOUNDED.png"
 CITY_FOUNDED_ICON = "/assets/icons/other/CITY_FOUNDED.png"
 
+# Theology icons mapping
+THEOLOGY_ICONS = {
+    "Dualism": "/assets/icons/other/THEOLOGY_DUALISM.png",
+    "Enlightenment": "/assets/icons/other/THEOLOGY_ENLIGHTENMENT.png",
+    "Gnosticism": "/assets/icons/other/THEOLOGY_GNOSTICISM.png",
+    "Legalism": "/assets/icons/other/THEOLOGY_LEGALISM.png",
+    "Mythology": "/assets/icons/other/THEOLOGY_MYTHOLOGY.png",
+    "Redemption": "/assets/icons/other/THEOLOGY_REDEMPTION.png",
+    "Revelation": "/assets/icons/other/THEOLOGY_REVELATION.png",
+    "Veneration": "/assets/icons/other/THEOLOGY_VENERATION.png",
+}
+
 
 def _create_styled_tooltip(text: str) -> html.Div:
     """Create a styled tooltip element.
@@ -889,6 +901,11 @@ def _create_event_icon(
         icon_path = RELIGION_ICON
         # Title is "Founded: Carthaginian Paganism"
         tooltip = title.replace("Founded: ", "")
+    elif event_type == "theology":
+        # Title is "Theology: Legalism" - extract theology name for icon lookup
+        theology_name = title.replace("Theology: ", "")
+        icon_path = THEOLOGY_ICONS.get(theology_name)
+        tooltip = theology_name
 
     icon_style = {
         "width": "28px",

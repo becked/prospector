@@ -4915,6 +4915,23 @@ class TournamentQueries:
             SELECT turn, player_id, event_type, title, details
             FROM religion_events_raw
             WHERE rn = 1
+        ),
+
+        -- 10. Theology established events (THEOLOGY_ESTABLISHED)
+        theology_events AS (
+            SELECT
+                e.turn_number as turn,
+                e.player_id,
+                'theology' as event_type,
+                -- Extract theology name from "Zoroastrian Legalism established by ..."
+                'Theology: ' || COALESCE(
+                    REGEXP_EXTRACT(e.description, '^[A-Za-z]+ ([A-Za-z]+) established', 1),
+                    e.description
+                ) as title,
+                e.description as details
+            FROM events e
+            WHERE e.match_id = ?
+              AND e.event_type = 'THEOLOGY_ESTABLISHED'
         )
 
         -- Combine all events
@@ -4985,11 +5002,16 @@ class TournamentQueries:
 
             SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
             FROM religion_events
+
+            UNION ALL
+
+            SELECT turn, player_id, event_type, title, details, NULL as subtype, NULL as succession_order
+            FROM theology_events
         ) all_events
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [match_id] * 14  # 14 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion
+        params = [match_id] * 15  # 15 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()

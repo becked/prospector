@@ -98,6 +98,7 @@ TIMELINE_ICONS: dict[str, str] = {
     "uu_unlock": "🗡️",
     "ambition": "🏆",
     "religion": "⛪",
+    "theology": "📿",
 }
 
 # Event type priority for sorting (lower number = higher priority)
@@ -107,7 +108,8 @@ EVENT_PRIORITY: dict[str, int] = {
     "ruler": 2,
     "capital": 3,
     "religion": 4,  # Religion founding after capital, before city
-    "city": 5,
+    "theology": 5,  # Theology after religion
+    "city": 6,
     "city_lost": 6,
     "uu_unlock": 7,
     "ambition": 8,  # Ambition completion after uu_unlock, before law
