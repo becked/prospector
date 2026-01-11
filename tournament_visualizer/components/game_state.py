@@ -406,8 +406,15 @@ def create_game_state_component(
     }
 
     # Build header children list
-    header_children = [
-        html.Div("Turn", style=turn_col_style),
+    # With metrics: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
+    # Without metrics: P1 Events | Turn | P2 Events
+    header_children = []
+
+    if show_metrics:
+        # Turn on left when metrics enabled
+        header_children.append(html.Div("Turn", style=turn_col_style))
+
+    header_children.append(
         html.Div(
             player1_name,
             style={
@@ -416,10 +423,10 @@ def create_game_state_component(
                 "fontWeight": "bold",
             },
         ),
-    ]
+    )
 
-    # Add metrics columns if enabled
     if show_metrics:
+        # All 4 metrics columns
         header_children.extend([
             html.Div(
                 [
@@ -486,6 +493,9 @@ def create_game_state_component(
                 style=header_comparison_style,
             ),
         ])
+    else:
+        # Turn in center when metrics disabled
+        header_children.append(html.Div("Turn", style=turn_col_style))
 
     header_children.append(
         html.Div(
@@ -509,15 +519,21 @@ def create_game_state_component(
     )
 
     # Build border children list
-    border_children = [
-        # Turn column - no border
-        html.Div(style={"flex": "0 0 50px", "height": "3px"}),
-        # P1 events - player1 color
-        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color}),
-    ]
+    # With metrics: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
+    # Without metrics: P1 Events | Turn | P2 Events
+    border_children = []
 
     if show_metrics:
-        # Comparison columns - gradient (4 x 44px = 176px)
+        # Turn column - no border (on left)
+        border_children.append(html.Div(style={"flex": "0 0 50px", "height": "3px"}))
+
+    # P1 events - player1 color
+    border_children.append(
+        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color})
+    )
+
+    if show_metrics:
+        # All 4 metrics - gradient (4 x 44px = 176px)
         border_children.append(
             html.Div(style={
                 "flex": "0 0 176px",
@@ -525,6 +541,9 @@ def create_game_state_component(
                 "background": f"linear-gradient(to right, {player1_color}, {player2_color})",
             })
         )
+    else:
+        # Turn column - no border (in center)
+        border_children.append(html.Div(style={"flex": "0 0 50px", "height": "3px"}))
 
     # P2 events - player2 color
     border_children.append(
@@ -628,21 +647,32 @@ def create_game_state_component(
             vp_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
 
         # Build row children list
-        row_children = [
-            html.Div(str(turn), style=turn_col_style),
+        # With metrics: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
+        # Without metrics: P1 Events | Turn | P2 Events
+        row_children = []
+
+        if show_metrics:
+            # Turn on left when metrics enabled
+            row_children.append(html.Div(str(turn), style=turn_col_style))
+
+        row_children.append(
             html.Div(
                 p1_icons,
                 style={**events_col_style, "textAlign": "right"},
             ),
-        ]
+        )
 
         if show_metrics:
+            # All 4 metrics
             row_children.extend([
                 html.Div(ord_indicator, style=comparison_col_style),
                 html.Div(mil_indicator, style=comparison_col_style),
                 html.Div(sci_indicator, style=comparison_col_style),
                 html.Div(vp_indicator, style=comparison_col_style),
             ])
+        else:
+            # Turn in center when metrics disabled
+            row_children.append(html.Div(str(turn), style=turn_col_style))
 
         row_children.append(
             html.Div(
