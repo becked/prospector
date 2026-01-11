@@ -528,9 +528,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     dbc.Col(
                                         html.Div(
                                             [
-                                                html.I(
-                                                    className="bi bi-funnel me-2 text-muted"
-                                                ),
                                                 dbc.Checklist(
                                                     id="event-filter-checklist",
                                                     options=[
@@ -544,6 +541,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                             "Rulers",
                                                             "Techs",
                                                             "Wonders",
+                                                            "Metrics",
                                                         ]
                                                     ],
                                                     value=[
@@ -555,6 +553,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                         "Rulers",
                                                         "Techs",
                                                         "Wonders",
+                                                        "Metrics",
                                                     ],
                                                     inline=True,
                                                     className="event-filter-checklist d-inline-flex",
@@ -1305,7 +1304,7 @@ def sync_filter_from_store(
 )
 def sync_store_from_filter(selected_categories: list[str]) -> dict:
     """Save filter state to localStorage when user changes selection."""
-    all_categories = ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders"]
+    all_categories = ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders", "Metrics"]
     return {cat: (cat in selected_categories) for cat in all_categories}
 
 
@@ -1328,11 +1327,13 @@ def update_overview_table(
         active_tab: Currently active tab ID
         match_id: Selected match ID
         show_text: Whether to show event text labels
-        enabled_categories: List of enabled event filter categories
+        enabled_categories: List of enabled filter categories (includes "Metrics")
 
     Returns:
         Overview comparison component HTML
     """
+    # Extract Metrics toggle from the checklist
+    show_metrics = "Metrics" in (enabled_categories or [])
     # Lazy loading - only update when Overview tab is active
     if active_tab != "overview":
         raise dash.exceptions.PreventUpdate
@@ -1446,6 +1447,7 @@ def update_overview_table(
             player1_civilization=player1_civilization,
             player2_civilization=player2_civilization,
             show_text=show_text,
+            show_metrics=show_metrics,
             enabled_categories=enabled_categories,
         )
 

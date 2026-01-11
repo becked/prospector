@@ -225,7 +225,7 @@ def _create_winner_indicator(
             html.Span(
                 pct_text,
                 style={
-                    "color": "#69db7c",
+                    "color": "#edf2f7",
                     "fontSize": "0.7rem",
                     "fontWeight": "bold",
                 },
@@ -310,11 +310,13 @@ def create_game_state_component(
     player1_civilization: str = "",
     player2_civilization: str = "",
     show_text: bool = False,
+    show_metrics: bool = True,
     enabled_categories: Optional[list[str]] = None,
 ) -> html.Div:
-    """Create 7-column game state comparison table.
+    """Create game state comparison table.
 
-    Layout: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
+    Layout with metrics: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
+    Layout without metrics: Turn | P1 Events | P2 Events
 
     Args:
         comparison_df: DataFrame from get_match_turn_comparisons() with columns:
@@ -330,9 +332,10 @@ def create_game_state_component(
         player1_civilization: Civilization name for player 1 (for crest icon)
         player2_civilization: Civilization name for player 2 (for crest icon)
         show_text: Whether to show text labels next to event icons (default False)
+        show_metrics: Whether to show the center comparison columns (default True)
 
     Returns:
-        Dash HTML component with 7-column table
+        Dash HTML component with comparison table
     """
     if comparison_df.empty:
         return create_empty_state(
@@ -356,16 +359,17 @@ def create_game_state_component(
     p1_crest = get_nation_crest_icon_path(player1_civilization)
     p2_crest = get_nation_crest_icon_path(player2_civilization)
 
-    # Common styles
-    row_style = {
+    # Common styles - base row style (alternating colors applied in loop)
+    row_style_base = {
         "display": "flex",
         "flexDirection": "row",
         "borderBottom": "1px solid var(--bs-border-color)",
         "minHeight": "32px",
         "width": "100%",
         "alignItems": "center",
-        "backgroundColor": "#0e1b2e",
     }
+    row_color_even = "#0e1b2e"
+    row_color_odd = "#132337"
 
     # Column styles - 7 columns (Turn, P1 Events, 4x Comparisons, P2 Events)
     turn_col_style = {
@@ -401,18 +405,22 @@ def create_game_state_component(
         "justifyContent": "center",
     }
 
-    # Build header with separate border row for clean alignment
-    header_content = html.Div(
-        [
-            html.Div("Turn", style=turn_col_style),
-            html.Div(
-                player1_name,
-                style={
-                    **events_col_style,
-                    "textAlign": "right",
-                    "fontWeight": "bold",
-                },
-            ),
+    # Build header children list
+    header_children = [
+        html.Div("Turn", style=turn_col_style),
+        html.Div(
+            player1_name,
+            style={
+                **events_col_style,
+                "textAlign": "right",
+                "fontWeight": "bold",
+            },
+        ),
+    ]
+
+    # Add metrics columns if enabled
+    if show_metrics:
+        header_children.extend([
             html.Div(
                 [
                     html.Span(
@@ -477,15 +485,21 @@ def create_game_state_component(
                 ],
                 style=header_comparison_style,
             ),
-            html.Div(
-                player2_name,
-                style={
-                    **events_col_style,
-                    "textAlign": "left",
-                    "fontWeight": "bold",
-                },
-            ),
-        ],
+        ])
+
+    header_children.append(
+        html.Div(
+            player2_name,
+            style={
+                **events_col_style,
+                "textAlign": "left",
+                "fontWeight": "bold",
+            },
+        ),
+    )
+
+    header_content = html.Div(
+        header_children,
         style={
             "display": "flex",
             "flexDirection": "row",
@@ -494,22 +508,31 @@ def create_game_state_component(
         },
     )
 
-    # Separate border row with colored segments matching column widths
-    header_border = html.Div(
-        [
-            # Turn column - no border
-            html.Div(style={"flex": "0 0 50px", "height": "3px"}),
-            # P1 events - player1 color
-            html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color}),
-            # Comparison columns - gradient (4 x 44px = 176px)
+    # Build border children list
+    border_children = [
+        # Turn column - no border
+        html.Div(style={"flex": "0 0 50px", "height": "3px"}),
+        # P1 events - player1 color
+        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color}),
+    ]
+
+    if show_metrics:
+        # Comparison columns - gradient (4 x 44px = 176px)
+        border_children.append(
             html.Div(style={
                 "flex": "0 0 176px",
                 "height": "3px",
                 "background": f"linear-gradient(to right, {player1_color}, {player2_color})",
-            }),
-            # P2 events - player2 color
-            html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player2_color}),
-        ],
+            })
+        )
+
+    # P2 events - player2 color
+    border_children.append(
+        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player2_color})
+    )
+
+    header_border = html.Div(
+        border_children,
         style={"display": "flex", "width": "100%"},
     )
 
@@ -541,7 +564,7 @@ def create_game_state_component(
     family_city_counts: Dict[Tuple[int, str], int] = {}  # (player_id, family_name) -> count
     player_city_counts: Dict[int, int] = {}  # player_id -> total count
 
-    for turn in all_turns:
+    for row_idx, turn in enumerate(all_turns):
         # Get events for this turn
         turn_events = events_df[events_df["turn"] == turn] if not events_df.empty else pd.DataFrame()
         p1_events = turn_events[turn_events["player_id"] == player1_id] if not turn_events.empty else pd.DataFrame()
@@ -604,22 +627,36 @@ def create_game_state_component(
             sci_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
             vp_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
 
-        data_row = html.Div(
-            [
-                html.Div(str(turn), style=turn_col_style),
-                html.Div(
-                    p1_icons,
-                    style={**events_col_style, "textAlign": "right"},
-                ),
+        # Build row children list
+        row_children = [
+            html.Div(str(turn), style=turn_col_style),
+            html.Div(
+                p1_icons,
+                style={**events_col_style, "textAlign": "right"},
+            ),
+        ]
+
+        if show_metrics:
+            row_children.extend([
                 html.Div(ord_indicator, style=comparison_col_style),
                 html.Div(mil_indicator, style=comparison_col_style),
                 html.Div(sci_indicator, style=comparison_col_style),
                 html.Div(vp_indicator, style=comparison_col_style),
-                html.Div(
-                    p2_icons,
-                    style={**events_col_style, "textAlign": "left"},
-                ),
-            ],
+            ])
+
+        row_children.append(
+            html.Div(
+                p2_icons,
+                style={**events_col_style, "textAlign": "left"},
+            ),
+        )
+
+        # Apply alternating row colors
+        row_bg = row_color_even if row_idx % 2 == 0 else row_color_odd
+        row_style = {**row_style_base, "backgroundColor": row_bg}
+
+        data_row = html.Div(
+            row_children,
             style=row_style,
             className="game-state-row",
         )
