@@ -1095,6 +1095,16 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
+                        "label": "Improvements",
+                        "tab_id": "improvements",
+                        "content": [
+                            # Improvements section - side-by-side player lists
+                            html.Div(id="match-improvements-section", className="mt-3 mb-3"),
+                            # Specialists section - side-by-side player lists
+                            html.Div(id="match-specialists-section", className="mb-3"),
+                        ],
+                    },
+                    {
                         "label": "Military",
                         "tab_id": "units",
                         "content": [
@@ -3224,6 +3234,332 @@ def update_match_territory_distribution_chart(
         logger.error(f"Error loading territory distribution: {e}")
         return create_empty_chart_placeholder(
             f"Error loading territory distribution: {str(e)}"
+        )
+
+
+def _format_improvement_name(improvement_type: str, strip_numbers: bool = True) -> str:
+    """Format improvement type for display.
+
+    Converts 'IMPROVEMENT_MINE' to 'Mine', 'IMPROVEMENT_GARRISON_1' to 'Garrison'.
+    Handles religion-specific improvements like 'IMPROVEMENT_TEMPLE_ZOROASTRIANISM'.
+
+    Args:
+        improvement_type: Raw improvement type string
+        strip_numbers: If True, removes trailing numbers (Garrison 1 -> Garrison)
+    """
+    import re
+
+    if not improvement_type:
+        return "Unknown"
+
+    # Remove IMPROVEMENT_ prefix
+    name = improvement_type.replace("IMPROVEMENT_", "")
+
+    # Handle religion-specific names (e.g., TEMPLE_ZOROASTRIANISM -> Zoroastrian Temple)
+    religion_buildings = ["TEMPLE", "MONASTERY", "SHRINE", "HOLY_SITE"]
+    for building in religion_buildings:
+        if name.startswith(f"{building}_"):
+            religion = name.replace(f"{building}_", "")
+            religion_formatted = religion.replace("_", " ").title()
+            building_formatted = building.replace("_", " ").title()
+            return f"{religion_formatted} {building_formatted}"
+
+    # Replace underscores with spaces and title case
+    result = name.replace("_", " ").title()
+
+    # Strip trailing numbers if requested (e.g., "Garrison 1" -> "Garrison")
+    if strip_numbers:
+        result = re.sub(r"\s+\d+$", "", result)
+
+    return result
+
+
+def _format_specialist_name(specialist_type: str) -> str:
+    """Format specialist type for display.
+
+    Converts 'SPECIALIST_MINER' to 'Miner'.
+    Converts 'SPECIALIST_ACOLYTE_1' to 'Apprentice Acolyte'.
+    Converts 'SPECIALIST_ACOLYTE_2' to 'Master Acolyte'.
+    Converts 'SPECIALIST_ACOLYTE_3' to 'Elite Acolyte'.
+    """
+    import re
+
+    if not specialist_type:
+        return "Unknown"
+
+    # Remove SPECIALIST_ prefix
+    name = specialist_type.replace("SPECIALIST_", "")
+
+    # Map tier numbers to tier names
+    tier_map = {"1": "Apprentice", "2": "Master", "3": "Elite"}
+
+    # Check for tier suffix (e.g., ACOLYTE_1 -> Apprentice Acolyte)
+    match = re.match(r"^(.+)_(\d)$", name)
+    if match:
+        base_name = match.group(1).replace("_", " ").title()
+        tier_num = match.group(2)
+        tier_name = tier_map.get(tier_num, f"Tier {tier_num}")
+        return f"{tier_name} {base_name}"
+
+    # No tier suffix - just format the name
+    return name.replace("_", " ").title()
+
+
+@callback(
+    Output("match-improvements-section", "children"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_match_improvements_section(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> html.Div:
+    """Update improvements section showing improvement counts per player.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+
+    Returns:
+        HTML div with side-by-side player improvement lists
+    """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "improvements":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return html.Div()
+
+    try:
+        queries = get_queries()
+        df = queries.get_improvement_counts_by_player(match_id)
+
+        if df.empty:
+            return dbc.Card(
+                dbc.CardBody(
+                    html.P(
+                        "No improvement data available",
+                        className="text-muted text-center mb-0",
+                    )
+                ),
+                className="mt-3",
+            )
+
+        # Get player colors for styling
+        player_colors = get_player_colors_for_match(match_id)
+
+        # Format names and aggregate by base name (strip numeric suffixes)
+        df["display_name"] = df["improvement_type"].apply(_format_improvement_name)
+
+        # Build improvement lists for each player
+        players = df["player_name"].unique()
+        player_columns = []
+
+        for player_name in players:
+            player_df = df[df["player_name"] == player_name].copy()
+            player_color = player_colors.get(player_name, "#6c757d")
+
+            # Aggregate by display name (combines Garrison 1, 2, 3 -> Garrison)
+            aggregated = (
+                player_df.groupby("display_name")["count"].sum().reset_index()
+            )
+            # Sort alphabetically
+            aggregated = aggregated.sort_values("display_name")
+
+            # Create list items
+            list_items = []
+            for _, row in aggregated.iterrows():
+                list_items.append(
+                    html.Li(
+                        [
+                            html.Span(f"{row['display_name']}: ", className="text-muted"),
+                            html.Span(str(row["count"]), className="fw-bold"),
+                        ],
+                        className="list-unstyled-item",
+                    )
+                )
+
+            # Calculate total improvements
+            total_improvements = aggregated["count"].sum()
+
+            player_columns.append(
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardHeader(
+                                [
+                                    html.Span(
+                                        player_name,
+                                        className="fw-bold",
+                                        style={"color": player_color},
+                                    ),
+                                    html.Span(
+                                        f" ({total_improvements} total)",
+                                        className="text-muted ms-2",
+                                    ),
+                                ]
+                            ),
+                            dbc.CardBody(
+                                html.Ul(
+                                    list_items,
+                                    className="list-unstyled mb-0",
+                                    style={
+                                        "columnCount": 2,
+                                        "columnGap": "2rem",
+                                        "fontSize": "0.9rem",
+                                    },
+                                ),
+                            ),
+                        ]
+                    ),
+                    md=6,
+                )
+            )
+
+        return dbc.Row(
+            player_columns,
+            className="g-3",
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading improvements section: {e}")
+        return dbc.Card(
+            dbc.CardBody(
+                html.P(
+                    f"Error loading improvements: {str(e)}",
+                    className="text-danger text-center mb-0",
+                )
+            ),
+            className="mt-3",
+        )
+
+
+@callback(
+    Output("match-specialists-section", "children"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_match_specialists_section(
+    active_tab: Optional[str], match_id: Optional[int]
+) -> html.Div:
+    """Update specialists section showing specialist counts per player.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+
+    Returns:
+        HTML div with side-by-side player specialist lists
+    """
+    # Lazy loading: skip rendering if tab is not active
+    if active_tab != "improvements":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return html.Div()
+
+    try:
+        queries = get_queries()
+        df = queries.get_specialist_counts_by_player(match_id)
+
+        if df.empty:
+            return dbc.Card(
+                dbc.CardBody(
+                    html.P(
+                        "No specialist data available",
+                        className="text-muted text-center mb-0",
+                    )
+                ),
+                className="mt-3",
+            )
+
+        # Get player colors for styling
+        player_colors = get_player_colors_for_match(match_id)
+
+        # Format names (converts _1/_2/_3 to Apprentice/Master/Elite)
+        df["display_name"] = df["specialist_type"].apply(_format_specialist_name)
+
+        # Build specialist lists for each player
+        players = df["player_name"].unique()
+        player_columns = []
+
+        for player_name in players:
+            player_df = df[df["player_name"] == player_name].copy()
+            player_color = player_colors.get(player_name, "#6c757d")
+
+            # Aggregate by display name (in case of duplicates)
+            aggregated = (
+                player_df.groupby("display_name")["count"].sum().reset_index()
+            )
+            # Sort alphabetically
+            aggregated = aggregated.sort_values("display_name")
+
+            # Create list items
+            list_items = []
+            for _, row in aggregated.iterrows():
+                list_items.append(
+                    html.Li(
+                        [
+                            html.Span(f"{row['display_name']}: ", className="text-muted"),
+                            html.Span(str(row["count"]), className="fw-bold"),
+                        ],
+                        className="list-unstyled-item",
+                    )
+                )
+
+            # Calculate total specialists
+            total_specialists = aggregated["count"].sum()
+
+            player_columns.append(
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardHeader(
+                                [
+                                    html.Span(
+                                        player_name,
+                                        className="fw-bold",
+                                        style={"color": player_color},
+                                    ),
+                                    html.Span(
+                                        f" ({total_specialists} total)",
+                                        className="text-muted ms-2",
+                                    ),
+                                ]
+                            ),
+                            dbc.CardBody(
+                                html.Ul(
+                                    list_items,
+                                    className="list-unstyled mb-0",
+                                    style={
+                                        "columnCount": 2,
+                                        "columnGap": "2rem",
+                                        "fontSize": "0.9rem",
+                                    },
+                                ),
+                            ),
+                        ]
+                    ),
+                    md=6,
+                )
+            )
+
+        return html.Div(
+            [
+                html.H5("Specialists", className="mb-3"),
+                dbc.Row(player_columns, className="g-3"),
+            ]
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading specialists section: {e}")
+        return dbc.Card(
+            dbc.CardBody(
+                html.P(
+                    f"Error loading specialists: {str(e)}",
+                    className="text-danger text-center mb-0",
+                )
+            ),
+            className="mt-3",
         )
 
 

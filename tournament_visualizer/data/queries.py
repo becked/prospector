@@ -3585,6 +3585,116 @@ class TournamentQueries:
 
         return (result[0], result[1])
 
+    def get_improvement_counts_by_player(
+        self, match_id: int, turn_number: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Get improvement counts per player for a match at a specific turn.
+
+        Counts the number of each improvement type owned by each player.
+        If turn_number is not specified, uses the final turn of the match.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn to get improvements for (default: final turn)
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - improvement_type: Raw improvement type (e.g., 'IMPROVEMENT_MINE')
+                - count: Number of that improvement type
+        """
+        # Get turn to query - use provided turn or final turn
+        if turn_number is None:
+            _, max_turn = self.get_territory_turn_range(match_id)
+            turn_number = max_turn
+
+        # territories.owner_player_id stores local slot numbers (1, 2), not global
+        # player_ids. Use player_order CTE to map slots to actual players.
+        query = """
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            t.improvement_type,
+            COUNT(*) as count
+        FROM territories t
+        JOIN player_order p ON t.match_id = p.match_id
+                            AND t.owner_player_id = p.match_player_order
+        WHERE t.match_id = ?
+          AND t.turn_number = ?
+          AND t.improvement_type IS NOT NULL
+        GROUP BY p.player_id, p.player_name, t.improvement_type
+        ORDER BY p.player_name, count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, turn_number]).df()
+
+    def get_specialist_counts_by_player(
+        self, match_id: int, turn_number: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Get specialist counts per player for a match at a specific turn.
+
+        Counts the number of each specialist type employed by each player.
+        If turn_number is not specified, uses the final turn of the match.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn to get specialists for (default: final turn)
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - specialist_type: Raw specialist type (e.g., 'SPECIALIST_MINER')
+                - count: Number of that specialist type
+        """
+        # Get turn to query - use provided turn or final turn
+        if turn_number is None:
+            _, max_turn = self.get_territory_turn_range(match_id)
+            turn_number = max_turn
+
+        # territories.owner_player_id stores local slot numbers (1, 2), not global
+        # player_ids. Use player_order CTE to map slots to actual players.
+        query = """
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            t.specialist_type,
+            COUNT(*) as count
+        FROM territories t
+        JOIN player_order p ON t.match_id = p.match_id
+                            AND t.owner_player_id = p.match_player_order
+        WHERE t.match_id = ?
+          AND t.turn_number = ?
+          AND t.specialist_type IS NOT NULL
+        GROUP BY p.player_id, p.player_name, t.specialist_type
+        ORDER BY p.player_name, count DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, turn_number]).df()
+
     def get_match_cities(self, match_id: int) -> pd.DataFrame:
         """Get all cities for a specific match.
 
