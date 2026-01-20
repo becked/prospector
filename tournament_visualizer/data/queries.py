@@ -5199,11 +5199,13 @@ class TournamentQueries:
         """
         query = """
         WITH
-        -- Get all turns from military history (most complete source)
+        -- Get all turns from ALL data sources (each may have different turn coverage)
         all_turns AS (
-            SELECT DISTINCT turn_number
-            FROM player_military_history
-            WHERE match_id = ?
+            SELECT DISTINCT turn_number FROM player_military_history WHERE match_id = ?
+            UNION
+            SELECT DISTINCT turn_number FROM player_yield_history WHERE match_id = ?
+            UNION
+            SELECT DISTINCT turn_number FROM player_points_history WHERE match_id = ?
         ),
 
         -- Military power per player per turn
@@ -5325,13 +5327,16 @@ class TournamentQueries:
         ORDER BY turn_number
         """
 
-        # Parameters: match_id (5x), then player IDs for joins (8x alternating p1, p2)
+        # Parameters: match_id (7x for all_turns union + 4 CTEs),
+        # then player IDs for joins (8x alternating p1, p2)
         params = [
-            match_id,  # all_turns
-            match_id,  # military
-            match_id,  # orders
-            match_id,  # science
-            match_id,  # points
+            match_id,  # all_turns - military
+            match_id,  # all_turns - yield
+            match_id,  # all_turns - points
+            match_id,  # military CTE
+            match_id,  # orders CTE
+            match_id,  # science CTE
+            match_id,  # points CTE
             player1_id,  # m1 join
             player2_id,  # m2 join
             player1_id,  # o1 join
