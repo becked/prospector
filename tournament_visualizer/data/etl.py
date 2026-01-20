@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from .database import TournamentDatabase, get_database
 from .parser import OldWorldSaveParser, parse_tournament_file
+from .queries import get_queries
 
 logger = logging.getLogger(__name__)
 
@@ -759,6 +760,11 @@ class TournamentETL:
         logger.info(
             f"Processing complete: {successful_count}/{total_files} files successful"
         )
+
+        # Invalidate query caches after data import
+        if successful_count > 0:
+            get_queries().invalidate_match_summary_cache()
+
         return successful_count, total_files, skipped_duplicates
 
     def get_processing_summary(self) -> Dict[str, Any]:

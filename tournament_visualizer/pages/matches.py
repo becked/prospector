@@ -167,6 +167,13 @@ layout = html.Div(
                 "Wonders": True,
             },
         ),
+        # Track which tabs have been loaded for the current match
+        # This prevents re-fetching data when switching back to already-loaded tabs
+        dcc.Store(
+            id="match-tabs-loaded-store",
+            storage_type="memory",
+            data={"match_id": None, "loaded_tabs": []},
+        ),
         # Page header
         create_page_header(
             title=PAGE_CONFIG["matches"]["title"],
@@ -210,20 +217,71 @@ layout = html.Div(
 )
 
 
+# =============================================================================
+# Tab Loading State Management
+# =============================================================================
+# This callback manages which tabs have been loaded for the current match.
+# Tab callbacks use the store State to skip re-fetching data when returning
+# to an already-loaded tab. The store resets when the match changes.
+
+
+@callback(
+    Output("match-tabs-loaded-store", "data"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_tab_loaded_state(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    current_state: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Track which tabs have been loaded for the current match.
+
+    When a tab is visited, it's added to the loaded_tabs list.
+    When the match changes, the list is reset.
+
+    Args:
+        active_tab: Currently active tab ID
+        match_id: Currently selected match ID
+        current_state: Current state from the store
+
+    Returns:
+        Updated state dict with match_id and loaded_tabs list
+    """
+    logger.info(f"[TAB_STATE] active_tab={active_tab}, match_id={match_id}, state={current_state}")
+    if current_state is None:
+        current_state = {"match_id": None, "loaded_tabs": []}
+
+    # If match changed, reset loaded tabs
+    if current_state.get("match_id") != match_id:
+        return {"match_id": match_id, "loaded_tabs": [active_tab] if active_tab else []}
+
+    # Add current tab to loaded list if not already there
+    loaded_tabs = current_state.get("loaded_tabs", [])
+    if active_tab and active_tab not in loaded_tabs:
+        loaded_tabs = loaded_tabs + [active_tab]
+
+    return {"match_id": match_id, "loaded_tabs": loaded_tabs}
+
+
 @callback(
     [
         Output("match-selector", "value"),
         Output("match-url", "search"),
+        Output("match-url", "hash"),  # Clear any hash that might appear
     ],
     [
         Input("match-url", "search"),
+        Input("match-url", "hash"),  # Watch for hash changes
         Input("match-selector", "value"),
         Input("match-selector", "options"),
     ],
     prevent_initial_call=False,
 )
 def sync_match_selection(
-    url_search: str, selector_value: Optional[int], options: List[Dict[str, Any]]
+    url_search: str, url_hash: str, selector_value: Optional[int], options: List[Dict[str, Any]]
 ) -> tuple:
     """Synchronize match selection between URL and dropdown.
 
@@ -237,9 +295,13 @@ def sync_match_selection(
         options: Available match options in dropdown
 
     Returns:
-        Tuple of (selector_value, url_search)
+        Tuple of (selector_value, url_search, url_hash)
     """
     ctx = dash.callback_context
+
+    # Log hash changes for debugging
+    if url_hash:
+        logger.info(f"[URL_SYNC] Hash detected: '{url_hash}' - clearing it")
 
     # On initial load (no trigger), check URL for match_id
     if not ctx.triggered:
@@ -252,8 +314,8 @@ def sync_match_selection(
                 match_id_int = int(match_id)
                 # Only set value if it exists in options
                 if any(opt["value"] == match_id_int for opt in options):
-                    return match_id_int, url_search
-        return None, ""
+                    return match_id_int, url_search, ""
+        return None, "", ""
 
     # Check which input triggered this callback
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -269,15 +331,15 @@ def sync_match_selection(
                 match_id_int = int(match_id)
                 # Only set value if it exists in options
                 if any(opt["value"] == match_id_int for opt in options):
-                    return match_id_int, url_search
-        return None, ""
+                    return match_id_int, url_search, ""
+        return None, "", ""
 
     # If selector changed (user picked from dropdown), update URL to match
     elif trigger_id == "match-selector":
         if selector_value:
             new_url = f"?match_id={selector_value}"
-            return selector_value, new_url
-        return None, ""
+            return selector_value, new_url, ""
+        return None, "", ""
 
     # If options changed and we have a URL parameter, try to set it
     elif trigger_id == "match-selector" and url_search and options:
@@ -291,10 +353,10 @@ def sync_match_selection(
             if selector_value != match_id_int and any(
                 opt["value"] == match_id_int for opt in options
             ):
-                return match_id_int, url_search
+                return match_id_int, url_search, ""
 
     # Fallback (shouldn't reach here)
-    return dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update
 
 
 @callback(
@@ -1623,15 +1685,20 @@ def update_breadcrumb(match_id: Optional[int]) -> html.Div:
     Output("match-technology-chart", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_technology_chart(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update cumulative technology count chart.
 
     Args:
         active_tab: Currently active tab
         match_id: Selected match ID
+        loaded_state: Tab loading state from store
 
     Returns:
         Plotly figure for cumulative technology count
@@ -1639,6 +1706,11 @@ def update_technology_chart(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "technology":
         raise dash.exceptions.PreventUpdate
+
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "technology" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return create_empty_chart_placeholder("Select a match to view technology data")
@@ -1711,15 +1783,20 @@ def update_tech_timeline(match_id: Optional[int]) -> go.Figure:
     Output("match-law-timeline", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_law_timeline(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update law adoption timeline chart.
 
     Args:
         active_tab: Currently active tab
         match_id: Selected match ID
+        loaded_state: Tab loading state from store
 
     Returns:
         Plotly figure showing when each player adopted each law
@@ -1727,6 +1804,19 @@ def update_law_timeline(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "laws":
         raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "laws" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "laws" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "laws" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return create_empty_chart_placeholder(
@@ -2075,9 +2165,13 @@ def update_settings_content(match_id: Optional[int]):
     Output("match-final-laws-content", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_final_laws(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> html.Div:
     """Update final laws display by player.
 
@@ -2279,9 +2373,12 @@ def update_final_techs(match_id: Optional[int]) -> html.Div:
     Output("match-law-cumulative", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_law_cumulative(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> go.Figure:
     """Update cumulative law count chart.
 
@@ -2331,9 +2428,13 @@ def update_law_cumulative(
     ],
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_all_yield_charts(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> List[go.Figure]:
     """Update all yield charts when a match is selected.
 
@@ -2343,13 +2444,23 @@ def update_all_yield_charts(
     Args:
         active_tab: Currently active tab
         match_id: Selected match ID
+        loaded_state: Tab loading state from store
 
     Returns:
         List of 14 Plotly figures (one for each yield type)
     """
+    logger.info(f"[YIELDS] active_tab={active_tab}, match_id={match_id}, loaded_state={loaded_state}")
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "yields":
+        logger.info("[YIELDS] SKIPPING - not yields tab")
         raise dash.exceptions.PreventUpdate
+
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "yields" in loaded_state.get("loaded_tabs", []):
+            logger.info("[YIELDS] SKIPPING - already loaded")
+            raise dash.exceptions.PreventUpdate
+    logger.info("[YIELDS] FETCHING DATA...")
 
     # If no match selected, return empty placeholders for all charts
     if not match_id:
@@ -2417,9 +2528,12 @@ def update_all_yield_charts(
     Output("match-legitimacy-progression", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_legitimacy_chart(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> go.Figure:
     """Update legitimacy progression chart.
 
@@ -2433,6 +2547,22 @@ def update_legitimacy_chart(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "legitimacy":
         raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return create_empty_chart_placeholder("Select a match to view legitimacy")
@@ -2457,9 +2587,12 @@ def update_legitimacy_chart(
     Output("match-legitimacy-breakdown-container", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_legitimacy_breakdown(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> html.Div:
     """Update legitimacy breakdown showing cognomen contributions per ruler.
 
@@ -2705,9 +2838,12 @@ def update_legitimacy_breakdown(
     Output("match-ambition-timelines-container", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_ambition_timelines(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ):
     """Update ambition timeline charts - one per player.
 
@@ -2783,9 +2919,12 @@ def update_ambition_timelines(
     Output("match-ambition-summary", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_ambition_summary(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> go.Figure:
     """Update ambition summary table.
 
@@ -3000,15 +3139,20 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
     ],
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_match_territory_controls(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ):
     """Update territory heatmap and configure turn slider for selected match.
 
     Args:
         active_tab: Currently active tab
         match_id: Selected match ID
+        loaded_state: Tab loading state from store
 
     Returns:
         Tuple of (figure, slider_max, slider_value, slider_marks, map_info)
@@ -3018,6 +3162,11 @@ def update_match_territory_controls(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "maps":
         raise dash.exceptions.PreventUpdate
+
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "maps" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         empty_fig = create_empty_chart_placeholder(
@@ -3132,9 +3281,12 @@ def update_match_territory_heatmap_turn(
     Output("match-territory-timeline-chart", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_match_territory_timeline_chart(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ):
     """Update territory timeline chart.
 
@@ -3179,9 +3331,12 @@ def update_match_territory_timeline_chart(
     Output("match-territory-distribution-chart", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_match_territory_distribution_chart(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ):
     """Update territory distribution chart.
 
@@ -3309,9 +3464,12 @@ def _format_specialist_name(specialist_type: str) -> str:
     Output("match-improvements-section", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_match_improvements_section(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> html.Div:
     """Update improvements section showing improvement counts per player.
 
@@ -3325,6 +3483,14 @@ def update_match_improvements_section(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "improvements":
         raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "improvements" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "improvements" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return html.Div()
@@ -3437,9 +3603,12 @@ def update_match_improvements_section(
     Output("match-specialists-section", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_match_specialists_section(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> html.Div:
     """Update specialists section showing specialist counts per player.
 
@@ -3572,9 +3741,12 @@ def update_match_specialists_section(
     Output("match-military-power", "figure"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_military_power_chart(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str], match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]]
 ) -> go.Figure:
     """Update military power progression chart.
 
@@ -3588,6 +3760,10 @@ def update_military_power_chart(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "units":
         raise dash.exceptions.PreventUpdate
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "units" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return create_empty_chart_placeholder(
@@ -3624,9 +3800,13 @@ def update_military_power_chart(
     ],
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
 )
 def update_all_unit_charts(
-    active_tab: Optional[str], match_id: Optional[int]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> List[go.Figure]:
     """Update all unit composition charts when a match is selected.
 
@@ -3635,6 +3815,7 @@ def update_all_unit_charts(
     Args:
         active_tab: Currently active tab
         match_id: Selected match ID
+        loaded_state: Tab loading state from store
 
     Returns:
         List of 7 Plotly figures for unit charts
@@ -3642,6 +3823,11 @@ def update_all_unit_charts(
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "units":
         raise dash.exceptions.PreventUpdate
+
+    # Skip re-fetching if tab was already loaded for this match
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "units" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
 
     empty_placeholder = create_empty_chart_placeholder(
         "Select a match to view unit data"

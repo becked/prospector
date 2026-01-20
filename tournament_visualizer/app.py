@@ -245,14 +245,8 @@ app.layout = dbc.Container(
         ),
         # Alert area for messages
         html.Div(id="alert-area"),
-        # Main content area
-        html.Div(
-            [
-                dcc.Loading(
-                    id="page-loading", type="default", children=[dash.page_container]
-                )
-            ]
-        ),
+        # Main content area - no Loading wrapper to avoid visual "reload" on tab switches
+        html.Div([dash.page_container]),
         # About modal
         dbc.Modal(
             [

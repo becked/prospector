@@ -148,7 +148,7 @@ def create_chart_card(
     title: str,
     chart_id: str,
     height: str = "400px",
-    loading: bool = True,
+    loading: bool = False,  # Disabled by default to avoid spinner flashes during tab caching
     controls: List = None,
 ) -> dbc.Card:
     """Create a card containing a chart.
@@ -157,7 +157,7 @@ def create_chart_card(
         title: Card title
         chart_id: ID for the chart component
         height: Chart height
-        loading: Whether to show loading spinner
+        loading: Whether to show loading spinner (disabled by default)
         controls: Optional list of control components
 
     Returns:

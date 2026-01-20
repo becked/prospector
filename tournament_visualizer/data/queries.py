@@ -25,13 +25,28 @@ class TournamentQueries:
             database: Database instance to use (defaults to global instance)
         """
         self.db = database or get_database()
+        # Cache for get_match_summary() - stores (timestamp, dataframe)
+        self._match_summary_cache: Optional[tuple[float, pd.DataFrame]] = None
+        self._match_summary_cache_ttl: float = 60.0  # seconds
 
     def get_match_summary(self) -> pd.DataFrame:
         """Get comprehensive match summary data.
 
+        Results are cached for 60 seconds to avoid redundant queries.
+
         Returns:
             DataFrame with match summary information including player nations
         """
+        import time
+
+        now = time.time()
+
+        # Return cached result if valid
+        if self._match_summary_cache is not None:
+            cached_time, cached_df = self._match_summary_cache
+            if now - cached_time < self._match_summary_cache_ttl:
+                return cached_df.copy()
+
         query = """
         WITH player_info AS (
             SELECT
@@ -74,7 +89,17 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            result = conn.execute(query).df()
+
+        self._match_summary_cache = (now, result)
+        return result.copy()
+
+    def invalidate_match_summary_cache(self) -> None:
+        """Invalidate the match summary cache.
+
+        Call this after data imports or database changes to ensure fresh data.
+        """
+        self._match_summary_cache = None
 
     def get_player_performance(self) -> pd.DataFrame:
         """Get player performance statistics.
