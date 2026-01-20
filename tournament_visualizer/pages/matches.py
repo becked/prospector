@@ -250,7 +250,6 @@ def update_tab_loaded_state(
     Returns:
         Updated state dict with match_id and loaded_tabs list
     """
-    logger.info(f"[TAB_STATE] active_tab={active_tab}, match_id={match_id}, state={current_state}")
     if current_state is None:
         current_state = {"match_id": None, "loaded_tabs": []}
 
@@ -298,10 +297,6 @@ def sync_match_selection(
         Tuple of (selector_value, url_search, url_hash)
     """
     ctx = dash.callback_context
-
-    # Log hash changes for debugging
-    if url_hash:
-        logger.info(f"[URL_SYNC] Hash detected: '{url_hash}' - clearing it")
 
     # On initial load (no trigger), check URL for match_id
     if not ctx.triggered:
@@ -2449,18 +2444,14 @@ def update_all_yield_charts(
     Returns:
         List of 14 Plotly figures (one for each yield type)
     """
-    logger.info(f"[YIELDS] active_tab={active_tab}, match_id={match_id}, loaded_state={loaded_state}")
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "yields":
-        logger.info("[YIELDS] SKIPPING - not yields tab")
         raise dash.exceptions.PreventUpdate
 
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
         if "yields" in loaded_state.get("loaded_tabs", []):
-            logger.info("[YIELDS] SKIPPING - already loaded")
             raise dash.exceptions.PreventUpdate
-    logger.info("[YIELDS] FETCHING DATA...")
 
     # If no match selected, return empty placeholders for all charts
     if not match_id:
