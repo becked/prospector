@@ -524,6 +524,12 @@ def create_production_server():
 # Export the server for WSGI deployment
 server = app.server
 
+# Register Flask blueprints for API routes
+from tournament_visualizer.api import map_api
+
+server.register_blueprint(map_api)
+logger.info("Registered map_api blueprint")
+
 
 # Health check endpoint for Fly.io and other platforms
 @server.route("/health")

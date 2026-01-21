@@ -3586,6 +3586,141 @@ class TournamentQueries:
             ],
         )
 
+    def get_territory_map_full(self, match_id: int, turn_number: int) -> pd.DataFrame:
+        """Get complete territory map snapshot including all layers.
+
+        Returns all tiles with ownership, terrain, improvements, specialists,
+        resources, roads, and city information for the Pixi.js map viewer.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn number to retrieve
+
+        Returns:
+            DataFrame with columns:
+            - x_coordinate: Tile X position
+            - y_coordinate: Tile Y position
+            - terrain_type: Terrain constant
+            - owner_player_id: Player ID or NULL
+            - player_name: Player name (NULL if unowned)
+            - civilization: Player civilization (NULL if unowned)
+            - improvement_type: Improvement constant or NULL
+            - specialist_type: Specialist constant or NULL
+            - resource_type: Resource constant or NULL
+            - has_road: Boolean road presence
+            - city_name: City name if city tile, else NULL
+            - population: City population if city tile, else NULL
+            - is_capital: Boolean if capital city
+            - family_name: Family that owns the city (e.g., FAMILY_BARCID)
+            - is_family_seat: Boolean if this is the family's seat (first city founded)
+        """
+        query = """
+        WITH map_dimensions AS (
+            -- Calculate actual map width from territory data
+            SELECT
+                match_id,
+                MAX(x_coordinate) + 1 as map_width
+            FROM territories
+            WHERE match_id = ? AND turn_number = ?
+            GROUP BY match_id
+        ),
+        player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                civilization,
+                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
+            FROM players
+        ),
+        family_seats AS (
+            -- Determine family seat as the first city founded for each family
+            SELECT
+                match_id,
+                family_name,
+                MIN(founded_turn) as seat_founded_turn
+            FROM cities
+            WHERE match_id = ? AND family_name IS NOT NULL
+            GROUP BY match_id, family_name
+        ),
+        city_tiles AS (
+            -- Map city tile_id to x,y coordinates with family info
+            SELECT
+                c.match_id,
+                c.city_name,
+                c.population,
+                c.is_capital,
+                c.tile_id,
+                c.family_name,
+                CASE WHEN c.founded_turn = fs.seat_founded_turn THEN true ELSE false END as is_family_seat
+            FROM cities c
+            LEFT JOIN family_seats fs ON c.match_id = fs.match_id
+                                      AND c.family_name = fs.family_name
+            WHERE c.match_id = ?
+        )
+        SELECT
+            t.x_coordinate,
+            t.y_coordinate,
+            t.terrain_type,
+            t.owner_player_id,
+            p.player_name,
+            p.civilization,
+            t.improvement_type,
+            t.specialist_type,
+            t.resource_type,
+            t.has_road,
+            ct.city_name,
+            ct.population,
+            ct.is_capital,
+            ct.family_name,
+            ct.is_family_seat
+        FROM territories t
+        CROSS JOIN map_dimensions md
+        LEFT JOIN player_order p ON t.match_id = p.match_id
+                                 AND t.owner_player_id = p.match_player_order
+        LEFT JOIN city_tiles ct ON t.match_id = ct.match_id
+                                AND ct.tile_id = (t.y_coordinate * md.map_width + t.x_coordinate)
+        WHERE t.match_id = ?
+          AND t.turn_number = ?
+        ORDER BY t.y_coordinate, t.x_coordinate
+        """
+
+        result = self.db.fetch_all(
+            query,
+            {
+                "1": match_id,
+                "2": turn_number,
+                "3": match_id,
+                "4": match_id,
+                "5": match_id,
+                "6": turn_number,
+            },
+        )
+
+        if not result:
+            return pd.DataFrame()
+
+        return pd.DataFrame(
+            result,
+            columns=[
+                "x_coordinate",
+                "y_coordinate",
+                "terrain_type",
+                "owner_player_id",
+                "player_name",
+                "civilization",
+                "improvement_type",
+                "specialist_type",
+                "resource_type",
+                "has_road",
+                "city_name",
+                "population",
+                "is_capital",
+                "family_name",
+                "is_family_seat",
+            ],
+        )
+
     def get_territory_turn_range(self, match_id: int) -> Tuple[int, int]:
         """Get the turn range (min, max) for a match's territory data.
 

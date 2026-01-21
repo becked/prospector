@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ match_title }} - Map Viewer</title>
+
+    <!-- Pixi.js from CDN -->
+    <script src="https://pixijs.download/v7.3.2/pixi.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #0e1b2e;
+            color: #edf2f7;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Control Panel */
+        .controls {
+            background: #1a2d47;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            border-bottom: 1px solid #2d4a6f;
+            flex-shrink: 0;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 13px;
+            color: #9db0c9;
+            white-space: nowrap;
+        }
+
+        /* Turn Slider */
+        .turn-slider-container {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .turn-slider {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #2d4a6f;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .turn-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #64b5f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .turn-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #64b5f6;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .turn-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #64b5f6;
+            min-width: 60px;
+        }
+
+        /* Layer Toggles */
+        .layer-toggles {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .layer-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .layer-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #64b5f6;
+            cursor: pointer;
+        }
+
+        .layer-toggle span {
+            font-size: 13px;
+        }
+
+        /* Map Container */
+        #map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #map-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(14, 27, 46, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 100;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #2d4a6f;
+            border-top-color: #64b5f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: #9db0c9;
+        }
+
+        /* Error Message */
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #e57373;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(26, 45, 71, 0.95);
+            border: 1px solid #2d4a6f;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 200;
+            max-width: 250px;
+            display: none;
+        }
+
+        .tooltip.visible {
+            display: block;
+        }
+
+        .tooltip-title {
+            font-weight: 600;
+            color: #64b5f6;
+            margin-bottom: 4px;
+        }
+
+        .tooltip-row {
+            color: #9db0c9;
+            line-height: 1.4;
+        }
+
+        .tooltip-row strong {
+            color: #edf2f7;
+        }
+
+        /* Zoom Controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 50;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            background: #1a2d47;
+            border: 1px solid #2d4a6f;
+            border-radius: 6px;
+            color: #edf2f7;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .zoom-btn:hover {
+            background: #2d4a6f;
+        }
+
+        /* Player Legend */
+        .player-legend {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(26, 45, 71, 0.95);
+            border: 1px solid #2d4a6f;
+            border-radius: 6px;
+            padding: 12px;
+            z-index: 50;
+        }
+
+        .legend-title {
+            font-size: 12px;
+            color: #9db0c9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .legend-name {
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    {% if error %}
+    <div class="error-message">
+        <h2>Error</h2>
+        <p>{{ error }}</p>
+    </div>
+    {% else %}
+
+    <!-- Control Panel -->
+    <div class="controls">
+        <!-- Turn Slider -->
+        <div class="control-group turn-slider-container">
+            <label for="turn-slider">Turn:</label>
+            <input type="range" id="turn-slider" class="turn-slider" min="0" max="100" value="100">
+            <span id="turn-value" class="turn-value">100</span>
+        </div>
+
+        <!-- Layer Toggles -->
+        <div class="layer-toggles">
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-ownership" checked>
+                <span>Ownership</span>
+            </label>
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-improvements">
+                <span>Improvements</span>
+            </label>
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-resources">
+                <span>Resources</span>
+            </label>
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-specialists">
+                <span>Specialists</span>
+            </label>
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-roads">
+                <span>Roads</span>
+            </label>
+            <label class="layer-toggle">
+                <input type="checkbox" id="toggle-cities" checked>
+                <span>Cities</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map-container">
+        <canvas id="map-canvas"></canvas>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading map...</div>
+        </div>
+
+        <!-- Tooltip -->
+        <div id="tooltip" class="tooltip">
+            <div class="tooltip-title"></div>
+            <div class="tooltip-content"></div>
+        </div>
+
+        <!-- Player Legend -->
+        <div id="player-legend" class="player-legend" style="display: none;">
+            <div class="legend-title">Players</div>
+            <div id="legend-items"></div>
+        </div>
+
+        <!-- Zoom Controls -->
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoom-in">+</button>
+            <button class="zoom-btn" id="zoom-out">-</button>
+            <button class="zoom-btn" id="zoom-reset" title="Reset view">R</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            matchId: {{ match_id }},
+            apiBase: '/api/map',
+            spriteBase: '/assets/sprites',
+
+            // Hex dimensions (from terrain sprites: ~211x181)
+            // POINTY-TOP hex tessellation:
+            // - Sprites are pre-masked (hex-clipped at build time) to hide 3D shadows
+            // - Spacing reduced to overlap sprites and hide transparent edges
+            hexWidth: 211,
+            hexHeight: 181,
+            hexHorizontalSpacing: 199,  // Horizontal distance between hex centers
+            hexVerticalSpacing: 132,    // 1.5 * radius_y (88) for pointy-top tessellation
+            hexRadius: 115,             // For ownership borders and fallback rendering
+
+            // Default layer visibility
+            defaultLayers: {
+                terrain: true,
+                ownership: true,
+                improvements: false,
+                resources: false,
+                specialists: false,
+                roads: false,
+                cities: true
+            }
+        };
+
+        // Global state
+        let app = null;
+        let mapData = null;
+        let currentTurn = 0;
+        let maxTurn = 0;
+        let minTurn = 0;
+        let spriteTextures = {};
+        let layers = {};
+        let isDragging = false;
+        let lastDragPos = { x: 0, y: 0 };
+
+        // Layer visibility state
+        const layerVisibility = { ...CONFIG.defaultLayers };
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', init);
+
+        async function init() {
+            try {
+                // Get turn range first
+                const turnRange = await fetchTurnRange();
+                minTurn = turnRange.min_turn;
+                maxTurn = turnRange.max_turn;
+                currentTurn = maxTurn;
+
+                // Update slider
+                const slider = document.getElementById('turn-slider');
+                slider.min = minTurn;
+                slider.max = maxTurn;
+                slider.value = currentTurn;
+                document.getElementById('turn-value').textContent = `${currentTurn}`;
+
+                // Initialize Pixi.js
+                await initPixi();
+
+                // Load initial map data
+                await loadMapData(currentTurn);
+
+                // Set up event listeners
+                setupEventListeners();
+
+                // Hide loading overlay
+                document.getElementById('loading-overlay').classList.add('hidden');
+
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showError('Failed to initialize map: ' + error.message);
+            }
+        }
+
+        async function fetchTurnRange() {
+            const response = await fetch(`${CONFIG.apiBase}/turn-range/${CONFIG.matchId}`);
+            if (!response.ok) throw new Error('Failed to fetch turn range');
+            return response.json();
+        }
+
+        async function fetchTerritories(turn) {
+            const response = await fetch(`${CONFIG.apiBase}/territories/${CONFIG.matchId}/${turn}`);
+            if (!response.ok) throw new Error('Failed to fetch territories');
+            return response.json();
+        }
+
+        async function initPixi() {
+            const container = document.getElementById('map-container');
+            const canvas = document.getElementById('map-canvas');
+
+            app = new PIXI.Application({
+                view: canvas,
+                width: container.clientWidth,
+                height: container.clientHeight,
+                backgroundColor: 0x0e1b2e,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+            });
+
+            // Create layer containers
+            const mapContainer = new PIXI.Container();
+            mapContainer.sortableChildren = true;
+            app.stage.addChild(mapContainer);
+
+            // Create individual layers
+            layers.terrain = new PIXI.Container();
+            layers.terrain.zIndex = 0;
+            mapContainer.addChild(layers.terrain);
+
+            layers.roads = new PIXI.Container();
+            layers.roads.zIndex = 1;
+            layers.roads.visible = layerVisibility.roads;
+            mapContainer.addChild(layers.roads);
+
+            layers.ownership = new PIXI.Container();
+            layers.ownership.zIndex = 2;
+            layers.ownership.visible = layerVisibility.ownership;
+            mapContainer.addChild(layers.ownership);
+
+            layers.improvements = new PIXI.Container();
+            layers.improvements.zIndex = 3;
+            layers.improvements.visible = layerVisibility.improvements;
+            mapContainer.addChild(layers.improvements);
+
+            layers.resources = new PIXI.Container();
+            layers.resources.zIndex = 4;
+            layers.resources.visible = layerVisibility.resources;
+            mapContainer.addChild(layers.resources);
+
+            layers.specialists = new PIXI.Container();
+            layers.specialists.zIndex = 5;
+            layers.specialists.visible = layerVisibility.specialists;
+            mapContainer.addChild(layers.specialists);
+
+            layers.cities = new PIXI.Container();
+            layers.cities.zIndex = 6;
+            layers.cities.visible = layerVisibility.cities;
+            mapContainer.addChild(layers.cities);
+
+            // Store reference to map container
+            layers.mapContainer = mapContainer;
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                app.renderer.resize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        async function loadMapData(turn) {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.querySelector('.loading-text').textContent = 'Loading map data...';
+
+            try {
+                mapData = await fetchTerritories(turn);
+
+                // Update player legend
+                updatePlayerLegend(mapData.players);
+
+                // Render all layers
+                await renderMap();
+
+                document.getElementById('loading-overlay').classList.add('hidden');
+
+            } catch (error) {
+                console.error('Error loading map data:', error);
+                showError('Failed to load map data: ' + error.message);
+            }
+        }
+
+        async function renderMap() {
+            if (!mapData) return;
+
+            console.log('Rendering map with data:', {
+                tiles: mapData.tiles.length,
+                players: mapData.players,
+                ownedTiles: mapData.tiles.filter(t => t.owner !== null).length,
+                cities: mapData.tiles.filter(t => t.city !== null).length,
+                improvements: mapData.tiles.filter(t => t.improvement !== null).length,
+                resources: mapData.tiles.filter(t => t.resource !== null).length,
+                specialists: mapData.tiles.filter(t => t.specialist !== null).length,
+                roads: mapData.tiles.filter(t => t.road).length,
+            });
+
+            // Clear all layers
+            Object.values(layers).forEach(layer => {
+                if (layer instanceof PIXI.Container && layer !== layers.mapContainer) {
+                    layer.removeChildren();
+                }
+            });
+
+            // Pre-load terrain textures
+            await loadTerrainTextures();
+
+            // Pre-load improvement/resource/specialist textures
+            await loadLayerTextures();
+
+            // Render terrain layer (always visible)
+            renderTerrainLayer();
+            console.log('Terrain layer rendered:', layers.terrain.children.length, 'sprites');
+
+            // Render ownership layer
+            renderOwnershipLayer();
+            console.log('Ownership layer rendered:', layers.ownership.children.length, 'items');
+
+            // Render other layers
+            renderImprovementsLayer();
+            console.log('Improvements layer rendered:', layers.improvements.children.length, 'items');
+
+            renderResourcesLayer();
+            console.log('Resources layer rendered:', layers.resources.children.length, 'items');
+
+            renderSpecialistsLayer();
+            console.log('Specialists layer rendered:', layers.specialists.children.length, 'items');
+
+            renderRoadsLayer();
+            console.log('Roads layer rendered:', layers.roads.children.length, 'items');
+
+            await renderCitiesLayer();
+            console.log('Cities layer rendered:', layers.cities.children.length, 'items');
+
+            // Center the map initially
+            centerMap();
+        }
+
+        async function loadTerrainTextures() {
+            const terrainTypes = [
+                'TERRAIN_ARID', 'TERRAIN_FROST', 'TERRAIN_LUSH', 'TERRAIN_MARSH',
+                'TERRAIN_SAND', 'TERRAIN_TEMPERATE', 'TERRAIN_TUNDRA',
+                'TERRAIN_URBAN', 'TERRAIN_WATER'
+            ];
+
+            // Load pre-masked terrain sprites (hex-clipped to remove shadow bleed)
+            const loadPromises = terrainTypes.map(async (terrain) => {
+                if (!spriteTextures[terrain]) {
+                    try {
+                        const url = `${CONFIG.spriteBase}/terrains/masked/${terrain}.png`;
+                        spriteTextures[terrain] = await PIXI.Assets.load(url);
+                    } catch (e) {
+                        console.warn(`Failed to load terrain texture: ${terrain}`);
+                    }
+                }
+            });
+
+            await Promise.all(loadPromises);
+        }
+
+        // Map database improvement names to sprite filenames
+        // Handles the religion-specific naming mismatch (e.g., IMPROVEMENT_MONASTERY_CHRISTIANITY → IMPROVEMENT_CHRISTIANITY_MONASTERY)
+        function getSpriteFilename(dbName, type) {
+            if (!dbName) return null;
+
+            // Religious buildings have swapped naming: DB has BUILDING_RELIGION, sprites have RELIGION_BUILDING
+            const religions = ['CHRISTIANITY', 'JUDAISM', 'MANICHAEISM', 'ZOROASTRIANISM'];
+            const religousBuildings = ['MONASTERY', 'TEMPLE', 'CATHEDRAL', 'HOLY_SITE'];
+
+            if (type === 'improvement') {
+                // Check if it's a religious building (e.g., IMPROVEMENT_MONASTERY_CHRISTIANITY)
+                for (const building of religousBuildings) {
+                    for (const religion of religions) {
+                        // Match pattern: IMPROVEMENT_{BUILDING}_{RELIGION}
+                        if (dbName === `IMPROVEMENT_${building}_${religion}`) {
+                            // Return swapped pattern: IMPROVEMENT_{RELIGION}_{BUILDING}
+                            return `IMPROVEMENT_${religion}_${building}`;
+                        }
+                    }
+                }
+                // No swap needed for non-religious improvements
+                return dbName;
+            }
+
+            // Resources and specialists don't need remapping
+            return dbName;
+        }
+
+        async function loadLayerTextures() {
+            if (!mapData) return;
+
+            // Collect unique improvement, resource, and specialist types from map data
+            const improvements = new Set();
+            const resources = new Set();
+            const specialists = new Set();
+
+            mapData.tiles.forEach(tile => {
+                if (tile.improvement) improvements.add(tile.improvement);
+                if (tile.resource) resources.add(tile.resource);
+                if (tile.specialist) specialists.add(tile.specialist);
+            });
+
+            // Load improvement textures
+            const improvementPromises = Array.from(improvements).map(async (imp) => {
+                const spriteKey = `imp_${imp}`;
+                if (!spriteTextures[spriteKey]) {
+                    try {
+                        const filename = getSpriteFilename(imp, 'improvement');
+                        const url = `${CONFIG.spriteBase}/improvements/${filename}.png`;
+                        spriteTextures[spriteKey] = await PIXI.Assets.load(url);
+                    } catch (e) {
+                        // Silently fail - we'll use fallback indicator
+                    }
+                }
+            });
+
+            // Load resource textures
+            const resourcePromises = Array.from(resources).map(async (res) => {
+                const spriteKey = `res_${res}`;
+                if (!spriteTextures[spriteKey]) {
+                    try {
+                        const url = `${CONFIG.spriteBase}/resources/${res}.png`;
+                        spriteTextures[spriteKey] = await PIXI.Assets.load(url);
+                    } catch (e) {
+                        // Silently fail - we'll use fallback indicator
+                    }
+                }
+            });
+
+            // Load specialist textures
+            const specialistPromises = Array.from(specialists).map(async (spec) => {
+                const spriteKey = `spec_${spec}`;
+                if (!spriteTextures[spriteKey]) {
+                    try {
+                        const url = `${CONFIG.spriteBase}/specialists/${spec}.png`;
+                        spriteTextures[spriteKey] = await PIXI.Assets.load(url);
+                    } catch (e) {
+                        // Silently fail - we'll use fallback indicator
+                    }
+                }
+            });
+
+            await Promise.all([...improvementPromises, ...resourcePromises, ...specialistPromises]);
+            console.log('Loaded layer textures:', {
+                improvements: Array.from(improvements).filter(i => spriteTextures[`imp_${i}`]).length,
+                resources: Array.from(resources).filter(r => spriteTextures[`res_${r}`]).length,
+                specialists: Array.from(specialists).filter(s => spriteTextures[`spec_${s}`]).length
+            });
+        }
+
+        function hexToPixel(x, y) {
+            // Pointy-top hex tessellation (odd-r offset coordinates)
+            // - Odd rows are offset horizontally by half the width
+            const pixelX = x * CONFIG.hexHorizontalSpacing + (y % 2) * (CONFIG.hexHorizontalSpacing / 2);
+            const pixelY = y * CONFIG.hexVerticalSpacing;
+            return { x: pixelX, y: pixelY };
+        }
+
+        function renderTerrainLayer() {
+            // Uses pre-masked sprites (hex-clipped at build time)
+            // This gives us both visual accuracy AND good performance
+            mapData.tiles.forEach(tile => {
+                const pos = hexToPixel(tile.x, tile.y);
+                // Center position for the hex
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;  // Hex mask now centered in sprite
+
+                const terrain = tile.terrain || 'TERRAIN_TEMPERATE';
+                const texture = spriteTextures[terrain];
+
+                if (texture) {
+                    // Simple sprite - no container or mask needed since sprites are pre-masked
+                    const sprite = new PIXI.Sprite(texture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = centerX;
+                    sprite.y = centerY;
+
+                    // Store tile data for hover
+                    sprite.tileData = tile;
+                    sprite.interactive = true;
+                    sprite.on('pointerover', (e) => showTooltip(e, tile));
+                    sprite.on('pointerout', hideTooltip);
+
+                    layers.terrain.addChild(sprite);
+                } else {
+                    // Fallback: draw colored hex
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(getTerrainColor(terrain));
+                    drawHex(graphics, centerX, centerY, CONFIG.hexRadius);
+                    graphics.endFill();
+                    graphics.tileData = tile;
+                    graphics.interactive = true;
+                    graphics.on('pointerover', (e) => showTooltip(e, tile));
+                    graphics.on('pointerout', hideTooltip);
+                    layers.terrain.addChild(graphics);
+                }
+            });
+        }
+
+        function renderOwnershipLayer() {
+            const playerColors = {};
+            mapData.players.forEach(p => {
+                playerColors[p.player_id] = parseInt(p.color.replace('#', ''), 16);
+            });
+
+            // Build a lookup map for quick neighbor checking
+            const tileMap = {};
+            mapData.tiles.forEach(tile => {
+                tileMap[`${tile.x},${tile.y}`] = tile;
+            });
+
+            // Get hex edge vertices for POINTY-TOP hex (elliptical to match terrain mask)
+            function getHexEdges(cx, cy) {
+                // Use elliptical radii matching the terrain sprite mask
+                // (see create_masked_terrain_sprites.py HEX_RADIUS_X/Y)
+                const rx = 120;  // Horizontal radius
+                const ry = 88;   // Vertical radius
+                // Pointy-top hex vertices (starting from top, going clockwise)
+                const vertices = [];
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i - Math.PI / 2;  // Start from top
+                    vertices.push({
+                        x: cx + rx * Math.cos(angle),
+                        y: cy + ry * Math.sin(angle)
+                    });
+                }
+                // Edges: [start vertex, end vertex], going clockwise from top
+                // Edge 0: top-right, Edge 1: right, Edge 2: bottom-right
+                // Edge 3: bottom-left, Edge 4: left, Edge 5: top-left
+                return [
+                    [vertices[0], vertices[1]],  // Edge 0: top to upper-right
+                    [vertices[1], vertices[2]],  // Edge 1: upper-right to lower-right
+                    [vertices[2], vertices[3]],  // Edge 2: lower-right to bottom
+                    [vertices[3], vertices[4]],  // Edge 3: bottom to lower-left
+                    [vertices[4], vertices[5]],  // Edge 4: lower-left to upper-left
+                    [vertices[5], vertices[0]],  // Edge 5: upper-left to top
+                ];
+            }
+
+            // Get neighbor offsets for POINTY-TOP odd-r coordinates
+            function getNeighborOffset(y, edgeIndex) {
+                const isOddRow = y % 2 === 1;
+                // For pointy-top hexes with odd-r offset (odd rows shifted right)
+                if (isOddRow) {
+                    return [
+                        [1, -1],   // Edge 0: upper-right neighbor
+                        [1, 0],    // Edge 1: right neighbor
+                        [1, 1],    // Edge 2: lower-right neighbor
+                        [0, 1],    // Edge 3: lower-left neighbor
+                        [-1, 0],   // Edge 4: left neighbor
+                        [0, -1],   // Edge 5: upper-left neighbor
+                    ][edgeIndex];
+                } else {
+                    return [
+                        [0, -1],   // Edge 0: upper-right neighbor
+                        [1, 0],    // Edge 1: right neighbor
+                        [0, 1],    // Edge 2: lower-right neighbor
+                        [-1, 1],   // Edge 3: lower-left neighbor
+                        [-1, 0],   // Edge 4: left neighbor
+                        [-1, -1],  // Edge 5: upper-left neighbor
+                    ][edgeIndex];
+                }
+            }
+
+            // Collect all border edges and territory tiles by player
+            const borderEdgesByPlayer = {};
+            const territoryTilesByPlayer = {};
+
+            mapData.tiles.forEach(tile => {
+                if (tile.owner === null) return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const cx = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const cy = pos.y + CONFIG.hexVerticalSpacing / 2;
+                const edges = getHexEdges(cx, cy);
+
+                if (!borderEdgesByPlayer[tile.owner]) {
+                    borderEdgesByPlayer[tile.owner] = [];
+                    territoryTilesByPlayer[tile.owner] = [];
+                }
+
+                // Store tile center for territory fill
+                territoryTilesByPlayer[tile.owner].push({ cx, cy });
+
+                // Check each edge
+                for (let i = 0; i < 6; i++) {
+                    const [dx, dy] = getNeighborOffset(tile.y, i);
+                    const neighborKey = `${tile.x + dx},${tile.y + dy}`;
+                    const neighbor = tileMap[neighborKey];
+
+                    // Collect border edge if neighbor doesn't exist or has different owner
+                    if (!neighbor || neighbor.owner !== tile.owner) {
+                        borderEdgesByPlayer[tile.owner].push(edges[i]);
+                    }
+                }
+            });
+
+            // Helper to draw a filled hex
+            function drawFilledHex(graphics, cx, cy, rx, ry) {
+                const points = [];
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i - Math.PI / 2;
+                    points.push(cx + rx * Math.cos(angle));
+                    points.push(cy + ry * Math.sin(angle));
+                }
+                graphics.drawPolygon(points);
+            }
+
+            // Draw territory fill first (underneath borders)
+            Object.entries(territoryTilesByPlayer).forEach(([playerId, tiles]) => {
+                const color = playerColors[playerId] || 0x808080;
+
+                const fill = new PIXI.Graphics();
+                fill.beginFill(color, 0.15);  // Light translucent fill
+                tiles.forEach(({ cx, cy }) => {
+                    drawFilledHex(fill, cx, cy, 120, 88);  // Same radii as border
+                });
+                fill.endFill();
+                layers.ownership.addChild(fill);
+            });
+
+            // Helper to lighten a color for highlight
+            function lightenColor(color, factor = 0.3) {
+                const r = Math.min(255, ((color >> 16) & 0xFF) + 255 * factor);
+                const g = Math.min(255, ((color >> 8) & 0xFF) + 255 * factor);
+                const b = Math.min(255, (color & 0xFF) + 255 * factor);
+                return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+            }
+
+            // Draw borders for each player with glow effect
+            Object.entries(borderEdgesByPlayer).forEach(([playerId, edges]) => {
+                const color = playerColors[playerId] || 0x808080;
+                const lightColor = lightenColor(color, 0.5);
+
+                // Layer 1: Outermost glow (very soft, wide)
+                const glowOutermost = new PIXI.Graphics();
+                glowOutermost.lineStyle({
+                    width: 28,
+                    color: color,
+                    alpha: 0.15,
+                    cap: PIXI.LINE_CAP.ROUND,
+                    join: PIXI.LINE_JOIN.ROUND
+                });
+                edges.forEach(edge => {
+                    glowOutermost.moveTo(edge[0].x, edge[0].y);
+                    glowOutermost.lineTo(edge[1].x, edge[1].y);
+                });
+                layers.ownership.addChild(glowOutermost);
+
+                // Layer 2: Outer glow (dark shadow for depth)
+                const glowOuter = new PIXI.Graphics();
+                glowOuter.lineStyle({
+                    width: 20,
+                    color: 0x000000,
+                    alpha: 0.4,
+                    cap: PIXI.LINE_CAP.ROUND,
+                    join: PIXI.LINE_JOIN.ROUND
+                });
+                edges.forEach(edge => {
+                    glowOuter.moveTo(edge[0].x, edge[0].y);
+                    glowOuter.lineTo(edge[1].x, edge[1].y);
+                });
+                layers.ownership.addChild(glowOuter);
+
+                // Layer 3: Mid glow (colored, semi-transparent)
+                const glowMid = new PIXI.Graphics();
+                glowMid.lineStyle({
+                    width: 14,
+                    color: color,
+                    alpha: 0.6,
+                    cap: PIXI.LINE_CAP.ROUND,
+                    join: PIXI.LINE_JOIN.ROUND
+                });
+                edges.forEach(edge => {
+                    glowMid.moveTo(edge[0].x, edge[0].y);
+                    glowMid.lineTo(edge[1].x, edge[1].y);
+                });
+                layers.ownership.addChild(glowMid);
+
+                // Layer 4: Core line (solid color)
+                const core = new PIXI.Graphics();
+                core.lineStyle({
+                    width: 8,
+                    color: color,
+                    alpha: 1.0,
+                    cap: PIXI.LINE_CAP.ROUND,
+                    join: PIXI.LINE_JOIN.ROUND
+                });
+                edges.forEach(edge => {
+                    core.moveTo(edge[0].x, edge[0].y);
+                    core.lineTo(edge[1].x, edge[1].y);
+                });
+                layers.ownership.addChild(core);
+
+                // Layer 5: Inner highlight (bright center)
+                const highlight = new PIXI.Graphics();
+                highlight.lineStyle({
+                    width: 3,
+                    color: lightColor,
+                    alpha: 0.9,
+                    cap: PIXI.LINE_CAP.ROUND,
+                    join: PIXI.LINE_JOIN.ROUND
+                });
+                edges.forEach(edge => {
+                    highlight.moveTo(edge[0].x, edge[0].y);
+                    highlight.lineTo(edge[1].x, edge[1].y);
+                });
+                layers.ownership.addChild(highlight);
+            });
+        }
+
+        function renderImprovementsLayer() {
+            mapData.tiles.forEach(tile => {
+                if (!tile.improvement) return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                // Position improvement in center-bottom of hex (leaves room for specialist in upper-left)
+                const iconX = centerX;
+                const iconY = centerY + 20;
+
+                // Try to use actual sprite
+                const spriteKey = `imp_${tile.improvement}`;
+                const texture = spriteTextures[spriteKey];
+
+                if (texture) {
+                    // Create sprite for the improvement (no mask - masks cause lag)
+                    const sprite = new PIXI.Sprite(texture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = iconX;
+                    sprite.y = iconY;
+                    // Scale sprites to fit within the hex (50% of hex width)
+                    const targetSize = CONFIG.hexWidth * 0.5;
+                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                    sprite.scale.set(scale);
+                    layers.improvements.addChild(sprite);
+                } else {
+                    // Fallback: colored indicator
+                    let color = 0xFFD700;  // Default gold
+                    const imp = tile.improvement.toUpperCase();
+                    if (imp.includes('FARM') || imp.includes('PASTURE') || imp.includes('GROVE')) {
+                        color = 0x4CAF50;  // Green for agriculture
+                    } else if (imp.includes('MINE') || imp.includes('QUARRY')) {
+                        color = 0x795548;  // Brown for mining
+                    } else if (imp.includes('BARRACKS') || imp.includes('GARRISON') || imp.includes('FORT')) {
+                        color = 0xF44336;  // Red for military
+                    } else if (imp.includes('TEMPLE') || imp.includes('SHRINE') || imp.includes('MONASTERY')) {
+                        color = 0x9C27B0;  // Purple for religious
+                    } else if (imp.includes('MARKET') || imp.includes('HARBOR')) {
+                        color = 0xFF9800;  // Orange for commerce
+                    }
+
+                    // Draw fallback improvement indicator (rounded rect)
+                    const size = CONFIG.hexWidth * 0.25;
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(0x000000, 0.4);
+                    graphics.drawRoundedRect(iconX - size/2 - 2, iconY - size/2 - 2, size + 4, size + 4, 4);
+                    graphics.endFill();
+                    graphics.beginFill(color, 0.9);
+                    graphics.drawRoundedRect(iconX - size/2, iconY - size/2, size, size, 3);
+                    graphics.endFill();
+
+                    layers.improvements.addChild(graphics);
+                }
+            });
+        }
+
+        function renderResourcesLayer() {
+            mapData.tiles.forEach(tile => {
+                if (!tile.resource) return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                // Position resource icons in upper-right of hex (opposite from specialists)
+                const iconX = centerX + 35;
+                const iconY = centerY - 25;
+
+                // Try to use actual sprite
+                const spriteKey = `res_${tile.resource}`;
+                const texture = spriteTextures[spriteKey];
+
+                if (texture) {
+                    // Create sprite for the resource
+                    const sprite = new PIXI.Sprite(texture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = iconX;
+                    sprite.y = iconY;
+                    // Scale resource sprites to 40% of hex width
+                    const targetSize = CONFIG.hexWidth * 0.4;
+                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                    sprite.scale.set(scale);
+                    layers.resources.addChild(sprite);
+                } else {
+                    // Fallback: colored circle indicator
+                    let color = 0x4CAF50;  // Default green
+                    const res = tile.resource.toUpperCase();
+                    if (res.includes('HORSE') || res.includes('CAMEL') || res.includes('ELEPHANT')) {
+                        color = 0x8D6E63;  // Brown for animals
+                    } else if (res.includes('IRON') || res.includes('GOLD') || res.includes('SILVER') || res.includes('GEM')) {
+                        color = 0xFFD700;  // Gold for metals/gems
+                    } else if (res.includes('FISH') || res.includes('CRAB') || res.includes('PEARL')) {
+                        color = 0x2196F3;  // Blue for sea resources
+                    }
+
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(0x000000, 0.5);
+                    graphics.drawCircle(iconX, iconY, 10);
+                    graphics.endFill();
+                    graphics.beginFill(color, 0.9);
+                    graphics.drawCircle(iconX, iconY, 8);
+                    graphics.endFill();
+                    graphics.lineStyle(1, 0xFFFFFF, 0.5);
+                    graphics.drawCircle(iconX, iconY, 8);
+
+                    layers.resources.addChild(graphics);
+                }
+            });
+        }
+
+        function renderSpecialistsLayer() {
+            mapData.tiles.forEach(tile => {
+                if (!tile.specialist) return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                // Position specialist icons in upper-left of hex (opposite from resources)
+                const iconX = centerX - 35;
+                const iconY = centerY - 25;
+
+                // Try to use actual sprite
+                const spriteKey = `spec_${tile.specialist}`;
+                const texture = spriteTextures[spriteKey];
+
+                if (texture) {
+                    // Create sprite for the specialist
+                    const sprite = new PIXI.Sprite(texture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = iconX;
+                    sprite.y = iconY;
+                    // Scale specialist sprites to 40% of hex width
+                    const targetSize = CONFIG.hexWidth * 0.4;
+                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                    sprite.scale.set(scale);
+                    layers.specialists.addChild(sprite);
+                } else {
+                    // Fallback: colored square indicator
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(0x000000, 0.5);
+                    graphics.drawRoundedRect(iconX - 8, iconY - 8, 16, 16, 3);
+                    graphics.endFill();
+                    graphics.beginFill(0x9C27B0, 0.9);
+                    graphics.drawRoundedRect(iconX - 6, iconY - 6, 12, 12, 2);
+                    graphics.endFill();
+
+                    layers.specialists.addChild(graphics);
+                }
+            });
+        }
+
+        function renderRoadsLayer() {
+            // Build lookup of road tiles for neighbor checking
+            const roadTiles = new Map();
+            mapData.tiles.forEach(tile => {
+                if (tile.road) {
+                    roadTiles.set(`${tile.x},${tile.y}`, tile);
+                }
+            });
+
+            // Neighbor offsets for pointy-top odd-r hex grid
+            const getNeighbors = (x, y) => {
+                const isOddRow = y % 2 === 1;
+                const offsets = isOddRow
+                    ? [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]
+                    : [[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+                return offsets.map(([dx, dy]) => [x + dx, y + dy]);
+            };
+
+            // Track drawn edges to avoid duplicates
+            const drawnEdges = new Set();
+
+            // Single graphics object for all roads (better performance)
+            const graphics = new PIXI.Graphics();
+
+            roadTiles.forEach((tile, key) => {
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                // Check each neighbor for road connections
+                const neighbors = getNeighbors(tile.x, tile.y);
+                let hasConnection = false;
+
+                neighbors.forEach(([nx, ny]) => {
+                    const neighborKey = `${nx},${ny}`;
+                    if (roadTiles.has(neighborKey)) {
+                        // Create unique edge key (sorted to avoid duplicates)
+                        const edgeKey = [key, neighborKey].sort().join('|');
+                        if (!drawnEdges.has(edgeKey)) {
+                            drawnEdges.add(edgeKey);
+                            hasConnection = true;
+
+                            const neighborPos = hexToPixel(nx, ny);
+                            const neighborCenterX = neighborPos.x + CONFIG.hexHorizontalSpacing / 2;
+                            const neighborCenterY = neighborPos.y + CONFIG.hexVerticalSpacing / 2;
+
+                            // Draw road segment with outline for visibility
+                            // Dark outline
+                            graphics.lineStyle(6, 0x3D2817, 0.5);
+                            graphics.moveTo(centerX, centerY);
+                            graphics.lineTo(neighborCenterX, neighborCenterY);
+                            // Tan road surface
+                            graphics.lineStyle(4, 0xC4A574, 0.7);
+                            graphics.moveTo(centerX, centerY);
+                            graphics.lineTo(neighborCenterX, neighborCenterY);
+                        }
+                    }
+                });
+
+                // Draw a small dot for isolated road tiles or road endpoints
+                if (!hasConnection || neighbors.filter(([nx, ny]) => roadTiles.has(`${nx},${ny}`)).length === 1) {
+                    graphics.beginFill(0xC4A574, 0.7);
+                    graphics.drawCircle(centerX, centerY, 4);
+                    graphics.endFill();
+                }
+            });
+
+            layers.roads.addChild(graphics);
+        }
+
+        async function renderCitiesLayer() {
+            // Collect unique family classes to load their crests
+            const familyClasses = new Set();
+            mapData.tiles.forEach(tile => {
+                if (tile.city && tile.city.family_class) {
+                    familyClasses.add(tile.city.family_class.toUpperCase());
+                }
+            });
+
+            // Load shared textures (city hexagon background, capital icon)
+            const sharedPromises = [];
+            if (!spriteTextures['city_hexagon']) {
+                sharedPromises.push(
+                    PIXI.Assets.load(`${CONFIG.spriteBase}/crests/CITY_HEXAGON.png`)
+                        .then(texture => { spriteTextures['city_hexagon'] = texture; })
+                        .catch(() => { console.warn('Failed to load city hexagon'); })
+                );
+            }
+            if (!spriteTextures['capital_icon']) {
+                sharedPromises.push(
+                    PIXI.Assets.load(`${CONFIG.spriteBase}/crests/City_Capital.png`)
+                        .then(texture => { spriteTextures['capital_icon'] = texture; })
+                        .catch(() => { console.warn('Failed to load capital icon'); })
+                );
+            }
+
+            // Load crest textures for each family class (both regular and seat versions)
+            const crestPromises = [];
+            familyClasses.forEach(familyClass => {
+                // Regular crest
+                const regularKey = `crest_${familyClass}`;
+                if (!spriteTextures[regularKey]) {
+                    crestPromises.push(
+                        PIXI.Assets.load(`${CONFIG.spriteBase}/crests/CREST_ARCHETYPE_${familyClass}.png`)
+                            .then(texture => { spriteTextures[regularKey] = texture; })
+                            .catch(() => { console.warn(`Failed to load crest: ${familyClass}`); })
+                    );
+                }
+                // Seat crest
+                const seatKey = `crest_${familyClass}_SEAT`;
+                if (!spriteTextures[seatKey]) {
+                    crestPromises.push(
+                        PIXI.Assets.load(`${CONFIG.spriteBase}/crests/CREST_ARCHETYPE_${familyClass}_SEAT.png`)
+                            .then(texture => { spriteTextures[seatKey] = texture; })
+                            .catch(() => { console.warn(`Failed to load seat crest: ${familyClass}`); })
+                    );
+                }
+            });
+            await Promise.all([...sharedPromises, ...crestPromises]);
+
+            // Fallback city texture
+            if (!spriteTextures['city']) {
+                try {
+                    spriteTextures['city'] = await PIXI.Assets.load(`${CONFIG.spriteBase}/improvements/IMPROVEMENT_CITY.png`);
+                } catch (e) {
+                    console.warn('Failed to load fallback city texture');
+                }
+            }
+
+            mapData.tiles.forEach(tile => {
+                if (!tile.city) return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                // Determine which crest to use
+                let crestTexture = null;
+                if (tile.city.family_class) {
+                    const familyClass = tile.city.family_class.toUpperCase();
+                    if (tile.city.is_family_seat) {
+                        crestTexture = spriteTextures[`crest_${familyClass}_SEAT`];
+                    }
+                    if (!crestTexture) {
+                        crestTexture = spriteTextures[`crest_${familyClass}`];
+                    }
+                }
+
+                // Draw city hexagon background if we have a crest (covers the terrain tile)
+                if (crestTexture && spriteTextures['city_hexagon']) {
+                    const hexBg = new PIXI.Sprite(spriteTextures['city_hexagon']);
+                    hexBg.anchor.set(0.5);
+                    hexBg.x = centerX;
+                    hexBg.y = centerY;
+                    // Scale to cover the full hex tile (match terrain mask size: 240x176)
+                    const hexScaleX = 240 / hexBg.width;
+                    const hexScaleY = 176 / hexBg.height;
+                    hexBg.scale.set(Math.max(hexScaleX, hexScaleY));
+                    layers.cities.addChild(hexBg);
+                }
+
+                // Draw the crest or fallback city sprite
+                if (crestTexture) {
+                    const sprite = new PIXI.Sprite(crestTexture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = centerX;
+                    sprite.y = centerY;
+                    // Scale crests to be larger
+                    const targetSize = 120;
+                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                    sprite.scale.set(scale);
+                    layers.cities.addChild(sprite);
+                } else if (spriteTextures['city']) {
+                    const sprite = new PIXI.Sprite(spriteTextures['city']);
+                    sprite.anchor.set(0.5);
+                    sprite.x = centerX;
+                    sprite.y = centerY;
+                    const targetSize = 100;
+                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                    sprite.scale.set(scale);
+                    layers.cities.addChild(sprite);
+                }
+
+                // Capital indicator - use City_Capital.png sprite
+                if (tile.city.is_capital && spriteTextures['capital_icon']) {
+                    const capitalIcon = new PIXI.Sprite(spriteTextures['capital_icon']);
+                    capitalIcon.anchor.set(0.5);
+                    capitalIcon.x = centerX;
+                    capitalIcon.y = centerY - 85;  // Higher up to avoid overlap
+                    // Scale to be visible but not too large
+                    const iconTargetSize = 40;
+                    const iconScale = Math.min(iconTargetSize / capitalIcon.width, iconTargetSize / capitalIcon.height);
+                    capitalIcon.scale.set(iconScale);
+                    layers.cities.addChild(capitalIcon);
+                }
+
+                // City name - format it nicely
+                let cityName = tile.city.name || 'City';
+                cityName = cityName.replace(/^CITYNAME_/i, '').replace(/_/g, ' ');
+                cityName = cityName.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+                const text = new PIXI.Text(cityName, {
+                    fontSize: tile.city.is_capital ? 14 : 12,
+                    fill: tile.city.is_capital ? 0xFFD700 : 0xFFFFFF,  // Gold for capitals
+                    fontWeight: tile.city.is_capital ? 'bold' : 'normal',
+                    stroke: 0x000000,
+                    strokeThickness: 4,
+                });
+                text.anchor.set(0.5, 0);
+                text.x = centerX;
+                text.y = centerY + 55;
+
+                layers.cities.addChild(text);
+            });
+        }
+
+        function drawHex(graphics, cx, cy, radius) {
+            const angle = Math.PI / 6;  // 30 degrees - flat-top hex
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const a = angle + (i * Math.PI / 3);
+                points.push(cx + radius * Math.cos(a));
+                points.push(cy + radius * Math.sin(a));
+            }
+            graphics.drawPolygon(points);
+        }
+
+        function getTerrainColor(terrain) {
+            const colors = {
+                'TERRAIN_WATER': 0x4A90E2,
+                'TERRAIN_TEMPERATE': 0x7CB342,
+                'TERRAIN_LUSH': 0x4CAF50,
+                'TERRAIN_ARID': 0xD4A574,
+                'TERRAIN_SAND': 0xF4E04D,
+                'TERRAIN_MARSH': 0x6B8E23,
+                'TERRAIN_TUNDRA': 0xB0BEC5,
+                'TERRAIN_FROST': 0xE0E0E0,
+                'TERRAIN_URBAN': 0x9E9E9E,
+            };
+            return colors[terrain] || 0x808080;
+        }
+
+        function centerMap() {
+            if (!mapData || !layers.mapContainer) return;
+
+            const container = document.getElementById('map-container');
+            const mapWidth = mapData.map_info.width * CONFIG.hexHorizontalSpacing;
+            const mapHeight = mapData.map_info.height * CONFIG.hexVerticalSpacing;
+
+            // Calculate initial scale to fit the map
+            const scaleX = container.clientWidth / mapWidth;
+            const scaleY = container.clientHeight / mapHeight;
+            const scale = Math.min(scaleX, scaleY, 1) * 0.9;
+
+            layers.mapContainer.scale.set(scale);
+
+            // Center the map
+            const scaledWidth = mapWidth * scale;
+            const scaledHeight = mapHeight * scale;
+            layers.mapContainer.x = (container.clientWidth - scaledWidth) / 2;
+            layers.mapContainer.y = (container.clientHeight - scaledHeight) / 2;
+        }
+
+        function updatePlayerLegend(players) {
+            const legendItems = document.getElementById('legend-items');
+            const legend = document.getElementById('player-legend');
+
+            if (!players || players.length === 0) {
+                legend.style.display = 'none';
+                return;
+            }
+
+            legendItems.innerHTML = players.map(p => `
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: ${p.color}"></div>
+                    <span class="legend-name">${p.name} (${p.civilization})</span>
+                </div>
+            `).join('');
+
+            legend.style.display = 'block';
+        }
+
+        function showTooltip(event, tile) {
+            const tooltip = document.getElementById('tooltip');
+            const titleEl = tooltip.querySelector('.tooltip-title');
+            const contentEl = tooltip.querySelector('.tooltip-content');
+
+            // Build title
+            let title = tile.owner !== null
+                ? mapData.players.find(p => p.player_id === tile.owner)?.name || 'Unknown'
+                : 'Unowned';
+
+            if (tile.city) {
+                // Format city name: strip CITYNAME_ prefix and format nicely
+                let cityName = tile.city.name || 'City';
+                cityName = cityName.replace(/^CITYNAME_/i, '').replace(/_/g, ' ');
+                cityName = cityName.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+                title = cityName + (tile.city.is_capital ? ' (Capital)' : '');
+            }
+
+            titleEl.textContent = title;
+
+            // Build content
+            let content = `<div class="tooltip-row">Terrain: <strong>${formatName(tile.terrain)}</strong></div>`;
+            content += `<div class="tooltip-row">Position: <strong>(${tile.x}, ${tile.y})</strong></div>`;
+
+            if (tile.improvement) {
+                content += `<div class="tooltip-row">Improvement: <strong>${formatName(tile.improvement)}</strong></div>`;
+            }
+            if (tile.resource) {
+                content += `<div class="tooltip-row">Resource: <strong>${formatName(tile.resource)}</strong></div>`;
+            }
+            if (tile.specialist) {
+                content += `<div class="tooltip-row">Specialist: <strong>${formatName(tile.specialist)}</strong></div>`;
+            }
+            if (tile.road) {
+                content += `<div class="tooltip-row">Has Road</div>`;
+            }
+            if (tile.city && tile.city.population) {
+                content += `<div class="tooltip-row">Population: <strong>${tile.city.population}</strong></div>`;
+            }
+
+            contentEl.innerHTML = content;
+
+            // Position tooltip
+            const rect = document.getElementById('map-container').getBoundingClientRect();
+            const x = event.data.global.x;
+            const y = event.data.global.y;
+
+            tooltip.style.left = (x + 15) + 'px';
+            tooltip.style.top = (y + 15) + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('visible');
+        }
+
+        function formatName(constant) {
+            if (!constant) return '';
+            return constant
+                .replace(/^(TERRAIN_|IMPROVEMENT_|RESOURCE_|SPECIALIST_)/, '')
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function showError(message) {
+            document.getElementById('loading-overlay').classList.add('hidden');
+            const container = document.getElementById('map-container');
+            container.innerHTML = `<div class="error-message"><h2>Error</h2><p>${message}</p></div>`;
+        }
+
+        function setupEventListeners() {
+            // Turn slider
+            const slider = document.getElementById('turn-slider');
+            let sliderTimeout = null;
+
+            slider.addEventListener('input', (e) => {
+                const turn = parseInt(e.target.value);
+                document.getElementById('turn-value').textContent = `${turn}`;
+
+                // Debounce API calls
+                clearTimeout(sliderTimeout);
+                sliderTimeout = setTimeout(() => {
+                    if (turn !== currentTurn) {
+                        currentTurn = turn;
+                        loadMapData(turn);
+                    }
+                }, 150);
+            });
+
+            // Layer toggles
+            document.getElementById('toggle-ownership').addEventListener('change', (e) => {
+                layers.ownership.visible = e.target.checked;
+            });
+            document.getElementById('toggle-improvements').addEventListener('change', (e) => {
+                layers.improvements.visible = e.target.checked;
+            });
+            document.getElementById('toggle-resources').addEventListener('change', (e) => {
+                layers.resources.visible = e.target.checked;
+            });
+            document.getElementById('toggle-specialists').addEventListener('change', (e) => {
+                layers.specialists.visible = e.target.checked;
+            });
+            document.getElementById('toggle-roads').addEventListener('change', (e) => {
+                layers.roads.visible = e.target.checked;
+            });
+            document.getElementById('toggle-cities').addEventListener('change', (e) => {
+                layers.cities.visible = e.target.checked;
+            });
+
+            // Zoom controls
+            document.getElementById('zoom-in').addEventListener('click', () => {
+                const scale = layers.mapContainer.scale.x * 1.2;
+                layers.mapContainer.scale.set(Math.min(scale, 3));
+            });
+
+            document.getElementById('zoom-out').addEventListener('click', () => {
+                const scale = layers.mapContainer.scale.x / 1.2;
+                layers.mapContainer.scale.set(Math.max(scale, 0.05));
+            });
+
+            document.getElementById('zoom-reset').addEventListener('click', centerMap);
+
+            // Pan with mouse drag
+            const mapContainer = document.getElementById('map-container');
+
+            mapContainer.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {  // Left click
+                    isDragging = true;
+                    lastDragPos = { x: e.clientX, y: e.clientY };
+                    mapContainer.style.cursor = 'grabbing';
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const dx = e.clientX - lastDragPos.x;
+                    const dy = e.clientY - lastDragPos.y;
+                    layers.mapContainer.x += dx;
+                    layers.mapContainer.y += dy;
+                    lastDragPos = { x: e.clientX, y: e.clientY };
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                mapContainer.style.cursor = 'default';
+            });
+
+            // Zoom with scroll wheel (passive: false to ensure preventDefault works)
+            mapContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                const currentScale = layers.mapContainer.scale.x;
+                let newScale = currentScale * scaleFactor;
+
+                // Clamp to allowed range, but always allow zooming toward the range
+                // (allows zooming in from below 0.05, or out from above 3)
+                newScale = Math.max(0.05, Math.min(3, newScale));
+
+                if (newScale !== currentScale) {
+                    // Zoom towards mouse position
+                    const rect = mapContainer.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+
+                    const worldPos = {
+                        x: (mouseX - layers.mapContainer.x) / currentScale,
+                        y: (mouseY - layers.mapContainer.y) / currentScale
+                    };
+
+                    layers.mapContainer.scale.set(newScale);
+
+                    layers.mapContainer.x = mouseX - worldPos.x * newScale;
+                    layers.mapContainer.y = mouseY - worldPos.y * newScale;
+                }
+            }, { passive: false });
+        }
+    </script>
+    {% endif %}
+</body>
+</html>

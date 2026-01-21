@@ -2061,8 +2061,16 @@ class OldWorldSaveParser:
         family_name = city_elem.get('Family')
 
         # Extract child elements
-        name_elem = city_elem.find('NameType')
-        city_name = name_elem.text if name_elem is not None else 'UNKNOWN'
+        # City name comes from <NameType> (standard names like CITYNAME_WASET)
+        # or <Name> (custom player-given names like "Wonderland")
+        name_type_elem = city_elem.find('NameType')
+        custom_name_elem = city_elem.find('Name')
+        if name_type_elem is not None and name_type_elem.text:
+            city_name = name_type_elem.text
+        elif custom_name_elem is not None and custom_name_elem.text:
+            city_name = custom_name_elem.text
+        else:
+            city_name = 'UNKNOWN'
 
         # Population (optional)
         citizens_elem = city_elem.find('Citizens')

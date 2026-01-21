@@ -817,6 +817,34 @@ attachments = api.attachments.get_all(tournament_id, match_id)
 - All responses are flat dictionaries, consistent API design
 - Supports Python 3.8-3.11
 
+## Map Viewer Assets
+
+The interactive map viewer uses sprite assets exported from Old World via pyunity.
+
+**Key difference between asset types:**
+- **Terrain tiles**: Require processing (edge expansion + hex masking) to tessellate seamlessly
+- **Other assets** (improvements, resources, specialists): Just drop in the folder, no processing needed
+
+**Adding new terrain tiles:**
+```bash
+# 1. Place PNG in assets/sprites/terrains/
+# 2. Run processing script
+uv run python scripts/create_masked_terrain_sprites.py
+# 3. Restart server
+uv run python manage.py restart
+```
+
+**Adding other assets:**
+```bash
+# Just place in correct folder and restart
+# assets/sprites/improvements/IMPROVEMENT_<NAME>.png
+# assets/sprites/resources/RESOURCE_<NAME>.png
+# assets/sprites/specialists/SPECIALIST_<NAME>.png
+uv run python manage.py restart
+```
+
+**See:** `docs/map-viewer-assets.md` for complete details on sprite processing and troubleshooting.
+
 ## Need More Details?
 
 For comprehensive documentation, see:
@@ -838,6 +866,19 @@ For comprehensive documentation, see:
 ### Database
 - **Schema Changes**: `docs/migrations/`
   - Numbered migration docs with rollback procedures
+
+### Map Viewer
+- **Implementation Guide**: `docs/map-viewer-implementation.md`
+  - Architecture and data flow
+  - Pixi.js rendering layers
+  - Hex grid math (pointy-top odd-r)
+  - User controls (pan/zoom/turn slider)
+  - Performance characteristics
+- **Asset Management**: `docs/map-viewer-assets.md`
+  - Adding terrain tiles (requires processing)
+  - Adding improvements, resources, specialists (no processing)
+  - Sprite naming conventions
+  - Troubleshooting gaps and missing sprites
 
 ### Documentation
 - **Documentation Guide**: `docs/README.md`

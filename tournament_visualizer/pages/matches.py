@@ -1152,6 +1152,43 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
+                        "label": "Map (Beta)",
+                        "tab_id": "map-beta",
+                        "content": [
+                            # Pixi.js Map Viewer in iframe
+                            dbc.Card(
+                                [
+                                    dbc.CardBody(
+                                        [
+                                            html.Div(
+                                                [
+                                                    html.Small(
+                                                        "Interactive map with terrain sprites, "
+                                                        "layer toggles, and pan/zoom controls.",
+                                                        className="text-muted",
+                                                    ),
+                                                ],
+                                                className="mb-2",
+                                            ),
+                                            html.Iframe(
+                                                id="match-pixi-map-iframe",
+                                                src="",
+                                                style={
+                                                    "width": "100%",
+                                                    "height": "700px",
+                                                    "border": "none",
+                                                    "borderRadius": "6px",
+                                                },
+                                            ),
+                                        ],
+                                        className="p-2",
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                        ],
+                    },
+                    {
                         "label": "Improvements",
                         "tab_id": "improvements",
                         "content": [
@@ -3266,6 +3303,36 @@ def update_match_territory_heatmap_turn(
         return create_empty_chart_placeholder(
             f"Error loading map: {str(e)}"
         )
+
+
+@callback(
+    Output("match-pixi-map-iframe", "src"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    prevent_initial_call=True,
+)
+def update_pixi_map_iframe(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+) -> str:
+    """Update Pixi.js map iframe src when Map (Beta) tab is selected.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+
+    Returns:
+        URL for the Pixi.js map viewer iframe
+    """
+    # Only load when Map (Beta) tab is active
+    if active_tab != "map-beta":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return ""
+
+    # Return URL to Flask map viewer route
+    return f"/map/viewer/{match_id}"
 
 
 @callback(
