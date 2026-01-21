@@ -32,6 +32,7 @@ dependencies = [
     "anthropic>=0.39.0",
     "scipy>=1.13.1",
     "dash-cytoscape>=1.0.2",
+    "pillow>=11.3.0",
 ]
 
 [project.optional-dependencies]
