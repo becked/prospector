@@ -1013,82 +1013,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Map",
+                        "label": "Cities",
                         "tab_id": "maps",
                         "content": [
-                            # Map Info Card
-                            dbc.Card(
-                                [
-                                    dbc.CardBody(
-                                        [
-                                            html.Div(
-                                                id="match-territory-map-info",
-                                                className="mb-0",
-                                            ),
-                                        ]
-                                    )
-                                ],
-                                className="mt-3 mb-3",
-                            ),
-                            # Turn Slider
-                            dbc.Card(
-                                [
-                                    dbc.CardBody(
-                                        [
-                                            html.H5(
-                                                "Territory Control Map", className="card-title"
-                                            ),
-                                            dbc.Row(
-                                                [
-                                                    dbc.Col(
-                                                        [
-                                                            html.Label(
-                                                                "Turn:",
-                                                                className="form-label",
-                                                            ),
-                                                            dcc.Slider(
-                                                                id="match-territory-turn-slider",
-                                                                min=0,
-                                                                max=100,
-                                                                step=1,
-                                                                value=100,
-                                                                marks={
-                                                                    i: str(i)
-                                                                    for i in range(
-                                                                        0, 101, 25
-                                                                    )
-                                                                },
-                                                                tooltip={
-                                                                    "placement": "bottom",
-                                                                    "always_visible": True,
-                                                                },
-                                                            ),
-                                                        ],
-                                                        width=12,
-                                                    ),
-                                                ]
-                                            ),
-                                        ]
-                                    )
-                                ],
-                                className="mb-3",
-                            ),
-                            # Hexagonal Map
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Territory Control Hexagonal Map",
-                                                chart_id="match-territory-heatmap",
-                                                height="700px",
-                                            )
-                                        ],
-                                        width=12,
-                                    )
-                                ],
-                                className="mb-3",
-                            ),
                             # Territory Control Charts
                             dbc.Row(
                                 [
@@ -1152,7 +1079,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Map (Beta)",
+                        "label": "Map",
                         "tab_id": "map-beta",
                         "content": [
                             # Pixi.js Map Viewer in iframe
@@ -1160,16 +1087,6 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 [
                                     dbc.CardBody(
                                         [
-                                            html.Div(
-                                                [
-                                                    html.Small(
-                                                        "Interactive map with terrain sprites, "
-                                                        "layer toggles, and pan/zoom controls.",
-                                                        className="text-muted",
-                                                    ),
-                                                ],
-                                                className="mb-2",
-                                            ),
                                             html.Iframe(
                                                 id="match-pixi-map-iframe",
                                                 src="",
@@ -3158,154 +3075,6 @@ def update_city_founding_scatter(match_id: Optional[int]) -> go.Figure:
 
 
 @callback(
-    [
-        Output("match-territory-heatmap", "figure"),
-        Output("match-territory-turn-slider", "max"),
-        Output("match-territory-turn-slider", "value"),
-        Output("match-territory-turn-slider", "marks"),
-        Output("match-territory-map-info", "children"),
-    ],
-    Input("match-details-tabs", "active_tab"),
-    Input("match-selector", "value"),
-    State("match-tabs-loaded-store", "data"),
-    prevent_initial_call=True,
-)
-def update_match_territory_controls(
-    active_tab: Optional[str],
-    match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]],
-):
-    """Update territory heatmap and configure turn slider for selected match.
-
-    Args:
-        active_tab: Currently active tab
-        match_id: Selected match ID
-        loaded_state: Tab loading state from store
-
-    Returns:
-        Tuple of (figure, slider_max, slider_value, slider_marks, map_info)
-    """
-    default_marks = {i: str(i) for i in range(0, 101, 25)}
-
-    # Lazy loading: skip rendering if tab is not active
-    if active_tab != "maps":
-        raise dash.exceptions.PreventUpdate
-
-    # Skip re-fetching if tab was already loaded for this match
-    if loaded_state and loaded_state.get("match_id") == match_id:
-        if "maps" in loaded_state.get("loaded_tabs", []):
-            raise dash.exceptions.PreventUpdate
-
-    if not match_id:
-        empty_fig = create_empty_chart_placeholder(
-            "Select a match to view territory map"
-        )
-        return empty_fig, 100, 100, default_marks, ""
-
-    try:
-        queries = get_queries()
-
-        # Get map info for display
-        match_df = queries.get_match_summary()
-        match_row = match_df[match_df["match_id"] == match_id]
-        if not match_row.empty:
-            map_size = match_row.iloc[0]["map_size"]
-            map_class = match_row.iloc[0]["map_class"]
-            map_info = [
-                html.Span("Map Size: ", className="text-muted"),
-                html.Span(map_size, className="fw-bold me-4"),
-                html.Span("Map Type: ", className="text-muted"),
-                html.Span(map_class, className="fw-bold"),
-            ]
-        else:
-            map_info = ""
-
-        # Get turn range for this match
-        min_turn, max_turn = queries.get_territory_turn_range(match_id)
-
-        if max_turn == 0:
-            empty_fig = create_empty_chart_placeholder(
-                "No territory data available for this match"
-            )
-            return empty_fig, 100, 100, default_marks, map_info
-
-        # Get final turn map data (default view)
-        df = queries.get_territory_map(match_id, max_turn)
-
-        if df.empty:
-            empty_fig = create_empty_chart_placeholder(
-                "No territory data available"
-            )
-            return empty_fig, max_turn, max_turn, {}, map_info
-
-        # Create hexagonal map
-        from tournament_visualizer.components.charts import create_hexagonal_map
-        fig = create_hexagonal_map(df)
-
-        # Configure slider
-        # Create marks every ~10 turns, but ensure min and max are included
-        mark_step = max(1, max_turn // 10)
-        marks = {i: str(i) for i in range(min_turn, max_turn + 1, mark_step)}
-        marks[min_turn] = str(min_turn)  # Ensure min is marked
-        marks[max_turn] = str(max_turn)  # Ensure max is marked
-
-        return fig, max_turn, max_turn, marks, map_info
-
-    except Exception as e:
-        logger.error(f"Error updating match territory heatmap: {e}")
-        empty_fig = create_empty_chart_placeholder(
-            f"Error loading territory map: {str(e)}"
-        )
-        return empty_fig, 100, 100, default_marks, ""
-
-
-@callback(
-    Output("match-territory-heatmap", "figure", allow_duplicate=True),
-    [
-        Input("match-selector", "value"),
-        Input("match-territory-turn-slider", "value"),
-    ],
-    prevent_initial_call=True,
-)
-def update_match_territory_heatmap_turn(
-    match_id: Optional[int],
-    turn_number: int
-) -> go.Figure:
-    """Update territory heatmap when turn slider changes.
-
-    Args:
-        match_id: Selected match ID
-        turn_number: Turn number from slider
-
-    Returns:
-        Plotly figure for territory map at selected turn
-    """
-    if not match_id or turn_number is None:
-        return create_empty_chart_placeholder("Select a match")
-
-    try:
-        queries = get_queries()
-
-        # Get map data for selected turn
-        df = queries.get_territory_map(match_id, turn_number)
-
-        if df.empty:
-            return create_empty_chart_placeholder(
-                f"No territory data for turn {turn_number}"
-            )
-
-        # Create hexagonal map
-        from tournament_visualizer.components.charts import create_hexagonal_map
-        return create_hexagonal_map(df)
-
-    except Exception as e:
-        logger.error(f"Error updating territory map for turn: {e}")
-        return create_empty_chart_placeholder(
-            f"Error loading map: {str(e)}"
-        )
-
-
-@callback(
     Output("match-pixi-map-iframe", "src"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
@@ -3315,7 +3084,7 @@ def update_pixi_map_iframe(
     active_tab: Optional[str],
     match_id: Optional[int],
 ) -> str:
-    """Update Pixi.js map iframe src when Map (Beta) tab is selected.
+    """Update Pixi.js map iframe src when Map tab is selected.
 
     Args:
         active_tab: Currently active tab
@@ -3324,7 +3093,7 @@ def update_pixi_map_iframe(
     Returns:
         URL for the Pixi.js map viewer iframe
     """
-    # Only load when Map (Beta) tab is active
+    # Only load when Map tab is active
     if active_tab != "map-beta":
         raise dash.exceptions.PreventUpdate
 
