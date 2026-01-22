@@ -21,6 +21,40 @@ from ..nation_colors import get_nation_color
 from ..theme import CHART_THEME
 
 
+def _get_text_color_for_background(bg_color: str) -> str:
+    """Determine text color (dark or light) based on background color luminance.
+
+    Args:
+        bg_color: Background color as hex string (e.g., '#7cb342') or rgb string
+
+    Returns:
+        '#1a1a1a' for light backgrounds, 'white' for dark backgrounds
+    """
+    # Parse hex color
+    if bg_color.startswith("#"):
+        hex_color = bg_color.lstrip("#")
+        if len(hex_color) == 3:
+            hex_color = "".join(c * 2 for c in hex_color)
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    elif bg_color.startswith("rgb"):
+        # Parse rgb(r, g, b) format
+        import re
+
+        match = re.match(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", bg_color)
+        if match:
+            r, g, b = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        else:
+            return "white"  # Default to white if parsing fails
+    else:
+        return "white"  # Default for unknown formats
+
+    # Calculate relative luminance (ITU-R BT.709)
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+    # Use dark text for light backgrounds (luminance > 0.5)
+    return "#1a1a1a" if luminance > 0.5 else "white"
+
+
 def apply_dark_theme(fig: go.Figure) -> go.Figure:
     """Apply dark theme to any figure (especially subplots).
 
@@ -7400,6 +7434,10 @@ def create_specialist_butterfly_chart(
     total1 = sum(abs(v) for v in p1_values)
     total2 = sum(p2_values)
 
+    # Determine text colors based on bar colors for readability
+    text_color1 = _get_text_color_for_background(color1)
+    text_color2 = _get_text_color_for_background(color2)
+
     # Create figure
     fig = go.Figure()
 
@@ -7413,7 +7451,7 @@ def create_specialist_butterfly_chart(
             marker_color=color1,
             text=[str(abs(v)) if v != 0 else "" for v in p1_values],
             textposition="inside",
-            textfont=dict(color="white", size=11),
+            textfont=dict(color=text_color1, size=11),
             hovertemplate=(
                 f"<b>{player1}</b><br>"
                 "%{y}<br>"
@@ -7434,7 +7472,7 @@ def create_specialist_butterfly_chart(
             marker_color=color2,
             text=[str(v) if v != 0 else "" for v in p2_values],
             textposition="inside",
-            textfont=dict(color="white", size=11),
+            textfont=dict(color=text_color2, size=11),
             hovertemplate=(
                 f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
             ),
@@ -7598,6 +7636,10 @@ def create_improvement_butterfly_chart(
     # Create figure
     fig = go.Figure()
 
+    # Determine text colors based on bar colors for readability
+    text_color1 = _get_text_color_for_background(color1)
+    text_color2 = _get_text_color_for_background(color2)
+
     # Player 1 bars (left side, negative values)
     fig.add_trace(
         go.Bar(
@@ -7608,7 +7650,7 @@ def create_improvement_butterfly_chart(
             marker_color=color1,
             text=[str(abs(v)) if v != 0 else "" for v in p1_values],
             textposition="inside",
-            textfont=dict(color="white", size=11),
+            textfont=dict(color=text_color1, size=11),
             hovertemplate=(
                 f"<b>{player1}</b><br>"
                 "%{y}<br>"
@@ -7629,7 +7671,7 @@ def create_improvement_butterfly_chart(
             marker_color=color2,
             text=[str(v) if v != 0 else "" for v in p2_values],
             textposition="inside",
-            textfont=dict(color="white", size=11),
+            textfont=dict(color=text_color2, size=11),
             hovertemplate=(
                 f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
             ),
