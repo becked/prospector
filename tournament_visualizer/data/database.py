@@ -601,6 +601,18 @@ class TournamentDatabase:
                     "infantry",
                     "Basic defensive infantry unit",
                 ),
+                (
+                    "UNIT_CONSCRIPT",
+                    "military",
+                    "infantry",
+                    "Conscripted militia unit",
+                ),
+                (
+                    "UNIT_SHOTELAI",
+                    "military",
+                    "infantry",
+                    "Ethiopian unique sword infantry",
+                ),
                 ("UNIT_AXEMAN", "military", "infantry", "Melee infantry unit with axe"),
                 ("UNIT_MACEMAN", "military", "infantry", "Heavy melee infantry unit"),
                 (
@@ -625,6 +637,8 @@ class TournamentDatabase:
                 ),
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
+                ("UNIT_AKKADIAN_ARCHER", "military", "ranged", "Akkadian tribal archer"),
+                ("UNIT_CIMMERIAN_ARCHER", "military", "ranged", "Cimmerian tribal archer"),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
                 ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_LONGBOWMAN", "military", "ranged", "Long-range archer unit"),
@@ -644,6 +658,7 @@ class TournamentDatabase:
                     "Hittite unique chariot unit (upgraded)",
                 ),
                 ("UNIT_HORSEMAN", "military", "cavalry", "Mounted cavalry unit"),
+                ("UNIT_MOUNTED_LANCER", "military", "cavalry", "Lancer cavalry unit"),
                 ("UNIT_PALTON_CAVALRY", "military", "cavalry", "Cavalry unit"),
                 ("UNIT_HORSE_ARCHER", "military", "cavalry", "Mounted archer unit"),
                 (
