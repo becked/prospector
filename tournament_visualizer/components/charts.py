@@ -1034,7 +1034,9 @@ def create_law_progression_chart(df: pd.DataFrame) -> go.Figure:
         return create_empty_chart_placeholder("No law progression data available")
 
     # Support both old and new column names for backwards compatibility
-    laws_col = 'total_laws_adopted' if 'total_laws_adopted' in df.columns else 'total_laws'
+    laws_col = (
+        "total_laws_adopted" if "total_laws_adopted" in df.columns else "total_laws"
+    )
 
     fig = create_base_figure(
         title="Law Progression by Player",
@@ -3402,7 +3404,11 @@ def create_ambition_timeline_chart(df: pd.DataFrame) -> go.Figure:
             "color": Config.PRIMARY_COLORS[1],  # Orange - achievement
             "size": 12,
         },
-        "Failed": {"symbol": "x", "color": Config.PRIMARY_COLORS[3], "size": 12},  # Red - failure
+        "Failed": {
+            "symbol": "x",
+            "color": Config.PRIMARY_COLORS[3],
+            "size": 12,
+        },  # Red - failure
     }
 
     # Helper function to extract ambition name from description
@@ -3579,7 +3585,8 @@ def create_ambition_summary_table(df: pd.DataFrame) -> go.Figure:
                         df_display["completion_rate"],
                     ],
                     fill_color=[
-                        [CHART_THEME["paper_bgcolor"], CHART_THEME["plot_bgcolor"]] * len(df_display)
+                        [CHART_THEME["paper_bgcolor"], CHART_THEME["plot_bgcolor"]]
+                        * len(df_display)
                     ],  # Alternating row colors
                     align="left",
                     font=dict(color=CHART_THEME["font_color"], size=11),
@@ -4373,15 +4380,17 @@ def create_yield_stacked_chart(
             col=1,
         )
         # Build customdata for rich tooltips
-        rate_customdata = list(zip(
-            rate_df["percentile_25"],
-            rate_df["percentile_75"],
-            rate_df.get("min_value", [None] * len(rate_df)),
-            rate_df.get("max_value", [None] * len(rate_df)),
-            rate_df.get("avg_value", [None] * len(rate_df)),
-            rate_df.get("std_dev", [None] * len(rate_df)),
-            rate_df.get("sample_size", [None] * len(rate_df)),
-        ))
+        rate_customdata = list(
+            zip(
+                rate_df["percentile_25"],
+                rate_df["percentile_75"],
+                rate_df.get("min_value", [None] * len(rate_df)),
+                rate_df.get("max_value", [None] * len(rate_df)),
+                rate_df.get("avg_value", [None] * len(rate_df)),
+                rate_df.get("std_dev", [None] * len(rate_df)),
+                rate_df.get("sample_size", [None] * len(rate_df)),
+            )
+        )
         fig.add_trace(
             go.Scatter(
                 x=rate_df["turn_number"],
@@ -4451,15 +4460,17 @@ def create_yield_stacked_chart(
             col=1,
         )
         # Build customdata for rich tooltips
-        cumulative_customdata = list(zip(
-            cumulative_df["percentile_25"],
-            cumulative_df["percentile_75"],
-            cumulative_df.get("min_value", [None] * len(cumulative_df)),
-            cumulative_df.get("max_value", [None] * len(cumulative_df)),
-            cumulative_df.get("avg_value", [None] * len(cumulative_df)),
-            cumulative_df.get("std_dev", [None] * len(cumulative_df)),
-            cumulative_df.get("sample_size", [None] * len(cumulative_df)),
-        ))
+        cumulative_customdata = list(
+            zip(
+                cumulative_df["percentile_25"],
+                cumulative_df["percentile_75"],
+                cumulative_df.get("min_value", [None] * len(cumulative_df)),
+                cumulative_df.get("max_value", [None] * len(cumulative_df)),
+                cumulative_df.get("avg_value", [None] * len(cumulative_df)),
+                cumulative_df.get("std_dev", [None] * len(cumulative_df)),
+                cumulative_df.get("sample_size", [None] * len(cumulative_df)),
+            )
+        )
         fig.add_trace(
             go.Scatter(
                 x=cumulative_df["turn_number"],
@@ -4521,7 +4532,9 @@ def create_yield_stacked_chart(
             secondary_y=False,
         )
     else:
-        fig.update_yaxes(title_text=f"Total {yield_name}", row=2, col=1, secondary_y=False)
+        fig.update_yaxes(
+            title_text=f"Total {yield_name}", row=2, col=1, secondary_y=False
+        )
 
     # Configure secondary y-axes for sample size (both subplots use same scale)
     max_sample = 0
@@ -5114,9 +5127,7 @@ def create_hexagonal_map(
                 )
         elif len(players) == 1:
             civ = player_civs.get(players[0])
-            player_colors[players[0]] = (
-                get_nation_map_color(civ) if civ else "#808080"
-            )
+            player_colors[players[0]] = get_nation_map_color(civ) if civ else "#808080"
 
         for i, (player_id, player_data) in enumerate(
             owned_tiles.groupby("owner_player_id")
@@ -5338,7 +5349,9 @@ def create_tournament_production_strategies_chart(df: pd.DataFrame) -> go.Figure
         return create_empty_chart_placeholder("No production data available")
 
     # Sort by total production descending (biggest producers at top)
-    df = df.sort_values("total_production", ascending=True)  # ascending=True for horizontal bars
+    df = df.sort_values(
+        "total_production", ascending=True
+    )  # ascending=True for horizontal bars
 
     fig = create_base_figure(
         title="",
@@ -5755,16 +5768,16 @@ def create_science_per_turn_correlation_chart(
 
 # Define role colors for consistent visualization across all unit charts
 ROLE_COLORS = {
-    "infantry": "#4a90d9",    # Blue
-    "ranged": "#d94a4a",      # Red
-    "cavalry": "#d9a54a",     # Gold
-    "siege": "#8b4513",       # Brown
-    "naval": "#20b2aa",       # Teal
-    "settler": "#228b22",     # Forest green
-    "worker": "#daa520",      # Goldenrod
-    "scout": "#9370db",       # Purple
-    "religious": "#ff69b4",   # Pink
-    "unknown": "#808080",     # Gray
+    "infantry": "#4a90d9",  # Blue
+    "ranged": "#d94a4a",  # Red
+    "cavalry": "#d9a54a",  # Gold
+    "siege": "#8b4513",  # Brown
+    "naval": "#20b2aa",  # Teal
+    "settler": "#228b22",  # Forest green
+    "worker": "#daa520",  # Goldenrod
+    "scout": "#9370db",  # Purple
+    "religious": "#ff69b4",  # Pink
+    "unknown": "#808080",  # Gray
 }
 
 
@@ -5972,7 +5985,9 @@ def create_units_waffle_chart(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         height=400,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5
+        ),
     )
 
     return fig
@@ -6096,7 +6111,17 @@ def create_units_icon_grid(df: pd.DataFrame) -> go.Figure:
         player_data = df[df["player_name"] == player]
 
         # Build unit list organized by role for formation effect
-        role_order = ["infantry", "ranged", "cavalry", "siege", "naval", "settler", "worker", "scout", "religious"]
+        role_order = [
+            "infantry",
+            "ranged",
+            "cavalry",
+            "siege",
+            "naval",
+            "settler",
+            "worker",
+            "scout",
+            "religious",
+        ]
         units = []
         for role in role_order:
             role_data = player_data[player_data["role"] == role]
@@ -6240,7 +6265,9 @@ def create_units_army_portrait(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         height=350,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5
+        ),
     )
 
     return fig
@@ -6414,6 +6441,7 @@ def create_military_power_chart(df: pd.DataFrame) -> go.Figure:
         # Get nation color, with fallback for same-nation matches
         if same_nation and i == 1:
             from tournament_visualizer.nation_colors import SAME_NATION_FALLBACK_COLOR
+
             color = SAME_NATION_FALLBACK_COLOR
         else:
             color = get_nation_color(civ_name) if civ_name else Config.PRIMARY_COLORS[i]
@@ -6706,9 +6734,7 @@ def create_family_class_counter_pick_heatmap(
         Plotly figure with heatmap
     """
     if df.empty:
-        return create_empty_chart_placeholder(
-            "No family class matchup data available"
-        )
+        return create_empty_chart_placeholder("No family class matchup data available")
 
     # Pivot the data for heatmap
     pivot_data = df.pivot_table(
@@ -6861,9 +6887,7 @@ def create_family_class_omission_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     fig.update_yaxes(title_text="Times Omitted", secondary_y=False)
-    fig.update_yaxes(
-        title_text="Win Rate (%)", secondary_y=True, range=[0, 100]
-    )
+    fig.update_yaxes(title_text="Win Rate (%)", secondary_y=True, range=[0, 100])
 
     return fig
 
@@ -6895,8 +6919,7 @@ def create_family_class_combo_chart(df: pd.DataFrame, top_n: int = 15) -> go.Fig
 
     # Use a gradient based on win percentage
     colors = [
-        f"rgba(76, 175, 80, {max(0.4, pct/100)})"
-        for pct in df_sorted["win_percentage"]
+        f"rgba(76, 175, 80, {max(0.4, pct/100)})" for pct in df_sorted["win_percentage"]
     ]
 
     hover_text = [
@@ -6913,9 +6936,10 @@ def create_family_class_combo_chart(df: pd.DataFrame, top_n: int = 15) -> go.Fig
             y=df_sorted["combo"],
             orientation="h",
             marker=dict(color=colors),
-            text=[f"{pct:.0f}% ({int(g)}g)" for pct, g in zip(
-                df_sorted["win_percentage"], df_sorted["games"]
-            )],
+            text=[
+                f"{pct:.0f}% ({int(g)}g)"
+                for pct, g in zip(df_sorted["win_percentage"], df_sorted["games"])
+            ],
             textposition="auto",
             hovertemplate="%{hovertext}<extra></extra>",
             hovertext=hover_text,
@@ -6980,9 +7004,9 @@ def create_nation_family_heatmap(df: pd.DataFrame) -> go.Figure:
 
     # Blue color scale for frequency
     colorscale = [
-        [0.0, "#1a237e"],    # Dark blue (never picked)
-        [0.5, "#42a5f5"],    # Medium blue
-        [1.0, "#e3f2fd"],    # Light blue (frequently picked)
+        [0.0, "#1a237e"],  # Dark blue (never picked)
+        [0.5, "#42a5f5"],  # Medium blue
+        [1.0, "#e3f2fd"],  # Light blue (frequently picked)
     ]
 
     fig.add_trace(
@@ -7042,7 +7066,7 @@ def create_family_city_distribution_chart(df: pd.DataFrame) -> go.Figure:
     # Colors for winner/loser
     result_colors = {
         "Winner": "#4CAF50",  # Green
-        "Loser": "#F44336",   # Red
+        "Loser": "#F44336",  # Red
     }
 
     for result in results:
@@ -7116,9 +7140,7 @@ def create_family_opinion_scatter_chart(df: pd.DataFrame) -> go.Figure:
                 jitter=0.3,
                 pointpos=0,
                 hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "Family Opinion: %{y:.1f}<br>"
-                    "<extra></extra>"
+                    "<b>%{x}</b><br>" "Family Opinion: %{y:.1f}<br>" "<extra></extra>"
                 ),
             )
         )
@@ -7277,6 +7299,390 @@ def create_family_opinion_timeline_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         hovermode="closest",
         legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+    )
+
+    return fig
+
+
+def _format_specialist_name(specialist_type: str) -> str:
+    """Format specialist type for display.
+
+    Converts 'SPECIALIST_MINER' to 'Miner'.
+    Converts 'SPECIALIST_ACOLYTE_1' to 'Apprentice Acolyte'.
+    Converts 'SPECIALIST_ACOLYTE_2' to 'Master Acolyte'.
+    Converts 'SPECIALIST_ACOLYTE_3' to 'Elite Acolyte'.
+    """
+    import re
+
+    if not specialist_type:
+        return "Unknown"
+
+    # Remove SPECIALIST_ prefix
+    name = specialist_type.replace("SPECIALIST_", "")
+
+    # Map tier numbers to tier names
+    tier_map = {"1": "Apprentice", "2": "Master", "3": "Elite"}
+
+    # Check for tier suffix (e.g., ACOLYTE_1 -> Apprentice Acolyte)
+    match = re.match(r"^(.+)_(\d)$", name)
+    if match:
+        base_name = match.group(1).replace("_", " ").title()
+        tier_num = match.group(2)
+        tier_name = tier_map.get(tier_num, f"Tier {tier_num}")
+        return f"{tier_name} {base_name}"
+
+    # No tier suffix - just format the name
+    return name.replace("_", " ").title()
+
+
+def create_specialist_butterfly_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create a butterfly/tornado chart comparing specialist counts between players.
+
+    Displays specialists with names in center, bars extending left for player 1
+    and right for player 2, with count values shown on each bar.
+
+    Args:
+        df: DataFrame with columns: player_name, specialist_type, count
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with butterfly chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No specialist data available for this match"
+        )
+
+    # Format specialist names for display
+    df = df.copy()
+    df["display_name"] = df["specialist_type"].apply(_format_specialist_name)
+
+    # Aggregate by display name per player (in case of duplicates)
+    aggregated = (
+        df.groupby(["player_name", "display_name"])["count"].sum().reset_index()
+    )
+
+    # Get unique players and specialists
+    players = aggregated["player_name"].unique().tolist()
+    if len(players) != 2:
+        return create_empty_chart_placeholder(
+            "Butterfly chart requires exactly 2 players"
+        )
+
+    # Get all unique specialists across both players, sorted alphabetically
+    all_specialists = sorted(aggregated["display_name"].unique())
+
+    # Create data for each player
+    player1, player2 = players[0], players[1]
+    player1_data = aggregated[aggregated["player_name"] == player1]
+    player2_data = aggregated[aggregated["player_name"] == player2]
+
+    # Create mappings
+    p1_counts = dict(zip(player1_data["display_name"], player1_data["count"]))
+    p2_counts = dict(zip(player2_data["display_name"], player2_data["count"]))
+
+    # Build aligned data - player 1 values are negative to extend left
+    p1_values = [-p1_counts.get(s, 0) for s in all_specialists]
+    p2_values = [p2_counts.get(s, 0) for s in all_specialists]
+
+    # Get colors
+    if player_colors:
+        color1 = player_colors.get(player1, Config.PRIMARY_COLORS[0])
+        color2 = player_colors.get(player2, Config.PRIMARY_COLORS[1])
+    else:
+        color1 = Config.PRIMARY_COLORS[0]
+        color2 = Config.PRIMARY_COLORS[1]
+
+    # Calculate totals for legend
+    total1 = sum(abs(v) for v in p1_values)
+    total2 = sum(p2_values)
+
+    # Create figure
+    fig = go.Figure()
+
+    # Player 1 bars (left side, negative values)
+    fig.add_trace(
+        go.Bar(
+            y=all_specialists,
+            x=p1_values,
+            orientation="h",
+            name=f"{player1} ({total1})",
+            marker_color=color1,
+            text=[str(abs(v)) if v != 0 else "" for v in p1_values],
+            textposition="inside",
+            textfont=dict(color="white", size=11),
+            hovertemplate=(
+                f"<b>{player1}</b><br>"
+                "%{y}<br>"
+                "Count: %{customdata}<br>"
+                "<extra></extra>"
+            ),
+            customdata=[abs(v) for v in p1_values],
+        )
+    )
+
+    # Player 2 bars (right side, positive values)
+    fig.add_trace(
+        go.Bar(
+            y=all_specialists,
+            x=p2_values,
+            orientation="h",
+            name=f"{player2} ({total2})",
+            marker_color=color2,
+            text=[str(v) if v != 0 else "" for v in p2_values],
+            textposition="inside",
+            textfont=dict(color="white", size=11),
+            hovertemplate=(
+                f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
+            ),
+        )
+    )
+
+    # Calculate x-axis range for symmetry
+    max_val = max(max(abs(v) for v in p1_values), max(p2_values)) if p1_values else 10
+    axis_range = max_val * 1.15  # Add 15% padding for labels
+
+    # Update layout
+    fig.update_layout(
+        barmode="overlay",
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(
+            range=[-axis_range, axis_range],
+            showgrid=True,
+            gridcolor=CHART_THEME["gridcolor"],
+            zeroline=True,
+            zerolinecolor=CHART_THEME["gridcolor"],
+            zerolinewidth=2,
+            tickfont=dict(color=CHART_THEME["font_color"]),
+            # Show absolute values on x-axis
+            tickvals=[-max_val, -max_val / 2, 0, max_val / 2, max_val],
+            ticktext=[
+                str(int(max_val)),
+                str(int(max_val / 2)),
+                "0",
+                str(int(max_val / 2)),
+                str(int(max_val)),
+            ],
+        ),
+        yaxis=dict(
+            showgrid=False,
+            tickfont=dict(color=CHART_THEME["font_color"], size=11),
+            automargin=True,
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=max(300, len(all_specialists) * 28 + 80),  # Dynamic height
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    return fig
+
+
+def _format_improvement_name(improvement_type: str, strip_numbers: bool = True) -> str:
+    """Format improvement type for display.
+
+    Converts 'IMPROVEMENT_MINE' to 'Mine', 'IMPROVEMENT_GARRISON_1' to 'Garrison'.
+    Handles religion-specific improvements like 'IMPROVEMENT_TEMPLE_ZOROASTRIANISM'.
+
+    Args:
+        improvement_type: Raw improvement type string
+        strip_numbers: If True, removes trailing numbers (Garrison 1 -> Garrison)
+    """
+    import re
+
+    if not improvement_type:
+        return "Unknown"
+
+    # Remove IMPROVEMENT_ prefix
+    name = improvement_type.replace("IMPROVEMENT_", "")
+
+    # Handle religion-specific names (e.g., TEMPLE_ZOROASTRIANISM -> Zoroastrian Temple)
+    religion_buildings = ["TEMPLE", "MONASTERY", "SHRINE", "HOLY_SITE"]
+    for building in religion_buildings:
+        if name.startswith(f"{building}_"):
+            religion = name.replace(f"{building}_", "")
+            religion_formatted = religion.replace("_", " ").title()
+            building_formatted = building.replace("_", " ").title()
+            return f"{religion_formatted} {building_formatted}"
+
+    # Replace underscores with spaces and title case
+    result = name.replace("_", " ").title()
+
+    # Strip trailing numbers if requested (e.g., "Garrison 1" -> "Garrison")
+    if strip_numbers:
+        result = re.sub(r"\s+\d+$", "", result)
+
+    return result
+
+
+def create_improvement_butterfly_chart(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create a butterfly/tornado chart comparing improvement counts between players.
+
+    Displays improvements with names in center, bars extending left for player 1
+    and right for player 2, with count values shown on each bar.
+
+    Args:
+        df: DataFrame with columns: player_name, improvement_type, count
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with butterfly chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder(
+            "No improvement data available for this match"
+        )
+
+    # Format improvement names for display (aggregates numeric suffixes)
+    df = df.copy()
+    df["display_name"] = df["improvement_type"].apply(_format_improvement_name)
+
+    # Aggregate by display name per player (combines Garrison 1, 2, 3 -> Garrison)
+    aggregated = (
+        df.groupby(["player_name", "display_name"])["count"].sum().reset_index()
+    )
+
+    # Get unique players and improvements
+    players = aggregated["player_name"].unique().tolist()
+    if len(players) != 2:
+        return create_empty_chart_placeholder(
+            "Butterfly chart requires exactly 2 players"
+        )
+
+    # Get all unique improvements across both players, sorted alphabetically
+    all_improvements = sorted(aggregated["display_name"].unique())
+
+    # Create data for each player
+    player1, player2 = players[0], players[1]
+    player1_data = aggregated[aggregated["player_name"] == player1]
+    player2_data = aggregated[aggregated["player_name"] == player2]
+
+    # Create mappings
+    p1_counts = dict(zip(player1_data["display_name"], player1_data["count"]))
+    p2_counts = dict(zip(player2_data["display_name"], player2_data["count"]))
+
+    # Build aligned data - player 1 values are negative to extend left
+    p1_values = [-p1_counts.get(s, 0) for s in all_improvements]
+    p2_values = [p2_counts.get(s, 0) for s in all_improvements]
+
+    # Get colors
+    if player_colors:
+        color1 = player_colors.get(player1, Config.PRIMARY_COLORS[0])
+        color2 = player_colors.get(player2, Config.PRIMARY_COLORS[1])
+    else:
+        color1 = Config.PRIMARY_COLORS[0]
+        color2 = Config.PRIMARY_COLORS[1]
+
+    # Calculate totals for legend
+    total1 = sum(abs(v) for v in p1_values)
+    total2 = sum(p2_values)
+
+    # Create figure
+    fig = go.Figure()
+
+    # Player 1 bars (left side, negative values)
+    fig.add_trace(
+        go.Bar(
+            y=all_improvements,
+            x=p1_values,
+            orientation="h",
+            name=f"{player1} ({total1})",
+            marker_color=color1,
+            text=[str(abs(v)) if v != 0 else "" for v in p1_values],
+            textposition="inside",
+            textfont=dict(color="white", size=11),
+            hovertemplate=(
+                f"<b>{player1}</b><br>"
+                "%{y}<br>"
+                "Count: %{customdata}<br>"
+                "<extra></extra>"
+            ),
+            customdata=[abs(v) for v in p1_values],
+        )
+    )
+
+    # Player 2 bars (right side, positive values)
+    fig.add_trace(
+        go.Bar(
+            y=all_improvements,
+            x=p2_values,
+            orientation="h",
+            name=f"{player2} ({total2})",
+            marker_color=color2,
+            text=[str(v) if v != 0 else "" for v in p2_values],
+            textposition="inside",
+            textfont=dict(color="white", size=11),
+            hovertemplate=(
+                f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
+            ),
+        )
+    )
+
+    # Calculate x-axis range for symmetry
+    max_val = max(max(abs(v) for v in p1_values), max(p2_values)) if p1_values else 10
+    axis_range = max_val * 1.15  # Add 15% padding for labels
+
+    # Update layout
+    fig.update_layout(
+        barmode="overlay",
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(
+            range=[-axis_range, axis_range],
+            showgrid=True,
+            gridcolor=CHART_THEME["gridcolor"],
+            zeroline=True,
+            zerolinecolor=CHART_THEME["gridcolor"],
+            zerolinewidth=2,
+            tickfont=dict(color=CHART_THEME["font_color"]),
+            # Show absolute values on x-axis
+            tickvals=[-max_val, -max_val / 2, 0, max_val / 2, max_val],
+            ticktext=[
+                str(int(max_val)),
+                str(int(max_val / 2)),
+                "0",
+                str(int(max_val / 2)),
+                str(int(max_val)),
+            ],
+        ),
+        yaxis=dict(
+            showgrid=False,
+            tickfont=dict(color=CHART_THEME["font_color"], size=11),
+            automargin=True,
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=max(300, len(all_improvements) * 28 + 80),  # Dynamic height
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
     )
 
     return fig

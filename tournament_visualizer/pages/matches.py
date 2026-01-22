@@ -23,9 +23,11 @@ from tournament_visualizer.components.charts import (
     create_cumulative_law_count_chart,
     create_cumulative_tech_count_chart,
     create_empty_chart_placeholder,
+    create_improvement_butterfly_chart,
     create_law_adoption_timeline_chart,
     create_match_legitimacy_chart,
     create_military_power_chart,
+    create_specialist_butterfly_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
     create_match_yield_stacked_chart,
@@ -280,7 +282,10 @@ def update_tab_loaded_state(
     prevent_initial_call=False,
 )
 def sync_match_selection(
-    url_search: str, url_hash: str, selector_value: Optional[int], options: List[Dict[str, Any]]
+    url_search: str,
+    url_hash: str,
+    selector_value: Optional[int],
+    options: List[Dict[str, Any]],
 ) -> tuple:
     """Synchronize match selection between URL and dropdown.
 
@@ -761,9 +766,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 className="mb-3",
                             ),
                             # Final Laws by player
-                            html.Div(
-                                id="match-final-laws-content", className="mb-3"
-                            ),
+                            html.Div(id="match-final-laws-content", className="mb-3"),
                         ],
                     },
                     {
@@ -830,7 +833,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                                 id="match-tech-tree-player1",
                                                                 elements=[],
                                                                 stylesheet=TECH_TREE_STYLESHEET,
-                                                                layout={"name": "preset"},
+                                                                layout={
+                                                                    "name": "preset"
+                                                                },
                                                                 style={
                                                                     "width": "100%",
                                                                     "height": "420px",
@@ -860,7 +865,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                                                 id="match-tech-tree-player2",
                                                                 elements=[],
                                                                 stylesheet=TECH_TREE_STYLESHEET,
-                                                                layout={"name": "preset"},
+                                                                layout={
+                                                                    "name": "preset"
+                                                                },
                                                                 style={
                                                                     "width": "100%",
                                                                     "height": "420px",
@@ -913,9 +920,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 className="mb-3",
                             ),
                             # Final Technologies by player
-                            html.Div(
-                                id="match-final-techs-content", className="mb-3"
-                            ),
+                            html.Div(id="match-final-techs-content", className="mb-3"),
                         ],
                     },
                     {
@@ -1110,7 +1115,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "tab_id": "improvements",
                         "content": [
                             # Improvements section - side-by-side player lists
-                            html.Div(id="match-improvements-section", className="mt-3 mb-3"),
+                            html.Div(
+                                id="match-improvements-section", className="mt-3 mb-3"
+                            ),
                             # Specialists section - side-by-side player lists
                             html.Div(id="match-specialists-section", className="mb-3"),
                         ],
@@ -1136,7 +1143,9 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                 className="mt-3 mb-3",
                             ),
                             # Unit listing by player
-                            html.Div(id="match-units-list-content", className="mt-3 mb-3"),
+                            html.Div(
+                                id="match-units-list-content", className="mt-3 mb-3"
+                            ),
                             # Row 1: Stacked Bar and Grouped Bar
                             dbc.Row(
                                 [
@@ -1313,7 +1322,16 @@ def sync_filter_from_store(
     """Initialize filter checklist from localStorage on page load."""
     if store_data is None:
         # Default: all enabled
-        return ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders"]
+        return [
+            "Ambitions",
+            "Battles",
+            "Cities",
+            "Laws",
+            "Religion",
+            "Rulers",
+            "Techs",
+            "Wonders",
+        ]
     # Return list of enabled categories
     return [cat for cat, enabled in store_data.items() if enabled]
 
@@ -1325,7 +1343,17 @@ def sync_filter_from_store(
 )
 def sync_store_from_filter(selected_categories: list[str]) -> dict:
     """Save filter state to localStorage when user changes selection."""
-    all_categories = ["Ambitions", "Battles", "Cities", "Laws", "Religion", "Rulers", "Techs", "Wonders", "Metrics"]
+    all_categories = [
+        "Ambitions",
+        "Battles",
+        "Cities",
+        "Laws",
+        "Religion",
+        "Rulers",
+        "Techs",
+        "Wonders",
+        "Metrics",
+    ]
     return {cat: (cat in selected_categories) for cat in all_categories}
 
 
@@ -1768,9 +1796,7 @@ def update_law_timeline(
             raise dash.exceptions.PreventUpdate
 
     if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view law timeline"
-        )
+        return create_empty_chart_placeholder("Select a match to view law timeline")
 
     try:
         queries = get_queries()
@@ -1788,9 +1814,7 @@ def update_law_timeline(
 
     except Exception as e:
         logger.error(f"Error loading law adoption timeline: {e}")
-        return create_empty_chart_placeholder(
-            f"Error loading law timeline: {str(e)}"
-        )
+        return create_empty_chart_placeholder(f"Error loading law timeline: {str(e)}")
 
 
 @callback(
@@ -2136,9 +2160,7 @@ def update_final_laws(
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
-        return html.Div(
-            "Select a match to view final laws", className="text-muted"
-        )
+        return html.Div("Select a match to view final laws", className="text-muted")
 
     try:
         queries = get_queries()
@@ -2152,9 +2174,7 @@ def update_final_laws(
         # Get final turn data for each player
         player_data = {}
 
-        final_laws = laws_df.loc[
-            laws_df.groupby("player_id")["turn_number"].idxmax()
-        ]
+        final_laws = laws_df.loc[laws_df.groupby("player_id")["turn_number"].idxmax()]
         for _, row in final_laws.iterrows():
             player_id = row["player_id"]
             player_data[player_id] = {
@@ -2166,14 +2186,16 @@ def update_final_laws(
                 laws = [law.strip() for law in str(law_list_str).split(",")]
                 # Remove LAW_ prefix, quotes, humanize, deduplicate, and sort
                 player_data[player_id]["laws"] = sorted(
-                    set([
-                        law.replace("LAW_", "")
-                        .replace("_", " ")
-                        .strip('"')
-                        .strip("'")
-                        .title()
-                        for law in laws
-                    ])
+                    set(
+                        [
+                            law.replace("LAW_", "")
+                            .replace("_", " ")
+                            .strip('"')
+                            .strip("'")
+                            .title()
+                            for law in laws
+                        ]
+                    )
                 )
 
         # Create player boxes
@@ -2326,8 +2348,9 @@ def update_final_techs(match_id: Optional[int]) -> html.Div:
     prevent_initial_call=True,
 )
 def update_law_cumulative(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update cumulative law count chart.
 
@@ -2477,8 +2500,9 @@ def update_all_yield_charts(
     prevent_initial_call=True,
 )
 def update_legitimacy_chart(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update legitimacy progression chart.
 
@@ -2536,8 +2560,9 @@ def update_legitimacy_chart(
     prevent_initial_call=True,
 )
 def update_legitimacy_breakdown(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> html.Div:
     """Update legitimacy breakdown showing cognomen contributions per ruler.
 
@@ -2596,10 +2621,9 @@ def update_legitimacy_breakdown(
             # Get events for this player, excluding legacy events
             player_events = events_df[events_df["player_id"] == player_id]
             player_events = player_events[
-                ~player_events["event_type"].isin([
-                    "MEMORYFAMILY_OUR_LEGACY",
-                    "MEMORYRELIGION_OUR_LEGACY"
-                ])
+                ~player_events["event_type"].isin(
+                    ["MEMORYFAMILY_OUR_LEGACY", "MEMORYRELIGION_OUR_LEGACY"]
+                )
             ]
 
             # Build turn ranges for each ruler
@@ -2634,7 +2658,9 @@ def update_legitimacy_breakdown(
                 decay_rate = get_cognomen_decay_rate(ruler["generations_ago"])
                 total_from_cognomens += int(base_value * decay_rate)
 
-            total_legitimacy = total_from_cognomens + ambitions_legitimacy + legacies_legitimacy
+            total_legitimacy = (
+                total_from_cognomens + ambitions_legitimacy + legacies_legitimacy
+            )
 
             # Build breakdown items with total at top
             breakdown_items = [
@@ -2694,8 +2720,16 @@ def update_legitimacy_breakdown(
                 total_from_cognomens += decayed_value
 
                 # Format display name (e.g., "King Kurigalzu the Great")
-                display_cognomen = COGNOMEN_DISPLAY_NAMES.get(cognomen, f"the {cognomen}") if cognomen else ""
-                ruler_display = f"{ruler_name} {display_cognomen}".strip() if display_cognomen else ruler_name
+                display_cognomen = (
+                    COGNOMEN_DISPLAY_NAMES.get(cognomen, f"the {cognomen}")
+                    if cognomen
+                    else ""
+                )
+                ruler_display = (
+                    f"{ruler_name} {display_cognomen}".strip()
+                    if display_cognomen
+                    else ruler_name
+                )
 
                 # Add decay indicator for previous rulers
                 decay_note = " (decayed)" if generations_ago > 0 else ""
@@ -2723,13 +2757,15 @@ def update_legitimacy_breakdown(
 
                 # Get events during this ruler's reign
                 ruler_events = player_events[
-                    (player_events["turn_number"] >= start_turn) &
-                    (player_events["turn_number"] <= end_turn)
+                    (player_events["turn_number"] >= start_turn)
+                    & (player_events["turn_number"] <= end_turn)
                 ]
 
                 if not ruler_events.empty:
                     # Aggregate events by type for this ruler
-                    event_counts = ruler_events.groupby("event_type")["count"].sum().reset_index()
+                    event_counts = (
+                        ruler_events.groupby("event_type")["count"].sum().reset_index()
+                    )
                     event_counts = event_counts.sort_values("count", ascending=False)
 
                     for _, event_row in event_counts.iterrows():
@@ -2744,7 +2780,6 @@ def update_legitimacy_breakdown(
                                 className="text-muted small ms-3",
                             )
                         )
-
 
             # Create card for this player
             player_cards.append(
@@ -2787,8 +2822,9 @@ def update_legitimacy_breakdown(
     prevent_initial_call=True,
 )
 def update_ambition_timelines(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ):
     """Update ambition timeline charts - one per player.
 
@@ -2868,8 +2904,9 @@ def update_ambition_timelines(
     prevent_initial_call=True,
 )
 def update_ambition_summary(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update ambition summary table.
 
@@ -2969,9 +3006,13 @@ def update_family_city_panels(match_id: Optional[int]) -> dbc.Row:
                     ),
                     dbc.CardBody(
                         html.Ul(
-                            family_items if family_items else [
-                                html.Span("No family data", className="text-muted")
-                            ],
+                            (
+                                family_items
+                                if family_items
+                                else [
+                                    html.Span("No family data", className="text-muted")
+                                ]
+                            ),
                             style={"fontSize": "0.9rem", "marginBottom": "0"},
                             className="ps-3",
                         ),
@@ -3112,8 +3153,9 @@ def update_pixi_map_iframe(
     prevent_initial_call=True,
 )
 def update_match_territory_timeline_chart(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ):
     """Update territory timeline chart.
 
@@ -3162,8 +3204,9 @@ def update_match_territory_timeline_chart(
     prevent_initial_call=True,
 )
 def update_match_territory_distribution_chart(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ):
     """Update territory distribution chart.
 
@@ -3195,7 +3238,9 @@ def update_match_territory_distribution_chart(
         # Get nation colors for players
         player_colors = get_player_colors_for_match(match_id)
         colors = [
-            player_colors.get(name, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+            player_colors.get(
+                name, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+            )
             for i, name in enumerate(final_data["player_name"])
         ]
 
@@ -3219,74 +3264,6 @@ def update_match_territory_distribution_chart(
         )
 
 
-def _format_improvement_name(improvement_type: str, strip_numbers: bool = True) -> str:
-    """Format improvement type for display.
-
-    Converts 'IMPROVEMENT_MINE' to 'Mine', 'IMPROVEMENT_GARRISON_1' to 'Garrison'.
-    Handles religion-specific improvements like 'IMPROVEMENT_TEMPLE_ZOROASTRIANISM'.
-
-    Args:
-        improvement_type: Raw improvement type string
-        strip_numbers: If True, removes trailing numbers (Garrison 1 -> Garrison)
-    """
-    import re
-
-    if not improvement_type:
-        return "Unknown"
-
-    # Remove IMPROVEMENT_ prefix
-    name = improvement_type.replace("IMPROVEMENT_", "")
-
-    # Handle religion-specific names (e.g., TEMPLE_ZOROASTRIANISM -> Zoroastrian Temple)
-    religion_buildings = ["TEMPLE", "MONASTERY", "SHRINE", "HOLY_SITE"]
-    for building in religion_buildings:
-        if name.startswith(f"{building}_"):
-            religion = name.replace(f"{building}_", "")
-            religion_formatted = religion.replace("_", " ").title()
-            building_formatted = building.replace("_", " ").title()
-            return f"{religion_formatted} {building_formatted}"
-
-    # Replace underscores with spaces and title case
-    result = name.replace("_", " ").title()
-
-    # Strip trailing numbers if requested (e.g., "Garrison 1" -> "Garrison")
-    if strip_numbers:
-        result = re.sub(r"\s+\d+$", "", result)
-
-    return result
-
-
-def _format_specialist_name(specialist_type: str) -> str:
-    """Format specialist type for display.
-
-    Converts 'SPECIALIST_MINER' to 'Miner'.
-    Converts 'SPECIALIST_ACOLYTE_1' to 'Apprentice Acolyte'.
-    Converts 'SPECIALIST_ACOLYTE_2' to 'Master Acolyte'.
-    Converts 'SPECIALIST_ACOLYTE_3' to 'Elite Acolyte'.
-    """
-    import re
-
-    if not specialist_type:
-        return "Unknown"
-
-    # Remove SPECIALIST_ prefix
-    name = specialist_type.replace("SPECIALIST_", "")
-
-    # Map tier numbers to tier names
-    tier_map = {"1": "Apprentice", "2": "Master", "3": "Elite"}
-
-    # Check for tier suffix (e.g., ACOLYTE_1 -> Apprentice Acolyte)
-    match = re.match(r"^(.+)_(\d)$", name)
-    if match:
-        base_name = match.group(1).replace("_", " ").title()
-        tier_num = match.group(2)
-        tier_name = tier_map.get(tier_num, f"Tier {tier_num}")
-        return f"{tier_name} {base_name}"
-
-    # No tier suffix - just format the name
-    return name.replace("_", " ").title()
-
-
 @callback(
     Output("match-improvements-section", "children"),
     Input("match-details-tabs", "active_tab"),
@@ -3295,8 +3272,9 @@ def _format_specialist_name(specialist_type: str) -> str:
     prevent_initial_call=True,
 )
 def update_match_improvements_section(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> html.Div:
     """Update improvements section showing improvement counts per player.
 
@@ -3305,19 +3283,11 @@ def update_match_improvements_section(
         match_id: Selected match ID
 
     Returns:
-        HTML div with side-by-side player improvement lists
+        HTML div with butterfly chart comparing improvement counts
     """
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "improvements":
         raise dash.exceptions.PreventUpdate
-    # Skip re-fetching if tab was already loaded for this match
-    if loaded_state and loaded_state.get("match_id") == match_id:
-        if "improvements" in loaded_state.get("loaded_tabs", []):
-            raise dash.exceptions.PreventUpdate
-    # Skip re-fetching if tab was already loaded for this match
-    if loaded_state and loaded_state.get("match_id") == match_id:
-        if "improvements" in loaded_state.get("loaded_tabs", []):
-            raise dash.exceptions.PreventUpdate
 
     if not match_id:
         return html.Div()
@@ -3326,91 +3296,21 @@ def update_match_improvements_section(
         queries = get_queries()
         df = queries.get_improvement_counts_by_player(match_id)
 
-        if df.empty:
-            return dbc.Card(
-                dbc.CardBody(
-                    html.P(
-                        "No improvement data available",
-                        className="text-muted text-center mb-0",
-                    )
-                ),
-                className="mt-3",
-            )
-
         # Get player colors for styling
         player_colors = get_player_colors_for_match(match_id)
 
-        # Format names and aggregate by base name (strip numeric suffixes)
-        df["display_name"] = df["improvement_type"].apply(_format_improvement_name)
+        # Create butterfly chart
+        fig = create_improvement_butterfly_chart(df, player_colors)
 
-        # Build improvement lists for each player
-        players = df["player_name"].unique()
-        player_columns = []
-
-        for player_name in players:
-            player_df = df[df["player_name"] == player_name].copy()
-            player_color = player_colors.get(player_name, "#6c757d")
-
-            # Aggregate by display name (combines Garrison 1, 2, 3 -> Garrison)
-            aggregated = (
-                player_df.groupby("display_name")["count"].sum().reset_index()
-            )
-            # Sort alphabetically
-            aggregated = aggregated.sort_values("display_name")
-
-            # Create list items
-            list_items = []
-            for _, row in aggregated.iterrows():
-                list_items.append(
-                    html.Li(
-                        [
-                            html.Span(f"{row['display_name']}: ", className="text-muted"),
-                            html.Span(str(row["count"]), className="fw-bold"),
-                        ],
-                        className="list-unstyled-item",
-                    )
-                )
-
-            # Calculate total improvements
-            total_improvements = aggregated["count"].sum()
-
-            player_columns.append(
-                dbc.Col(
-                    dbc.Card(
-                        [
-                            dbc.CardHeader(
-                                [
-                                    html.Span(
-                                        player_name,
-                                        className="fw-bold",
-                                        style={"color": player_color},
-                                    ),
-                                    html.Span(
-                                        f" ({total_improvements} total)",
-                                        className="text-muted ms-2",
-                                    ),
-                                ]
-                            ),
-                            dbc.CardBody(
-                                html.Ul(
-                                    list_items,
-                                    className="list-unstyled mb-0",
-                                    style={
-                                        "columnCount": 2,
-                                        "columnGap": "2rem",
-                                        "fontSize": "0.9rem",
-                                    },
-                                ),
-                            ),
-                        ]
-                    ),
-                    md=6,
-                )
-            )
-
-        return dbc.Row(
-            player_columns,
-            className="g-3",
+        return html.Div(
+            [
+                html.H5("Improvements", className="mb-3"),
+                dcc.Graph(
+                    figure=fig,
+                    config={"displayModeBar": False},
+                    style={"width": "100%"},
+                ),
+            ]
         )
 
     except Exception as e:
@@ -3434,8 +3334,9 @@ def update_match_improvements_section(
     prevent_initial_call=True,
 )
 def update_match_specialists_section(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> html.Div:
     """Update specialists section showing specialist counts per player.
 
@@ -3444,7 +3345,7 @@ def update_match_specialists_section(
         match_id: Selected match ID
 
     Returns:
-        HTML div with side-by-side player specialist lists
+        HTML div with butterfly chart comparing specialist counts
     """
     # Lazy loading: skip rendering if tab is not active
     if active_tab != "improvements":
@@ -3457,92 +3358,20 @@ def update_match_specialists_section(
         queries = get_queries()
         df = queries.get_specialist_counts_by_player(match_id)
 
-        if df.empty:
-            return dbc.Card(
-                dbc.CardBody(
-                    html.P(
-                        "No specialist data available",
-                        className="text-muted text-center mb-0",
-                    )
-                ),
-                className="mt-3",
-            )
-
         # Get player colors for styling
         player_colors = get_player_colors_for_match(match_id)
 
-        # Format names (converts _1/_2/_3 to Apprentice/Master/Elite)
-        df["display_name"] = df["specialist_type"].apply(_format_specialist_name)
-
-        # Build specialist lists for each player
-        players = df["player_name"].unique()
-        player_columns = []
-
-        for player_name in players:
-            player_df = df[df["player_name"] == player_name].copy()
-            player_color = player_colors.get(player_name, "#6c757d")
-
-            # Aggregate by display name (in case of duplicates)
-            aggregated = (
-                player_df.groupby("display_name")["count"].sum().reset_index()
-            )
-            # Sort alphabetically
-            aggregated = aggregated.sort_values("display_name")
-
-            # Create list items
-            list_items = []
-            for _, row in aggregated.iterrows():
-                list_items.append(
-                    html.Li(
-                        [
-                            html.Span(f"{row['display_name']}: ", className="text-muted"),
-                            html.Span(str(row["count"]), className="fw-bold"),
-                        ],
-                        className="list-unstyled-item",
-                    )
-                )
-
-            # Calculate total specialists
-            total_specialists = aggregated["count"].sum()
-
-            player_columns.append(
-                dbc.Col(
-                    dbc.Card(
-                        [
-                            dbc.CardHeader(
-                                [
-                                    html.Span(
-                                        player_name,
-                                        className="fw-bold",
-                                        style={"color": player_color},
-                                    ),
-                                    html.Span(
-                                        f" ({total_specialists} total)",
-                                        className="text-muted ms-2",
-                                    ),
-                                ]
-                            ),
-                            dbc.CardBody(
-                                html.Ul(
-                                    list_items,
-                                    className="list-unstyled mb-0",
-                                    style={
-                                        "columnCount": 2,
-                                        "columnGap": "2rem",
-                                        "fontSize": "0.9rem",
-                                    },
-                                ),
-                            ),
-                        ]
-                    ),
-                    md=6,
-                )
-            )
+        # Create butterfly chart
+        fig = create_specialist_butterfly_chart(df, player_colors)
 
         return html.Div(
             [
                 html.H5("Specialists", className="mb-3"),
-                dbc.Row(player_columns, className="g-3"),
+                dcc.Graph(
+                    figure=fig,
+                    config={"displayModeBar": False},
+                    style={"width": "100%"},
+                ),
             ]
         )
 
@@ -3572,8 +3401,9 @@ def update_match_specialists_section(
     prevent_initial_call=True,
 )
 def update_military_power_chart(
-    active_tab: Optional[str], match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]]
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
 ) -> go.Figure:
     """Update military power progression chart.
 
@@ -3593,9 +3423,7 @@ def update_military_power_chart(
             raise dash.exceptions.PreventUpdate
 
     if not match_id:
-        return create_empty_chart_placeholder(
-            "Select a match to view military power"
-        )
+        return create_empty_chart_placeholder("Select a match to view military power")
 
     try:
         queries = get_queries()
@@ -3610,9 +3438,7 @@ def update_military_power_chart(
 
     except Exception as e:
         logger.error(f"Error loading military power chart: {e}")
-        return create_empty_chart_placeholder(
-            f"Error loading military power: {str(e)}"
-        )
+        return create_empty_chart_placeholder(f"Error loading military power: {str(e)}")
 
 
 @callback(
@@ -3707,9 +3533,7 @@ def update_units_list(match_id: Optional[int]) -> html.Div:
         HTML content with player boxes containing unit lists
     """
     if not match_id:
-        return html.Div(
-            "Select a match to view unit details", className="text-muted"
-        )
+        return html.Div("Select a match to view unit details", className="text-muted")
 
     try:
         queries = get_queries()
@@ -3770,14 +3594,16 @@ def update_units_list(match_id: Optional[int]) -> html.Div:
                                                 className="mb-2",
                                             ),
                                             html.Ul(
-                                                military_items
-                                                if military_items
-                                                else [
-                                                    html.Span(
-                                                        "No military units",
-                                                        className="text-muted",
-                                                    )
-                                                ],
+                                                (
+                                                    military_items
+                                                    if military_items
+                                                    else [
+                                                        html.Span(
+                                                            "No military units",
+                                                            className="text-muted",
+                                                        )
+                                                    ]
+                                                ),
                                                 style={"fontSize": "0.9rem"},
                                             ),
                                         ],
@@ -3797,14 +3623,16 @@ def update_units_list(match_id: Optional[int]) -> html.Div:
                                                 className="mb-2",
                                             ),
                                             html.Ul(
-                                                non_military_items
-                                                if non_military_items
-                                                else [
-                                                    html.Span(
-                                                        "No non-military units",
-                                                        className="text-muted",
-                                                    )
-                                                ],
+                                                (
+                                                    non_military_items
+                                                    if non_military_items
+                                                    else [
+                                                        html.Span(
+                                                            "No non-military units",
+                                                            className="text-muted",
+                                                        )
+                                                    ]
+                                                ),
                                                 style={"fontSize": "0.9rem"},
                                             ),
                                         ],
@@ -3884,13 +3712,17 @@ def update_tech_tree_controls(match_id: Optional[int]):
             )
 
         # Get player info
-        players = tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        players = (
+            tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        )
         if len(players) < 2:
             # Pad with empty player if only one found
             players.append((None, "Player 2"))
 
         player1_id, player1_name = players[0]
-        player2_id, player2_name = players[1] if len(players) > 1 else (None, "Player 2")
+        player2_id, player2_name = (
+            players[1] if len(players) > 1 else (None, "Player 2")
+        )
 
         # Get max turn from tech discoveries
         max_turn = int(tech_df["turn_number"].max())
@@ -3898,7 +3730,9 @@ def update_tech_tree_controls(match_id: Optional[int]):
 
         # Get techs at final turn for initial view
         player1_techs = get_techs_at_turn(tech_df, player1_id, max_turn)
-        player2_techs = get_techs_at_turn(tech_df, player2_id, max_turn) if player2_id else set()
+        player2_techs = (
+            get_techs_at_turn(tech_df, player2_id, max_turn) if player2_id else set()
+        )
 
         # Build elements
         player1_elements = build_cytoscape_elements(player1_techs)
@@ -3979,16 +3813,22 @@ def update_tech_trees_for_turn(
             return empty_elements, empty_elements, "No data", "No data"
 
         # Get player info
-        players = tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        players = (
+            tech_df[["player_id", "player_name"]].drop_duplicates().values.tolist()
+        )
         if len(players) < 2:
             players.append((None, "Player 2"))
 
         player1_id, player1_name = players[0]
-        player2_id, player2_name = players[1] if len(players) > 1 else (None, "Player 2")
+        player2_id, player2_name = (
+            players[1] if len(players) > 1 else (None, "Player 2")
+        )
 
         # Get techs at specified turn
         player1_techs = get_techs_at_turn(tech_df, player1_id, turn_number)
-        player2_techs = get_techs_at_turn(tech_df, player2_id, turn_number) if player2_id else set()
+        player2_techs = (
+            get_techs_at_turn(tech_df, player2_id, turn_number) if player2_id else set()
+        )
 
         # Build elements
         player1_elements = build_cytoscape_elements(player1_techs)
