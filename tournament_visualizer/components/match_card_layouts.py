@@ -1375,13 +1375,6 @@ def create_reference_panel() -> dbc.Accordion:
                         ],
                         width=4,
                     ),
-                    dbc.Col(
-                        [
-                            html.H6("Economy", style={"color": text_color}),
-                            economy_refs,
-                        ],
-                        width=4,
-                    ),
                 ],
                 className="mb-3",
             ),
@@ -1398,6 +1391,18 @@ def create_reference_panel() -> dbc.Accordion:
                         [
                             html.H6("Key Events", style={"color": text_color}),
                             events_refs,
+                        ],
+                        width=8,
+                    ),
+                ],
+                className="mb-3",
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            html.H6("Economy", style={"color": text_color}),
+                            economy_refs,
                         ],
                         width=8,
                     ),
