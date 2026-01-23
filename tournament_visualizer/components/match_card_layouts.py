@@ -1326,18 +1326,18 @@ def create_reference_panel() -> dbc.Accordion:
 
     military_refs = html.Div(
         [
-            ref_item("Aggressive", "Captured cities and high military growth rate"),
-            ref_item("Defensive", "No captures or losses, low military growth"),
-            ref_item("Passive", "Minimal military activity"),
+            ref_item("Aggressive", "Captured at least 1 city and military growth >5%/turn"),
+            ref_item("Defensive", "No captures or losses and military growth <3%/turn"),
+            ref_item("Passive", "Neither aggressive nor defensive"),
         ]
     )
 
     economy_refs = html.Div(
         [
-            ref_item("Science-focused", "Science was the dominant cumulative yield"),
-            ref_item("Training-focused", "Training was the dominant cumulative yield"),
-            ref_item("Money-focused", "Money was the dominant cumulative yield"),
-            ref_item("Balanced", "No single yield was dominant"),
+            ref_item("Science-focused", "Cumulative science at least 20% higher than next yield"),
+            ref_item("Training-focused", "Cumulative training at least 20% higher than next yield"),
+            ref_item("Money-focused", "Cumulative money at least 20% higher than next yield"),
+            ref_item("Balanced", "No single yield 20% higher than next"),
         ]
     )
 
@@ -1373,7 +1373,7 @@ def create_reference_panel() -> dbc.Accordion:
                             html.H6("Military", style={"color": text_color}),
                             military_refs,
                         ],
-                        width=4,
+                        width=8,
                     ),
                 ],
                 className="mb-3",
