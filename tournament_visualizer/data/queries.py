@@ -5073,25 +5073,31 @@ class TournamentQueries:
         ),
 
         -- 4b. City breach/capture events (deduplicated)
+        -- Join against cities table to find the actual owner of the captured city
         city_breach_events AS (
             SELECT
                 e.turn_number as turn,
-                -- Assign to defender (player NOT mentioned as attacker in description)
-                CASE
-                    WHEN e.description LIKE '%' || p1.player_name || '%' THEN p2.player_id
-                    ELSE p1.player_id
-                END as player_id,
+                -- Use city owner from cities table, fallback to description-based logic
+                COALESCE(
+                    c.player_id,
+                    CASE
+                        WHEN e.description LIKE '%' || p1.player_name || '%' THEN p2.player_id
+                        ELSE p1.player_id
+                    END
+                ) as player_id,
                 'city_lost' as event_type,
-                'Lost ' || TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) breached', 1)) as title,
+                'Lost ' || TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (breached|captured)', 1)) as title,
                 e.description as details,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.turn_number,
-                        REGEXP_EXTRACT(e.description, '^\\s*(.+?) breached', 1)
+                        REGEXP_EXTRACT(e.description, '^\\s*(.+?) (breached|captured)', 1)
                     ORDER BY e.event_id
                 ) as rn
             FROM events e
             CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? LIMIT 1) p1
             CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? ORDER BY player_id LIMIT 1 OFFSET 1) p2
+            LEFT JOIN cities c ON c.match_id = e.match_id
+                AND UPPER(REPLACE(c.city_name, 'CITYNAME_', '')) = UPPER(TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (breached|captured)', 1)))
             WHERE e.match_id = ?
               AND e.event_type = 'CITY_BREACHED'
         ),

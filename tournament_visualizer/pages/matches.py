@@ -71,6 +71,8 @@ from tournament_visualizer.components.tech_tree import (
     TECH_TREE_STYLESHEET,
 )
 from tournament_visualizer.components.game_state import create_game_state_component
+from tournament_visualizer.components.match_card import analyze_match
+from tournament_visualizer.components.match_card_layouts import create_match_card_layout
 from tournament_visualizer.tech_tree import TECHS
 
 logger = logging.getLogger(__name__)
@@ -584,6 +586,16 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         "label": "Overview",
                         "tab_id": "overview",
                         "content": [
+                            html.Div(
+                                id="match-overview-content",
+                                className="mt-3",
+                            )
+                        ],
+                    },
+                    {
+                        "label": "Timeline",
+                        "tab_id": "timeline",
+                        "content": [
                             # Toggle for showing/hiding event text and filter
                             dbc.Row(
                                 [
@@ -677,8 +689,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Turn Progression",
-                        "tab_id": "turn-progression",
+                        "label": "Events",
+                        "tab_id": "events",
                         "content": [
                             dbc.Row(
                                 [
@@ -976,8 +988,8 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Legitimacy",
-                        "tab_id": "legitimacy",
+                        "label": "Ambitions",
+                        "tab_id": "ambitions",
                         "content": [
                             # Legitimacy Progression Chart
                             dbc.Row(
@@ -1019,7 +1031,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                     },
                     {
                         "label": "Cities",
-                        "tab_id": "maps",
+                        "tab_id": "cities",
                         "content": [
                             # Territory Control Charts
                             dbc.Row(
@@ -1085,7 +1097,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                     },
                     {
                         "label": "Map",
-                        "tab_id": "map-beta",
+                        "tab_id": "map",
                         "content": [
                             # Pixi.js Map Viewer in iframe
                             dbc.Card(
@@ -1124,7 +1136,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                     },
                     {
                         "label": "Military",
-                        "tab_id": "units",
+                        "tab_id": "military",
                         "content": [
                             # Military Power Progression
                             dbc.Row(
@@ -1255,7 +1267,7 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                         ],
                     },
                     {
-                        "label": "Game Settings",
+                        "label": "Settings",
                         "tab_id": "settings",
                         "content": [
                             dbc.Row(
@@ -1383,8 +1395,8 @@ def update_overview_table(
     """
     # Extract Metrics toggle from the checklist
     show_metrics = "Metrics" in (enabled_categories or [])
-    # Lazy loading - only update when Overview tab is active
-    if active_tab != "overview":
+    # Lazy loading - only update when Timeline tab is active
+    if active_tab != "timeline":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -2514,23 +2526,23 @@ def update_legitimacy_chart(
         Plotly figure with legitimacy progression
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "legitimacy":
+    if active_tab != "ambitions":
         raise dash.exceptions.PreventUpdate
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+        if "ambitions" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+        if "ambitions" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+        if "ambitions" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "legitimacy" in loaded_state.get("loaded_tabs", []):
+        if "ambitions" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -2577,7 +2589,7 @@ def update_legitimacy_breakdown(
         HTML Div containing breakdown cards for each player
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "legitimacy":
+    if active_tab != "ambitions":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -2836,7 +2848,7 @@ def update_ambition_timelines(
         HTML Div containing separate chart cards for each player
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "legitimacy":
+    if active_tab != "ambitions":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -2918,7 +2930,7 @@ def update_ambition_summary(
         Plotly figure for ambition summary table
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "legitimacy":
+    if active_tab != "ambitions":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -3135,7 +3147,7 @@ def update_pixi_map_iframe(
         URL for the Pixi.js map viewer iframe
     """
     # Only load when Map tab is active
-    if active_tab != "map-beta":
+    if active_tab != "map":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -3167,7 +3179,7 @@ def update_match_territory_timeline_chart(
         Plotly figure for territory timeline
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "maps":
+    if active_tab != "cities":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -3218,7 +3230,7 @@ def update_match_territory_distribution_chart(
         Plotly figure for territory distribution
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "maps":
+    if active_tab != "cities":
         raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -3415,11 +3427,11 @@ def update_military_power_chart(
         Plotly figure with military power line chart
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "units":
+    if active_tab != "military":
         raise dash.exceptions.PreventUpdate
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "units" in loaded_state.get("loaded_tabs", []):
+        if "military" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
 
     if not match_id:
@@ -3474,12 +3486,12 @@ def update_all_unit_charts(
         List of 7 Plotly figures for unit charts
     """
     # Lazy loading: skip rendering if tab is not active
-    if active_tab != "units":
+    if active_tab != "military":
         raise dash.exceptions.PreventUpdate
 
     # Skip re-fetching if tab was already loaded for this match
     if loaded_state and loaded_state.get("match_id") == match_id:
-        if "units" in loaded_state.get("loaded_tabs", []):
+        if "military" in loaded_state.get("loaded_tabs", []):
             raise dash.exceptions.PreventUpdate
 
     empty_placeholder = create_empty_chart_placeholder(
@@ -3844,3 +3856,147 @@ def update_tech_trees_for_turn(
     except Exception as e:
         logger.error(f"Error updating tech trees for turn: {e}")
         return empty_elements, empty_elements, "Error", "Error"
+
+
+# =============================================================================
+# Overview (Beta) - Match Card Callback
+# =============================================================================
+
+
+@callback(
+    Output("match-overview-content", "children"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+)
+def update_overview_beta(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+) -> html.Div:
+    """Update the Overview (Beta) Match Card content.
+
+    Args:
+        active_tab: Currently active tab ID
+        match_id: Selected match ID
+
+    Returns:
+        Match Card layout component
+    """
+    # Lazy loading - only update when Overview (Beta) tab is active
+    if active_tab != "overview":
+        raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_state(
+            title="Select a Match",
+            message="Choose a match from the dropdown to view the match card.",
+            icon="bi-card-heading",
+        )
+
+    try:
+        queries = get_queries()
+
+        # Fetch all required data
+        points_df = queries.get_points_history_by_match(match_id)
+        military_df = queries.get_military_history_by_match(match_id)
+        events_df = queries.get_match_timeline_events(match_id)
+        yield_df = queries.get_yield_history_by_match(match_id)
+        cities_df = queries.get_match_cities(match_id)
+        expansion_df = queries.get_player_expansion_stats(match_id)
+        units_df = queries.get_match_units_produced(match_id)
+        law_df = queries.get_law_timeline(match_id)
+
+        # Get match summary for metadata
+        match_summary_df = queries.get_match_summary()
+        match_info = match_summary_df[match_summary_df["match_id"] == match_id]
+
+        if match_info.empty:
+            return create_empty_state(
+                title="Match Not Found",
+                message="Unable to load match metadata.",
+                icon="bi-exclamation-circle",
+            )
+
+        match_row = match_info.iloc[0]
+        total_turns = int(match_row.get("total_turns", 0))
+        winner_name_from_summary = str(match_row.get("winner_name", "Unknown"))
+
+        # Get player info from yield_df which has player_id, player_name, civilization
+        player1_id = 0
+        player2_id = 0
+        player1_name = "Player 1"
+        player2_name = "Player 2"
+        player1_civ = "Unknown"
+        player2_civ = "Unknown"
+
+        if not yield_df.empty and "player_id" in yield_df.columns:
+            player_info = (
+                yield_df[["player_id", "player_name", "civilization"]]
+                .drop_duplicates()
+                .sort_values("player_id")
+            )
+            if len(player_info) >= 1:
+                p1 = player_info.iloc[0]
+                player1_id = int(p1["player_id"])
+                player1_name = str(p1["player_name"] or "Player 1")
+                player1_civ = str(p1["civilization"] or "Unknown")
+            if len(player_info) >= 2:
+                p2 = player_info.iloc[1]
+                player2_id = int(p2["player_id"])
+                player2_name = str(p2["player_name"] or "Player 2")
+                player2_civ = str(p2["civilization"] or "Unknown")
+        elif not events_df.empty and "player_id" in events_df.columns:
+            # Fall back to events_df
+            player_ids = sorted(events_df["player_id"].dropna().unique())
+            if len(player_ids) >= 1:
+                player1_id = int(player_ids[0])
+            if len(player_ids) >= 2:
+                player2_id = int(player_ids[1])
+
+            # Try to get names from events
+            if "player_name" in events_df.columns:
+                for _, row in events_df[["player_id", "player_name"]].drop_duplicates().iterrows():
+                    if row["player_id"] == player1_id:
+                        player1_name = str(row["player_name"] or "Player 1")
+                    elif row["player_id"] == player2_id:
+                        player2_name = str(row["player_name"] or "Player 2")
+
+        # Determine winner
+        winner_player_id = None
+        winner_name = winner_name_from_summary
+
+        # Match winner name to player ID
+        if winner_name_from_summary and winner_name_from_summary != "Unknown":
+            if winner_name_from_summary == player1_name:
+                winner_player_id = player1_id
+            elif winner_name_from_summary == player2_name:
+                winner_player_id = player2_id
+
+        # Run the analysis
+        analysis = analyze_match(
+            match_id=match_id,
+            points_df=points_df,
+            military_df=military_df,
+            events_df=events_df,
+            yield_df=yield_df,
+            cities_df=cities_df,
+            expansion_df=expansion_df,
+            units_df=units_df,
+            law_df=law_df,
+            total_turns=total_turns,
+            winner_player_id=winner_player_id,
+            winner_name=winner_name,
+            player_ids=(player1_id, player2_id),
+            player_names=(player1_name, player2_name),
+            civilizations=(player1_civ, player2_civ),
+        )
+
+        # Create and return the layout
+        return create_match_card_layout(analysis)
+
+    except Exception as e:
+        logger.error(f"Error creating match card: {e}")
+        return create_empty_state(
+            title="Error Loading Match Card",
+            message=f"An error occurred: {str(e)}",
+            icon="bi-exclamation-triangle",
+        )
