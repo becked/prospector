@@ -768,8 +768,8 @@ def _create_city_event_icons(
         html.Span containing both icons in a single wrapper
     """
     icon_style = {
-        "width": "28px",
-        "height": "28px",
+        "width": "22px",
+        "height": "22px",
         "verticalAlign": "middle",
     }
 
@@ -778,8 +778,8 @@ def _create_city_event_icons(
         "display": "inline-flex",
         "alignItems": "center",
         "justifyContent": "center",
-        "width": "28px",
-        "height": "28px",
+        "width": "22px",
+        "height": "22px",
         "marginRight": "4px",
         "flexShrink": "0",
     }
@@ -788,10 +788,10 @@ def _create_city_event_icons(
         "position": "absolute",
         "bottom": "-3px",
         "right": "-5px",
-        "fontSize": "10px",
+        "fontSize": "9px",
         "borderRadius": "50%",
-        "width": "14px",
-        "height": "14px",
+        "width": "12px",
+        "height": "12px",
         "display": "flex",
         "alignItems": "center",
         "justifyContent": "center",
@@ -1006,8 +1006,8 @@ def _create_event_icon(
         tooltip = title  # Show full "Legalism (Zoroastrianism)"
 
     icon_style = {
-        "width": "28px",
-        "height": "28px",
+        "width": "22px",
+        "height": "22px",
         "verticalAlign": "middle",
     }
 
@@ -1017,8 +1017,8 @@ def _create_event_icon(
         "display": "inline-flex",
         "alignItems": "center",
         "justifyContent": "center",
-        "width": "28px",
-        "height": "28px",
+        "width": "22px",
+        "height": "22px",
         "marginRight": "6px",
         "flexShrink": "0",
     }
@@ -1042,10 +1042,10 @@ def _create_event_icon(
         "position": "absolute",
         "bottom": "-3px",
         "right": "-5px",
-        "fontSize": "10px",
+        "fontSize": "9px",
         "borderRadius": "50%",
-        "width": "14px",
-        "height": "14px",
+        "width": "12px",
+        "height": "12px",
         "display": "flex",
         "alignItems": "center",
         "justifyContent": "center",
@@ -1094,9 +1094,9 @@ def _create_event_icon(
     else:
         # Emoji fallback - style to match icon sizing
         emoji_style = {
-            "fontSize": "24px",
-            "width": "28px",
-            "height": "28px",
+            "fontSize": "18px",
+            "width": "22px",
+            "height": "22px",
             "display": "flex",
             "alignItems": "center",
             "justifyContent": "center",
@@ -1139,8 +1139,8 @@ def get_game_state_styles() -> str:
     }
 
     .game-state-icon {
-        width: 28px;
-        height: 28px;
+        width: 22px;
+        height: 22px;
         vertical-align: middle;
     }
 
