@@ -365,17 +365,19 @@ class TournamentDatabase:
             resource_type VARCHAR(50),
             has_road BOOLEAN DEFAULT FALSE,
             owner_player_id BIGINT REFERENCES players(player_id),
+            city_id INTEGER,  -- Which city controls this tile (NULL if unassigned)
 
             CONSTRAINT check_x_coordinate CHECK(x_coordinate >= 0),
             CONSTRAINT check_y_coordinate CHECK(y_coordinate >= 0),
             CONSTRAINT check_turn_number CHECK(turn_number >= 0),
             CONSTRAINT unique_territory_turn UNIQUE(match_id, x_coordinate, y_coordinate, turn_number)
         );
-        
+
         CREATE INDEX IF NOT EXISTS idx_territories_spatial ON territories(match_id, x_coordinate, y_coordinate);
         CREATE INDEX IF NOT EXISTS idx_territories_temporal ON territories(match_id, turn_number);
         CREATE INDEX IF NOT EXISTS idx_territories_owner ON territories(owner_player_id);
         CREATE INDEX IF NOT EXISTS idx_territories_spatial_temporal ON territories(match_id, turn_number, x_coordinate, y_coordinate);
+        CREATE INDEX IF NOT EXISTS idx_territories_city ON territories(match_id, city_id);
         """
         with self.get_connection() as conn:
             conn.execute(query)
@@ -916,9 +918,13 @@ class TournamentDatabase:
             population INTEGER,
             first_player_id BIGINT,
             governor_id INTEGER,
+            culture_level INTEGER,
+            religion_count INTEGER,
             PRIMARY KEY (match_id, city_id),
             CONSTRAINT check_founded_turn CHECK(founded_turn >= 0),
-            CONSTRAINT check_population CHECK(population IS NULL OR population >= 0)
+            CONSTRAINT check_population CHECK(population IS NULL OR population >= 0),
+            CONSTRAINT check_culture_level CHECK(culture_level IS NULL OR (culture_level >= 1 AND culture_level <= 4)),
+            CONSTRAINT check_religion_count CHECK(religion_count IS NULL OR religion_count >= 0)
         );
 
         CREATE INDEX IF NOT EXISTS idx_cities_match_id ON cities(match_id);
@@ -1543,8 +1549,8 @@ class TournamentDatabase:
             INSERT INTO territories (
                 territory_id, match_id, x_coordinate, y_coordinate, turn_number,
                 terrain_type, improvement_type, specialist_type,
-                resource_type, has_road, owner_player_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                resource_type, has_road, owner_player_id, city_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             values = []
@@ -1565,6 +1571,7 @@ class TournamentDatabase:
                         territory.get("resource_type"),
                         territory.get("has_road", False),
                         territory.get("owner_player_id"),
+                        territory.get("city_id"),
                     ]
                 )
 
@@ -1778,7 +1785,9 @@ class TournamentDatabase:
                     city.get('is_capital', False),
                     city.get('population'),
                     city.get('first_player_id'),
-                    city.get('governor_id')
+                    city.get('governor_id'),
+                    city.get('culture_level'),
+                    city.get('religion_count')
                 )
                 records.append(record)
 
@@ -1787,8 +1796,9 @@ class TournamentDatabase:
                 INSERT INTO cities (
                     city_id, match_id, player_id, city_name,
                     tile_id, founded_turn, family_name, is_capital,
-                    population, first_player_id, governor_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    population, first_player_id, governor_id,
+                    culture_level, religion_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, records)
 
         logger.info(f"✓ Inserted {len(cities)} cities for match {match_id}")

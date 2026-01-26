@@ -889,6 +889,15 @@ class OldWorldSaveParser:
             # Road is an empty element <Road /> so check for existence
             has_road = tile_elem.find("Road") is not None
 
+            # Extract city territory (which city controls this tile)
+            # Example: <CityTerritory>11</CityTerritory>
+            city_territory_elem = tile_elem.find("CityTerritory")
+            city_id = (
+                int(city_territory_elem.text)
+                if city_territory_elem is not None and city_territory_elem.text
+                else None
+            )
+
             # Extract ownership history
             # OwnerHistory contains turn-by-turn ownership changes
             # Example: <OwnerHistory><T45>1</T45><T64>-1</T64></OwnerHistory>
@@ -918,6 +927,7 @@ class OldWorldSaveParser:
                 "specialist": specialist,
                 "resource": resource,
                 "has_road": has_road,
+                "city_id": city_id,
                 "ownership_by_turn": ownership_by_turn,
             }
 
@@ -951,6 +961,7 @@ class OldWorldSaveParser:
                         "resource_type": data["resource"],
                         "has_road": data["has_road"],
                         "owner_player_id": current_owner,
+                        "city_id": data["city_id"],
                     }
                 )
 
@@ -1234,20 +1245,22 @@ class OldWorldSaveParser:
         game_options = {}
 
         # Extract various game option elements
+        # Game options are self-closing tags - presence means enabled
         option_elements = self.root.findall(".//GameOptions/*")
         for opt in option_elements:
-            if opt.text:
-                game_options[opt.tag] = opt.text
+            # Self-closing tags have no text, so presence = enabled (True)
+            # Tags with text content store that value
+            game_options[opt.tag] = opt.text if opt.text else True
 
         if game_options:
             metadata["game_options"] = json.dumps(game_options)
 
-        # Extract DLC content
+        # Extract DLC content from GameContent element
         dlc_content = {}
-        dlc_elements = self.root.findall(".//DLC/*")
+        dlc_elements = self.root.findall(".//GameContent/*")
         for dlc in dlc_elements:
-            if dlc.text:
-                dlc_content[dlc.tag] = dlc.text
+            # DLC entries are self-closing tags - presence means enabled
+            dlc_content[dlc.tag] = dlc.text if dlc.text else True
 
         if dlc_content:
             metadata["dlc_content"] = json.dumps(dlc_content)
@@ -2094,6 +2107,31 @@ class OldWorldSaveParser:
             first_player_xml_id = self._safe_int(first_player_elem.text)
             first_player_id = first_player_xml_id + 1
 
+        # Extract culture level from TeamCulture element
+        # Format: <TeamCulture><T.{player_xml_id}>CULTURE_LEVEL</T.{player_xml_id}></TeamCulture>
+        culture_level = None
+        team_culture_elem = city_elem.find('TeamCulture')
+        if team_culture_elem is not None:
+            # Look for the culture level for this city's owner
+            culture_tag = f"T.{player_xml_id}"
+            culture_value_elem = team_culture_elem.find(culture_tag)
+            if culture_value_elem is not None and culture_value_elem.text:
+                culture_map = {
+                    'CULTURE_WEAK': 1,
+                    'CULTURE_DEVELOPING': 2,
+                    'CULTURE_STRONG': 3,
+                    'CULTURE_LEGENDARY': 4,
+                }
+                culture_level = culture_map.get(culture_value_elem.text)
+
+        # Extract religion count from Religion element
+        # Format: <Religion><RELIGION_FOO /><RELIGION_BAR /></Religion>
+        religion_count = None
+        religion_elem = city_elem.find('Religion')
+        if religion_elem is not None:
+            # Count non-empty child elements (each represents a religion)
+            religion_count = len(list(religion_elem))
+
         # Build city dictionary
         city_data = {
             'city_id': city_id,
@@ -2106,6 +2144,8 @@ class OldWorldSaveParser:
             'population': population,
             'governor_id': governor_id,
             'first_player_id': first_player_id,
+            'culture_level': culture_level,
+            'religion_count': religion_count,
         }
 
         return city_data
