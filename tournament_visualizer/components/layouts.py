@@ -150,6 +150,7 @@ def create_chart_card(
     height: str = "400px",
     loading: bool = False,  # Disabled by default to avoid spinner flashes during tab caching
     controls: List = None,
+    info_text: str = None,
 ) -> dbc.Card:
     """Create a card containing a chart.
 
@@ -159,6 +160,7 @@ def create_chart_card(
         height: Chart height
         loading: Whether to show loading spinner (disabled by default)
         controls: Optional list of control components
+        info_text: Optional explanatory text shown below title
 
     Returns:
         Card component with chart
@@ -173,6 +175,15 @@ def create_chart_card(
         chart_component = dcc.Loading(chart_component, type="default")
 
     card_body = [html.H5(title, className="card-title")]
+
+    if info_text:
+        card_body.append(
+            html.P(
+                info_text,
+                className="text-muted small mb-2",
+                style={"fontSize": "0.8rem"},
+            )
+        )
 
     if controls:
         card_body.extend([html.Div(controls, className="mb-3"), html.Hr()])
