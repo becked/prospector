@@ -14,6 +14,140 @@ from .database import TournamentDatabase, get_database
 # Type alias for result filtering (winners/losers)
 ResultFilter = Literal["all", "winners", "losers"] | None
 
+# =============================================================================
+# Science Generation Constants (from docs/science-generation-guide.md)
+# =============================================================================
+# All values are RAW XML values (divide by 10 for in-game display)
+
+# Specialist tier-based science (all specialists produce science from their tier)
+SPECIALIST_TIER_SCIENCE: Dict[str, int] = {
+    "rural": 10,  # Farmer, Miner, Woodcutter, etc.
+    "apprentice": 20,  # All tier 1 urban specialists
+    "master": 30,  # All tier 2 urban specialists
+    "elder": 40,  # All tier 3 urban specialists
+}
+
+# Rural specialists (all produce 10 science)
+RURAL_SPECIALISTS: List[str] = [
+    "SPECIALIST_FARMER",
+    "SPECIALIST_MINER",
+    "SPECIALIST_STONECUTTER",
+    "SPECIALIST_WOODCUTTER",
+    "SPECIALIST_RANCHER",
+    "SPECIALIST_TRAPPER",
+    "SPECIALIST_GARDENER",
+    "SPECIALIST_FISHER",
+]
+
+# Direct science production values per turn (specialists with bonuses + improvements)
+SCIENCE_VALUES: Dict[str, int] = {
+    # Philosophers: tier + bonus (20+20, 30+30, 40+40)
+    "SPECIALIST_PHILOSOPHER_1": 40,
+    "SPECIALIST_PHILOSOPHER_2": 60,
+    "SPECIALIST_PHILOSOPHER_3": 80,
+    # Doctors: tier + bonus (20+0, 30+10, 40+20)
+    "SPECIALIST_DOCTOR_1": 20,
+    "SPECIALIST_DOCTOR_2": 40,
+    "SPECIALIST_DOCTOR_3": 60,
+    # Other urban specialists by tier (tier science only, no bonus)
+    # Tier 1 (Apprentice) - 20 each
+    "SPECIALIST_ACOLYTE_1": 20,
+    "SPECIALIST_MONK_1": 20,
+    "SPECIALIST_PRIEST_1": 20,
+    "SPECIALIST_OFFICER_1": 20,
+    "SPECIALIST_POET_1": 20,
+    "SPECIALIST_SCRIBE_1": 20,
+    "SPECIALIST_SHOPKEEPER_1": 20,
+    "SPECIALIST_BISHOP_1": 20,
+    # Tier 2 (Master) - 30 each
+    "SPECIALIST_ACOLYTE_2": 30,
+    "SPECIALIST_MONK_2": 30,
+    "SPECIALIST_PRIEST_2": 30,
+    "SPECIALIST_OFFICER_2": 30,
+    "SPECIALIST_POET_2": 30,
+    "SPECIALIST_SCRIBE_2": 30,
+    "SPECIALIST_SHOPKEEPER_2": 30,
+    "SPECIALIST_BISHOP_2": 30,
+    # Tier 3 (Elder) - 40 each
+    "SPECIALIST_ACOLYTE_3": 40,
+    "SPECIALIST_MONK_3": 40,
+    "SPECIALIST_PRIEST_3": 40,
+    "SPECIALIST_OFFICER_3": 40,
+    "SPECIALIST_POET_3": 40,
+    "SPECIALIST_SCRIBE_3": 40,
+    "SPECIALIST_SHOPKEEPER_3": 40,
+    "SPECIALIST_BISHOP_3": 40,
+    # Rural specialists - 10 each
+    "SPECIALIST_FARMER": 10,
+    "SPECIALIST_MINER": 10,
+    "SPECIALIST_STONECUTTER": 10,
+    "SPECIALIST_WOODCUTTER": 10,
+    "SPECIALIST_RANCHER": 10,
+    "SPECIALIST_TRAPPER": 10,
+    "SPECIALIST_GARDENER": 10,
+    "SPECIALIST_FISHER": 10,
+    # Improvements (science per turn)
+    "IMPROVEMENT_WATERMILL": 20,
+    "IMPROVEMENT_WINDMILL": 20,
+    "IMPROVEMENT_MONASTERY_CHRISTIANITY": 20,
+    "IMPROVEMENT_MONASTERY_JUDAISM": 20,
+    "IMPROVEMENT_MONASTERY_MANICHAEISM": 20,
+    "IMPROVEMENT_MONASTERY_ZOROASTRIANISM": 20,
+    "IMPROVEMENT_SHRINE_NABU": 10,
+    "IMPROVEMENT_SHRINE_ATHENA": 10,
+    # City Projects (cumulative science per turn - only highest tier is stored)
+    "PROJECT_ARCHIVE_1": 10,  # Cumulative: 10
+    "PROJECT_ARCHIVE_2": 30,  # Cumulative: 10 + 20 = 30
+    "PROJECT_ARCHIVE_3": 70,  # Cumulative: 10 + 20 + 40 = 70
+    "PROJECT_ARCHIVE_4": 150,  # Cumulative: 10 + 20 + 40 + 80 = 150
+}
+
+# Science modifier percentages (additive)
+SCIENCE_MODIFIERS: Dict[str, int] = {
+    "IMPROVEMENT_LIBRARY_1": 10,  # +10%
+    "IMPROVEMENT_LIBRARY_2": 20,  # +20%
+    "IMPROVEMENT_LIBRARY_3": 30,  # +30%
+    "IMPROVEMENT_MUSAEUM": 50,  # +50%
+    "PROJECT_SCIENTIFIC_METHOD": 10,  # +10%
+}
+
+# Sages family names (provide +10 science per specialist in their cities)
+SAGES_FAMILIES: List[str] = [
+    "FAMILY_AMORITE",  # Babylonia
+    "FAMILY_THUTMOSID",  # Egypt
+    "FAMILY_ALCMAEONID",  # Greece
+]
+
+# Clerics family names (provide science modifiers via steles: +10/25/50%)
+CLERICS_FAMILIES: List[str] = [
+    "FAMILY_ERISHUM",  # Assyria
+    "FAMILY_AMARNA",  # Egypt
+    "FAMILY_SASANID",  # Persia
+    "FAMILY_AKSUM_TIGRAYAN",  # Aksum
+]
+
+# Science-affecting laws
+SCIENCE_LAWS: Dict[str, Dict[str, Any]] = {
+    "LAW_CENTRALIZATION": {"bonus": 20, "scope": "capital"},
+    "LAW_CONSTITUTION": {"bonus": 10, "scope": "urban_specialists"},
+    "LAW_PHILOSOPHY": {"bonus": 10, "scope": "forums"},
+}
+
+# Nation with science bonus
+SCIENCE_NATIONS: Dict[str, int] = {
+    "Babylonia": 10,  # +10 science per turn all cities
+}
+
+# Archetype bonuses affecting science
+ARCHETYPE_BONUSES: Dict[str, Dict[str, Any]] = {
+    "Scholar": {"archive_bonus": 20},  # +20 per Archive project while Scholar is ruling
+}
+
+# Character trait bonuses affecting science
+TRAIT_BONUSES: Dict[str, Dict[str, Any]] = {
+    "Intelligent": {"governed_city": 10},  # +10 science to city governed by character
+}
+
 
 class TournamentQueries:
     """Collection of reusable queries for tournament data analysis."""
@@ -2551,7 +2685,9 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, {"match_ids": match_ids, "max_turn": max_turn}).df()
+            return conn.execute(
+                query, {"match_ids": match_ids, "max_turn": max_turn}
+            ).df()
 
     def get_ambition_timeline(self, match_id: int) -> pd.DataFrame:
         """Get ambition/goal timeline for a specific match.
@@ -3031,6 +3167,140 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query, params).df()
+
+    def get_ruler_reign_duration_win_rates(
+        self,
+        exclude_entire_match: bool = False,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get win rates by starting ruler's reign duration, bucketed by quartiles.
+
+        Analyzes how long the starting ruler (succession_order=0) ruled before
+        succession occurred, and correlates reign duration with win rate.
+        Quartiles are calculated dynamically based on the filtered data distribution.
+
+        Args:
+            exclude_entire_match: If True, exclude rulers who ruled the entire match
+                (no succession occurred). Default False (include all).
+            tournament_round: Filter by tournament round numbers
+            bracket: Bracket filter ("Winners", "Losers", "Unknown")
+            min_turns: Minimum total match turns
+            max_turns: Maximum total match turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns:
+            - quartile: 1-4 (1=shortest reigns, 4=longest reigns)
+            - quartile_label: Human-readable label (e.g., "Q1: 1-25 turns")
+            - min_turns: Minimum reign duration in this quartile
+            - max_turns: Maximum reign duration in this quartile
+            - games: Number of games in this quartile
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="r"
+        )
+        params["exclude_entire_match"] = exclude_entire_match
+
+        query = f"""
+        WITH reign_data AS (
+            SELECT
+                r.match_id,
+                r.player_id,
+                r.succession_turn as start_turn,
+                m.total_turns,
+                (
+                    SELECT MIN(r2.succession_turn)
+                    FROM rulers r2
+                    WHERE r2.match_id = r.match_id
+                    AND r2.player_id = r.player_id
+                    AND r2.succession_order > 0
+                ) as next_ruler_turn,
+                CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END as won
+            FROM rulers r
+            JOIN matches m ON r.match_id = m.match_id
+            JOIN match_winners mw ON r.match_id = mw.match_id
+            WHERE r.succession_order = 0
+            AND {where_clause}
+        ),
+        reign_durations AS (
+            SELECT
+                match_id,
+                player_id,
+                CASE
+                    WHEN next_ruler_turn IS NOT NULL THEN next_ruler_turn - start_turn
+                    ELSE total_turns - start_turn
+                END as reign_duration,
+                next_ruler_turn IS NULL as ruled_entire_match,
+                won
+            FROM reign_data
+        ),
+        filtered_reigns AS (
+            SELECT * FROM reign_durations
+            WHERE ($exclude_entire_match = FALSE OR ruled_entire_match = FALSE)
+        ),
+        quartiled AS (
+            SELECT
+                *,
+                NTILE(4) OVER (ORDER BY reign_duration) as quartile
+            FROM filtered_reigns
+        )
+        SELECT
+            quartile,
+            MIN(reign_duration) as min_turns,
+            MAX(reign_duration) as max_turns,
+            COUNT(*) as games,
+            SUM(won) as wins,
+            ROUND(SUM(won) * 100.0 / COUNT(*), 2) as win_rate
+        FROM quartiled
+        GROUP BY quartile
+        ORDER BY quartile
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return df
+
+        # Add human-readable quartile labels
+        df["quartile_label"] = df.apply(
+            lambda row: f"Q{int(row['quartile'])}: {int(row['min_turns'])}-{int(row['max_turns'])} turns",
+            axis=1,
+        )
+
+        return df
 
     def get_nation_counter_pick_matrix(
         self,
@@ -3854,6 +4124,1379 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id, turn_number]).df()
+
+    def get_science_infrastructure_timeline(self, match_id: int) -> pd.DataFrame:
+        """Get time-series of science infrastructure buildup per player.
+
+        Tracks specialists and improvements that produce science across all turns.
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            DataFrame with columns:
+                - turn_number: Game turn
+                - player_id: Player identifier
+                - player_name: Player name
+                - asset_category: 'specialist' or 'improvement'
+                - asset_type: Raw type (e.g., 'SPECIALIST_PHILOSOPHER_1')
+                - count: Number of this asset type
+        """
+        # Science-producing improvements (from docs/science-generation-guide.md)
+        # - Watermills/Windmills: 20 science each
+        # - Monasteries: 20 science each
+        # - Shrines of Nabu/Athena: 10 science each
+        # Note: Libraries and Musaeum are MODIFIERS, not direct producers
+        science_improvements = (
+            "'IMPROVEMENT_WATERMILL', 'IMPROVEMENT_WINDMILL', "
+            "'IMPROVEMENT_MONASTERY_CHRISTIANITY', 'IMPROVEMENT_MONASTERY_JUDAISM', "
+            "'IMPROVEMENT_MONASTERY_MANICHAEISM', 'IMPROVEMENT_MONASTERY_ZOROASTRIANISM', "
+            "'IMPROVEMENT_SHRINE_NABU', 'IMPROVEMENT_SHRINE_ATHENA'"
+        )
+
+        # All specialists produce science (rural=10, apprentice=20, master=30, elder=40)
+        # Plus Philosophers and Doctors get additional bonuses
+        query = f"""
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        ),
+        specialist_counts AS (
+            SELECT
+                t.turn_number,
+                p.player_id,
+                p.player_name,
+                'specialist' as asset_category,
+                t.specialist_type as asset_type,
+                COUNT(*) as count
+            FROM territories t
+            JOIN player_order p ON t.match_id = p.match_id
+                                AND t.owner_player_id = p.match_player_order
+            WHERE t.match_id = ?
+              AND t.specialist_type IS NOT NULL
+            GROUP BY t.turn_number, p.player_id, p.player_name, t.specialist_type
+        ),
+        improvement_counts AS (
+            SELECT
+                t.turn_number,
+                p.player_id,
+                p.player_name,
+                'improvement' as asset_category,
+                t.improvement_type as asset_type,
+                COUNT(*) as count
+            FROM territories t
+            JOIN player_order p ON t.match_id = p.match_id
+                                AND t.owner_player_id = p.match_player_order
+            WHERE t.match_id = ?
+              AND t.improvement_type IN ({science_improvements})
+            GROUP BY t.turn_number, p.player_id, p.player_name, t.improvement_type
+        )
+        SELECT * FROM specialist_counts
+        UNION ALL
+        SELECT * FROM improvement_counts
+        ORDER BY turn_number, player_name, asset_category, asset_type
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, [match_id, match_id]).df()
+
+    def get_science_infrastructure_summary(
+        self, match_id: int, turn_number: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Get science infrastructure summary for hierarchical visualization.
+
+        Returns aggregated counts of science-producing assets for a specific turn.
+        If turn_number is not specified, uses the final turn of the match.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn to get data for (default: final turn)
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - asset_category: 'specialist' or 'improvement'
+                - asset_type: Raw type (e.g., 'SPECIALIST_PHILOSOPHER_1')
+                - count: Total count
+        """
+        if turn_number is None:
+            _, max_turn = self.get_territory_turn_range(match_id)
+            turn_number = max_turn
+
+        # Science-producing improvements (from docs/science-generation-guide.md)
+        # - Watermills/Windmills: 20 science each
+        # - Monasteries: 20 science each
+        # - Shrines of Nabu/Athena: 10 science each
+        # Note: Libraries and Musaeum are MODIFIERS, not direct producers
+        science_improvements = (
+            "'IMPROVEMENT_WATERMILL', 'IMPROVEMENT_WINDMILL', "
+            "'IMPROVEMENT_MONASTERY_CHRISTIANITY', 'IMPROVEMENT_MONASTERY_JUDAISM', "
+            "'IMPROVEMENT_MONASTERY_MANICHAEISM', 'IMPROVEMENT_MONASTERY_ZOROASTRIANISM', "
+            "'IMPROVEMENT_SHRINE_NABU', 'IMPROVEMENT_SHRINE_ATHENA'"
+        )
+
+        # All specialists produce science based on tier
+        query = f"""
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        ),
+        specialist_counts AS (
+            SELECT
+                p.player_id,
+                p.player_name,
+                'specialist' as asset_category,
+                t.specialist_type as asset_type,
+                COUNT(*) as count
+            FROM territories t
+            JOIN player_order p ON t.match_id = p.match_id
+                                AND t.owner_player_id = p.match_player_order
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.specialist_type IS NOT NULL
+            GROUP BY p.player_id, p.player_name, t.specialist_type
+        ),
+        improvement_counts AS (
+            SELECT
+                p.player_id,
+                p.player_name,
+                'improvement' as asset_category,
+                t.improvement_type as asset_type,
+                COUNT(*) as count
+            FROM territories t
+            JOIN player_order p ON t.match_id = p.match_id
+                                AND t.owner_player_id = p.match_player_order
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.improvement_type IN ({science_improvements})
+            GROUP BY p.player_id, p.player_name, t.improvement_type
+        )
+        SELECT * FROM specialist_counts
+        UNION ALL
+        SELECT * FROM improvement_counts
+        ORDER BY player_name, asset_category, asset_type
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(
+                query, [match_id, turn_number, match_id, turn_number]
+            ).df()
+
+    def get_science_modifiers_summary(
+        self, match_id: int, turn_number: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Get science modifier improvements per player.
+
+        Returns Libraries and Musaeum counts with their modifier percentages.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn to get data for (default: final turn)
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - modifier_type: Improvement type (e.g., 'IMPROVEMENT_LIBRARY_1')
+                - modifier_percent: Modifier percentage (e.g., 10 for +10%)
+                - count: Number of this improvement
+        """
+        if turn_number is None:
+            _, max_turn = self.get_territory_turn_range(match_id)
+            turn_number = max_turn
+
+        modifier_improvements = (
+            "'IMPROVEMENT_LIBRARY_1', 'IMPROVEMENT_LIBRARY_2', "
+            "'IMPROVEMENT_LIBRARY_3', 'IMPROVEMENT_MUSAEUM'"
+        )
+
+        query = f"""
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            t.improvement_type as modifier_type,
+            COUNT(*) as count
+        FROM territories t
+        JOIN player_order p ON t.match_id = p.match_id
+                            AND t.owner_player_id = p.match_player_order
+        WHERE t.match_id = ?
+          AND t.turn_number = ?
+          AND t.improvement_type IN ({modifier_improvements})
+        GROUP BY p.player_id, p.player_name, t.improvement_type
+        ORDER BY p.player_name, t.improvement_type
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, [match_id, turn_number]).df()
+
+            # Add Clerics family stele tracking
+            # Clerics families get steles that provide +10/25/50% science modifiers
+            # One stele per Clerics family type (built at family seat)
+            clerics_list = ", ".join(f"'{f}'" for f in CLERICS_FAMILIES)
+            clerics_query = f"""
+            SELECT
+                p.player_id,
+                p.player_name,
+                'CLERICS_STELE' as modifier_type,
+                COUNT(DISTINCT c.family_name) as count
+            FROM cities c
+            JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+            WHERE c.match_id = ?
+              AND c.family_name IN ({clerics_list})
+            GROUP BY p.player_id, p.player_name
+            """
+            clerics_df = conn.execute(clerics_query, [match_id]).df()
+
+        # Add modifier_percent column based on SCIENCE_MODIFIERS constant
+        if not df.empty:
+            df["modifier_percent"] = df["modifier_type"].map(
+                lambda x: SCIENCE_MODIFIERS.get(x, 0)
+            )
+        else:
+            df["modifier_percent"] = []
+
+        # Add Clerics stele data with estimated modifier
+        # Conservative estimate: +10% per Clerics city (Stele I equivalent)
+        if not clerics_df.empty:
+            clerics_df["modifier_percent"] = 10  # Conservative: assume Stele I
+            df = pd.concat([df, clerics_df], ignore_index=True)
+
+        return df
+
+    def get_science_projects_summary(self, match_id: int) -> pd.DataFrame:
+        """Get science-producing city projects per player.
+
+        Returns Archive projects and Scientific Method with their science values.
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - project_type: Project type (e.g., 'PROJECT_ARCHIVE_1')
+                - science_value: Science per turn from this project
+                - count: Number of times completed
+                - is_modifier: True if this is a modifier (Scientific Method)
+        """
+        query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            cp.project_type,
+            SUM(cp.count) as count
+        FROM city_projects cp
+        JOIN cities c ON cp.match_id = c.match_id AND cp.city_id = c.city_id
+        JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        WHERE cp.match_id = ?
+          AND (cp.project_type LIKE 'PROJECT_ARCHIVE_%'
+               OR cp.project_type = 'PROJECT_SCIENTIFIC_METHOD')
+        GROUP BY p.player_id, p.player_name, cp.project_type
+        ORDER BY p.player_name, cp.project_type
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, [match_id]).df()
+
+        # Add science_value and is_modifier columns
+        if not df.empty:
+            df["science_value"] = df["project_type"].map(
+                lambda x: SCIENCE_VALUES.get(x, 0)
+            )
+            df["is_modifier"] = df["project_type"] == "PROJECT_SCIENTIFIC_METHOD"
+            # For Scientific Method, use modifier value instead
+            df.loc[df["is_modifier"], "science_value"] = 0
+            df["modifier_percent"] = df["project_type"].map(
+                lambda x: SCIENCE_MODIFIERS.get(x, 0)
+            )
+        else:
+            df["science_value"] = []
+            df["is_modifier"] = []
+            df["modifier_percent"] = []
+
+        return df
+
+    def get_science_bonuses_summary(self, match_id: int) -> pd.DataFrame:
+        """Get nation bonuses, Sages family cities, and science laws per player.
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - bonus_type: 'nation', 'sages_family', or 'law'
+                - bonus_source: Specific source (e.g., 'Babylonia', 'LAW_CENTRALIZATION')
+                - science_value: Estimated science contribution
+                - details: Additional context
+        """
+        results = []
+
+        # 1. Get nation bonuses
+        nation_query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            p.civilization,
+            (SELECT COUNT(*) FROM cities c WHERE c.match_id = p.match_id AND c.player_id = p.player_id) as city_count
+        FROM players p
+        WHERE p.match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            nations_df = conn.execute(nation_query, [match_id]).df()
+
+        for _, row in nations_df.iterrows():
+            civ = row["civilization"]
+            if civ in SCIENCE_NATIONS:
+                bonus_per_city = SCIENCE_NATIONS[civ]
+                total_bonus = bonus_per_city * row["city_count"]
+                results.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_name": row["player_name"],
+                        "bonus_type": "nation",
+                        "bonus_source": civ,
+                        "science_value": total_bonus,
+                        "details": f"+{bonus_per_city}/city × {row['city_count']} cities",
+                    }
+                )
+
+        # 2. Get Sages family cities and specialist counts
+        # First get the Sages city info
+        sages_cities_query = """
+        SELECT
+            c.player_id,
+            p.player_name,
+            c.city_id,
+            c.city_name
+        FROM cities c
+        JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        WHERE c.match_id = ?
+          AND c.family_name IN ('FAMILY_AMORITE', 'FAMILY_THUTMOSID', 'FAMILY_ALCMAEONID')
+        """
+        with self.db.get_connection() as conn:
+            sages_cities_df = conn.execute(sages_cities_query, [match_id]).df()
+
+        if not sages_cities_df.empty:
+            # Try to count specialists in Sages cities using city_id in territories
+            # This requires the city_id column to be populated (after re-import)
+            try:
+                sages_specialist_query = """
+                WITH sages_cities AS (
+                    SELECT city_id, player_id
+                    FROM cities
+                    WHERE match_id = ?
+                      AND family_name IN ('FAMILY_AMORITE', 'FAMILY_THUTMOSID', 'FAMILY_ALCMAEONID')
+                ),
+                final_turn AS (
+                    SELECT MAX(turn_number) as max_turn
+                    FROM territories
+                    WHERE match_id = ?
+                )
+                SELECT
+                    sc.player_id,
+                    COUNT(*) as specialist_count
+                FROM territories t
+                JOIN sages_cities sc ON t.city_id = sc.city_id
+                CROSS JOIN final_turn ft
+                WHERE t.match_id = ?
+                  AND t.turn_number = ft.max_turn
+                  AND t.specialist_type IS NOT NULL
+                  AND t.city_id IS NOT NULL
+                GROUP BY sc.player_id
+                """
+                with self.db.get_connection() as conn:
+                    specialist_df = conn.execute(
+                        sages_specialist_query, [match_id, match_id, match_id]
+                    ).df()
+
+                # If we got specialist counts, use them
+                if not specialist_df.empty:
+                    for player_id in sages_cities_df["player_id"].unique():
+                        player_name = sages_cities_df[
+                            sages_cities_df["player_id"] == player_id
+                        ]["player_name"].iloc[0]
+                        city_count = len(
+                            sages_cities_df[sages_cities_df["player_id"] == player_id]
+                        )
+
+                        # Get specialist count for this player
+                        player_specialists = specialist_df[
+                            specialist_df["player_id"] == player_id
+                        ]
+                        specialist_count = (
+                            int(player_specialists["specialist_count"].iloc[0])
+                            if not player_specialists.empty
+                            else 0
+                        )
+
+                        # Sages bonus is now tracked per-city (subject to Library modifiers)
+                        # Show details for informational purposes but don't add to bonuses
+                        if specialist_count > 0:
+                            results.append(
+                                {
+                                    "player_id": player_id,
+                                    "player_name": player_name,
+                                    "bonus_type": "sages_family",
+                                    "bonus_source": "Sages Family",
+                                    "science_value": 0,  # Tracked per-city, not as flat bonus
+                                    "details": f"+10 × {specialist_count} specialists in {city_count} Sages cities (per-city)",
+                                }
+                            )
+                        else:
+                            # Has Sages cities but no specialists yet
+                            results.append(
+                                {
+                                    "player_id": player_id,
+                                    "player_name": player_name,
+                                    "bonus_type": "sages_family",
+                                    "bonus_source": "Sages Family",
+                                    "science_value": 0,
+                                    "details": f"{city_count} Sages cities (no specialists)",
+                                }
+                            )
+                else:
+                    # city_id data not available yet, show placeholder
+                    for player_id in sages_cities_df["player_id"].unique():
+                        player_name = sages_cities_df[
+                            sages_cities_df["player_id"] == player_id
+                        ]["player_name"].iloc[0]
+                        city_count = len(
+                            sages_cities_df[sages_cities_df["player_id"] == player_id]
+                        )
+                        results.append(
+                            {
+                                "player_id": player_id,
+                                "player_name": player_name,
+                                "bonus_type": "sages_family",
+                                "bonus_source": "Sages Family",
+                                "science_value": 0,
+                                "details": f"{city_count} Sages cities (+10/specialist, re-import needed)",
+                            }
+                        )
+            except Exception:
+                # city_id column doesn't exist or query failed, show placeholder
+                for player_id in sages_cities_df["player_id"].unique():
+                    player_name = sages_cities_df[
+                        sages_cities_df["player_id"] == player_id
+                    ]["player_name"].iloc[0]
+                    city_count = len(
+                        sages_cities_df[sages_cities_df["player_id"] == player_id]
+                    )
+                    results.append(
+                        {
+                            "player_id": player_id,
+                            "player_name": player_name,
+                            "bonus_type": "sages_family",
+                            "bonus_source": "Sages Family",
+                            "science_value": 0,
+                            "details": f"{city_count} Sages cities (+10/specialist, re-import needed)",
+                        }
+                    )
+
+        # 3. Get science laws (deduplicated - laws can be adopted multiple times)
+        laws_query = """
+        SELECT DISTINCT
+            p.player_id,
+            p.player_name,
+            json_extract_string(e.event_data, '$.law') as law
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.match_id = ?
+          AND e.event_type = 'LAW_ADOPTED'
+          AND json_extract_string(e.event_data, '$.law') IN ('LAW_CENTRALIZATION', 'LAW_CONSTITUTION', 'LAW_PHILOSOPHY')
+        """
+        with self.db.get_connection() as conn:
+            laws_df = conn.execute(laws_query, [match_id]).df()
+
+            for _, row in laws_df.iterrows():
+                law = row["law"]
+                player_id = row["player_id"]
+                player_name = row["player_name"]
+
+                if law == "LAW_CENTRALIZATION":
+                    # +20 × capital culture level (from effectCity.xml)
+                    capital_query = """
+                    SELECT culture_level
+                    FROM cities
+                    WHERE match_id = ? AND player_id = ? AND is_capital = TRUE
+                    """
+                    capital_df = conn.execute(
+                        capital_query, [match_id, player_id]
+                    ).df()
+                    culture_level = (
+                        int(capital_df["culture_level"].iloc[0])
+                        if not capital_df.empty and capital_df["culture_level"].iloc[0] is not None
+                        else 2  # Default to Developing
+                    )
+                    science_value = 20 * culture_level
+                    results.append(
+                        {
+                            "player_id": player_id,
+                            "player_name": player_name,
+                            "bonus_type": "law",
+                            "bonus_source": law,
+                            "science_value": science_value,
+                            "details": f"+{science_value} (capital culture {culture_level})",
+                        }
+                    )
+
+                elif law == "LAW_CONSTITUTION":
+                    # +10 per urban specialist
+                    # Build exclusion list for rural specialists
+                    rural_list = ", ".join(f"'{s}'" for s in RURAL_SPECIALISTS)
+                    urban_query = f"""
+                    SELECT COUNT(*) as urban_count
+                    FROM territories t
+                    WHERE t.match_id = ?
+                      AND t.owner_player_id = ?
+                      AND t.turn_number = (
+                          SELECT MAX(turn_number) FROM territories WHERE match_id = ?
+                      )
+                      AND t.specialist_type IS NOT NULL
+                      AND t.specialist_type NOT IN ({rural_list})
+                    """
+                    urban_df = conn.execute(
+                        urban_query, [match_id, player_id, match_id]
+                    ).df()
+                    urban_count = (
+                        int(urban_df["urban_count"].iloc[0])
+                        if not urban_df.empty
+                        else 0
+                    )
+                    science_value = urban_count * 10
+                    results.append(
+                        {
+                            "player_id": player_id,
+                            "player_name": player_name,
+                            "bonus_type": "law",
+                            "bonus_source": law,
+                            "science_value": science_value,
+                            "details": f"+10 × {urban_count} urban specialists",
+                        }
+                    )
+
+                elif law == "LAW_PHILOSOPHY":
+                    # +10 per forum project
+                    forum_query = """
+                    SELECT COALESCE(SUM(cp.count), 0) as forum_count
+                    FROM city_projects cp
+                    JOIN cities c ON cp.match_id = c.match_id AND cp.city_id = c.city_id
+                    WHERE cp.match_id = ?
+                      AND c.player_id = ?
+                      AND cp.project_type LIKE 'PROJECT_FORUM%'
+                    """
+                    forum_df = conn.execute(forum_query, [match_id, player_id]).df()
+                    forum_count = (
+                        int(forum_df["forum_count"].iloc[0])
+                        if not forum_df.empty
+                        else 0
+                    )
+                    science_value = forum_count * 10
+                    results.append(
+                        {
+                            "player_id": player_id,
+                            "player_name": player_name,
+                            "bonus_type": "law",
+                            "bonus_source": law,
+                            "science_value": science_value,
+                            "details": f"+10 × {forum_count} forums",
+                        }
+                    )
+
+        # 4. Get Scholar archetype bonus (+20 per Archive while Scholar is ruling)
+        # Find the active ruler at the final turn for each player
+        scholar_query = """
+        WITH final_turn AS (
+            SELECT total_turns FROM matches WHERE match_id = ?
+        ),
+        active_rulers AS (
+            -- Get the ruler who was in power at the final turn
+            -- (highest succession_turn that's <= final_turn, or death_turn IS NULL)
+            SELECT
+                r.player_id,
+                r.archetype,
+                r.ruler_name
+            FROM rulers r
+            CROSS JOIN final_turn ft
+            WHERE r.match_id = ?
+              AND r.succession_turn <= ft.total_turns
+              AND (r.death_turn IS NULL OR r.death_turn > ft.total_turns)
+        ),
+        archive_counts AS (
+            SELECT
+                c.player_id,
+                COUNT(*) as archive_count
+            FROM city_projects cp
+            JOIN cities c ON cp.match_id = c.match_id AND cp.city_id = c.city_id
+            WHERE cp.match_id = ?
+              AND cp.project_type LIKE 'PROJECT_ARCHIVE%'
+            GROUP BY c.player_id
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            ar.archetype,
+            ar.ruler_name,
+            COALESCE(ac.archive_count, 0) as archive_count
+        FROM players p
+        LEFT JOIN active_rulers ar ON p.player_id = ar.player_id
+        LEFT JOIN archive_counts ac ON p.player_id = ac.player_id
+        WHERE p.match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            scholar_df = conn.execute(
+                scholar_query, [match_id, match_id, match_id, match_id]
+            ).df()
+
+        for _, row in scholar_df.iterrows():
+            archetype = row["archetype"]
+            if archetype in ARCHETYPE_BONUSES:
+                bonus_info = ARCHETYPE_BONUSES[archetype]
+                archive_bonus = bonus_info.get("archive_bonus", 0)
+                archive_count = row["archive_count"]
+                if archive_count > 0 and archive_bonus > 0:
+                    total_bonus = archive_bonus * archive_count
+                    results.append(
+                        {
+                            "player_id": row["player_id"],
+                            "player_name": row["player_name"],
+                            "bonus_type": "archetype",
+                            "bonus_source": f"{archetype} ({row['ruler_name']})",
+                            "science_value": total_bonus,
+                            "details": f"+{archive_bonus}/Archive × {archive_count} Archives",
+                        }
+                    )
+
+        # 5. Get Intelligent trait bonus (+10 × culture level to governed city)
+        # Governor must have the Intelligent trait
+        # Per Reference XML: EFFECTCITY_TRAIT_INTELLIGENT gives +10 science per culture level
+        intelligent_query = """
+        SELECT
+            c.player_id,
+            p.player_name,
+            c.city_name,
+            c.culture_level,
+            c.is_capital,
+            c.founded_turn,
+            r.ruler_name,
+            r.character_id
+        FROM cities c
+        JOIN rulers r ON c.match_id = r.match_id AND c.governor_id = r.character_id
+        JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        WHERE c.match_id = ?
+          AND c.governor_id IS NOT NULL
+          AND r.starting_trait = 'Intelligent'
+        """
+        with self.db.get_connection() as conn:
+            intelligent_df = conn.execute(intelligent_query, [match_id]).df()
+
+        # Calculate bonus per city using actual culture level from database
+        # Fall back to estimate if culture_level not available (old data)
+        if not intelligent_df.empty:
+            for player_id in intelligent_df["player_id"].unique():
+                player_cities = intelligent_df[intelligent_df["player_id"] == player_id]
+                player_name = player_cities["player_name"].iloc[0]
+                governor_names = player_cities["ruler_name"].unique()
+
+                total_bonus = 0
+                city_details = []
+                for _, city in player_cities.iterrows():
+                    # Use actual culture level if available, otherwise estimate
+                    if city["culture_level"] is not None:
+                        culture_level = int(city["culture_level"])
+                    elif city["is_capital"] or (
+                        city["founded_turn"] is not None and city["founded_turn"] < 20
+                    ):
+                        culture_level = 3
+                    else:
+                        culture_level = 2
+
+                    city_bonus = 10 * culture_level  # +10 × culture level
+                    total_bonus += city_bonus
+                    city_details.append(f"{city['city_name']}:+{city_bonus // 10}")
+
+                results.append(
+                    {
+                        "player_id": player_id,
+                        "player_name": player_name,
+                        "bonus_type": "trait",
+                        "bonus_source": f"Intelligent ({', '.join(governor_names)})",
+                        "science_value": total_bonus,
+                        "details": f"+10×culture: {', '.join(city_details)}",
+                    }
+                )
+
+        # 5b. Get Intelligent Ruler bonus (+5 × culture level ALL cities)
+        # Per Reference XML: EFFECTCITY_TRAIT_INTELLIGENT_ALL gives +5 science per culture
+        # level to ALL cities when the ruler has the Intelligent trait
+        # Find active ruler (succession_turn <= current and not dead)
+        intelligent_ruler_query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            r.ruler_name,
+            (SELECT COUNT(*) FROM cities c
+             WHERE c.match_id = p.match_id AND c.player_id = p.player_id) as city_count,
+            (SELECT COALESCE(SUM(COALESCE(c.culture_level, 2)), 0) FROM cities c
+             WHERE c.match_id = p.match_id AND c.player_id = p.player_id) as total_culture
+        FROM players p
+        JOIN rulers r ON r.match_id = p.match_id
+            AND r.player_id = p.player_id
+        WHERE p.match_id = ?
+          AND r.starting_trait = 'Intelligent'
+          AND r.succession_turn <= (
+              SELECT MAX(turn_number) FROM territories WHERE match_id = p.match_id
+          )
+          AND (r.death_turn IS NULL OR r.death_turn > (
+              SELECT MAX(turn_number) FROM territories WHERE match_id = p.match_id
+          ))
+        """
+        with self.db.get_connection() as conn:
+            ruler_intelligent_df = conn.execute(
+                intelligent_ruler_query, [match_id]
+            ).df()
+
+        if not ruler_intelligent_df.empty:
+            for _, row in ruler_intelligent_df.iterrows():
+                # Use actual total culture level from database
+                # +5 science per culture level across all cities
+                total_culture = int(row["total_culture"]) if row["total_culture"] else 0
+                city_count = row["city_count"]
+                total_bonus = 5 * total_culture
+                avg_culture = total_culture / city_count if city_count > 0 else 0
+                results.append(
+                    {
+                        "player_id": row["player_id"],
+                        "player_name": row["player_name"],
+                        "bonus_type": "trait",
+                        "bonus_source": "Intelligent Ruler",
+                        "science_value": total_bonus,
+                        "details": f"{row['ruler_name']}: +5×{total_culture} culture ({city_count} cities, avg {avg_culture:.1f})",
+                    }
+                )
+
+        # 6. Get Competitive Mode bonus (+40 science/turn for all players)
+        competitive_query = """
+        SELECT game_options
+        FROM match_metadata
+        WHERE match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            meta_df = conn.execute(competitive_query, [match_id]).df()
+
+            if not meta_df.empty and meta_df["game_options"].iloc[0]:
+                import json
+
+                try:
+                    game_options = json.loads(meta_df["game_options"].iloc[0])
+                    # Get player list once for game settings
+                    players_query = """
+                    SELECT player_id, player_name FROM players WHERE match_id = ?
+                    """
+                    players_df = conn.execute(players_query, [match_id]).df()
+
+                    if game_options.get("GAMEOPTION_COMPETITIVE_MODE"):
+                        # Add +40 science to all players in this match
+                        for _, row in players_df.iterrows():
+                            results.append(
+                                {
+                                    "player_id": row["player_id"],
+                                    "player_name": row["player_name"],
+                                    "bonus_type": "game_setting",
+                                    "bonus_source": "Competitive Mode",
+                                    "science_value": 40,
+                                    "details": "+40/turn (game setting)",
+                                }
+                            )
+
+                    if game_options.get("GAMEOPTION_NO_STARTING_TECHS"):
+                        # Add +80 science to all players in this match
+                        # Per effectPlayer.xml: EFFECTPLAYER_NO_STARTING_TECHS
+                        for _, row in players_df.iterrows():
+                            results.append(
+                                {
+                                    "player_id": row["player_id"],
+                                    "player_name": row["player_name"],
+                                    "bonus_type": "game_setting",
+                                    "bonus_source": "No Starting Techs",
+                                    "science_value": 80,
+                                    "details": "+80/turn (game setting)",
+                                }
+                            )
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Invalid JSON or None value
+
+        # 7. Get Dualism theology bonus (+10 science per religion level)
+        # Per Reference XML: EFFECTCITY_THEOLOGY_DUALISM gives +10 per religion
+        # (aiYieldRateReligion means per religion level in cities)
+        # Description format: "{Religion} Dualism established by {Nation} ({Player})"
+        dualism_query = """
+        SELECT DISTINCT
+            p.player_id,
+            p.player_name,
+            e.description,
+            (SELECT COALESCE(SUM(COALESCE(c.religion_count, 2)), 0)
+             FROM cities c WHERE c.match_id = p.match_id AND c.player_id = p.player_id
+            ) as total_religions
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.match_id = ?
+          AND e.event_type = 'THEOLOGY_ESTABLISHED'
+          AND (e.description LIKE '%Dualism%' OR e.description LIKE '%Dualismus%')
+        """
+        with self.db.get_connection() as conn:
+            dualism_df = conn.execute(dualism_query, [match_id]).df()
+
+        if not dualism_df.empty:
+            for player_id in dualism_df["player_id"].unique():
+                player_rows = dualism_df[dualism_df["player_id"] == player_id]
+                player_name = player_rows["player_name"].iloc[0]
+                # Count distinct Dualism theologies (could be multiple religions)
+                dualism_count = len(player_rows)
+                # Use actual total religion count from database, or estimate 2 per city
+                total_religions = int(player_rows["total_religions"].iloc[0]) if player_rows["total_religions"].iloc[0] else 0
+                # +10 per religion level across all cities
+                total_bonus = 10 * total_religions if total_religions > 0 else 10 * dualism_count * 2
+                results.append(
+                    {
+                        "player_id": player_id,
+                        "player_name": player_name,
+                        "bonus_type": "theology",
+                        "bonus_source": "Dualism",
+                        "science_value": total_bonus,
+                        "details": f"+10×{total_religions} religions ({dualism_count} Dualism theolog{'ies' if dualism_count > 1 else 'y'})",
+                    }
+                )
+
+        return pd.DataFrame(results)
+
+    def get_science_total_estimate(self, match_id: int) -> pd.DataFrame:
+        """Get estimated total science production per player.
+
+        Combines all science sources and modifiers into an estimate,
+        along with the actual science rate and happiness penalty from yield history.
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - specialists_science: Science from specialists (display units)
+                - improvements_science: Science from improvements (display units)
+                - projects_science: Science from city projects (display units)
+                - bonuses_science: Science from nation/laws (display units)
+                - base_science: Total before modifiers (display units)
+                - modifier_percent: Total modifier percentage (positive bonuses)
+                - estimated_total: Final estimated science/turn (from tracked sources)
+                - actual_science: Actual science/turn from yield history
+                - net_happiness: Net happiness value (negative = unhappy)
+                - happiness_penalty_pct: Estimated penalty % from unhappiness
+        """
+        # Get per-city science breakdown with modifiers applied
+        city_science_df = self.get_science_by_city(match_id)
+
+        # Get empire-wide bonuses (Competitive Mode, laws)
+        bonuses_df = self.get_science_bonuses_summary(match_id)
+
+        # Get player list with actual science rate and happiness from final turn
+        players_query = """
+        WITH final_science AS (
+            SELECT
+                yh.player_id,
+                yh.amount / 10.0 as actual_science
+            FROM player_yield_history yh
+            WHERE yh.match_id = ?
+              AND yh.resource_type = 'YIELD_SCIENCE'
+              AND yh.turn_number = (
+                  SELECT MAX(turn_number)
+                  FROM player_yield_history
+                  WHERE match_id = yh.match_id
+                    AND player_id = yh.player_id
+                    AND resource_type = 'YIELD_SCIENCE'
+              )
+        ),
+        final_happiness AS (
+            SELECT
+                yh.player_id,
+                yh.amount / 10.0 as net_happiness
+            FROM player_yield_history yh
+            WHERE yh.match_id = ?
+              AND yh.resource_type = 'YIELD_HAPPINESS'
+              AND yh.turn_number = (
+                  SELECT MAX(turn_number)
+                  FROM player_yield_history
+                  WHERE match_id = yh.match_id
+                    AND player_id = yh.player_id
+                    AND resource_type = 'YIELD_HAPPINESS'
+              )
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            COALESCE(fs.actual_science, 0) as actual_science,
+            COALESCE(fh.net_happiness, 0) as net_happiness
+        FROM players p
+        LEFT JOIN final_science fs ON p.player_id = fs.player_id
+        LEFT JOIN final_happiness fh ON p.player_id = fh.player_id
+        WHERE p.match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            players_df = conn.execute(
+                players_query, [match_id, match_id, match_id]
+            ).df()
+
+        results = []
+        for _, player in players_df.iterrows():
+            pid = player["player_id"]
+            pname = player["player_name"]
+            actual = player["actual_science"]
+            net_happiness = player["net_happiness"]
+
+            # Calculate happiness penalty (-5% per level of negative happiness)
+            happiness_penalty_pct = 0
+            if net_happiness < 0:
+                happiness_levels = int(abs(net_happiness) / 10)
+                happiness_penalty_pct = happiness_levels * 5
+
+            # Get per-city totals for this player
+            player_cities = city_science_df[city_science_df["player_id"] == pid]
+
+            if not player_cities.empty:
+                # Sum raw values from cities (includes Sages bonus, before modifiers)
+                specialist_science = player_cities["specialist_science"].sum()
+                improvement_science = player_cities["improvement_science"].sum()
+                project_science = player_cities["project_science"].sum()
+                sages_bonus = player_cities["sages_bonus"].sum()
+
+                # Sum modified science (modifiers already applied per-city)
+                city_modified_total = player_cities["modified_science"].sum()
+
+                # Calculate average modifier for display
+                base_total = player_cities["base_science"].sum()
+                if base_total > 0:
+                    avg_modifier = ((city_modified_total / base_total) - 1) * 100
+                else:
+                    avg_modifier = 0
+            else:
+                specialist_science = 0
+                improvement_science = 0
+                project_science = 0
+                sages_bonus = 0
+                city_modified_total = 0
+                avg_modifier = 0
+
+            # Add empire-wide bonuses (Competitive Mode, Centralization, Constitution, Philosophy)
+            # These are NOT subject to city modifiers
+            bonus_science = 0
+            if not bonuses_df.empty:
+                player_bonuses = bonuses_df[bonuses_df["player_id"] == pid]
+                bonus_science = player_bonuses["science_value"].sum()
+
+            # Convert from raw XML values to display values (divide by 10)
+            specialist_science_display = specialist_science / 10.0
+            improvement_science_display = improvement_science / 10.0
+            project_science_display = project_science / 10.0
+            sages_bonus_display = sages_bonus / 10.0
+            bonus_science_display = bonus_science / 10.0
+            city_modified_display = city_modified_total / 10.0
+
+            # Base science = city production (without modifiers) + empire bonuses
+            base_science = (
+                specialist_science + improvement_science + project_science + sages_bonus
+            ) / 10.0 + bonus_science_display
+
+            # Estimated total = city production (with modifiers) + empire bonuses
+            estimated_total = city_modified_display + bonus_science_display
+
+            results.append(
+                {
+                    "player_id": pid,
+                    "player_name": pname,
+                    "specialists_science": specialist_science_display,
+                    "improvements_science": improvement_science_display,
+                    "projects_science": project_science_display + sages_bonus_display,
+                    "bonuses_science": bonus_science_display,
+                    "base_science": round(base_science, 1),
+                    "modifier_percent": round(avg_modifier, 1),
+                    "estimated_total": round(estimated_total, 1),
+                    "actual_science": actual,
+                    "net_happiness": net_happiness,
+                    "happiness_penalty_pct": happiness_penalty_pct,
+                }
+            )
+
+        return pd.DataFrame(results)
+
+    def get_science_by_city(
+        self, match_id: int, turn_number: Optional[int] = None
+    ) -> pd.DataFrame:
+        """Get per-city science breakdown with modifiers correctly applied.
+
+        Calculates science at the city level, applying modifiers (Library, Musaeum,
+        Scientific Method, Clerics steles) to each city's base science before summing.
+
+        Args:
+            match_id: Match to query
+            turn_number: Turn to get data for (default: final turn)
+
+        Returns:
+            DataFrame with columns:
+                - player_id: Player identifier
+                - player_name: Player name
+                - city_id: City identifier
+                - city_name: City name
+                - family_name: City's family
+                - is_capital: Whether this is the capital
+                - culture_level: City culture level (1-4)
+                - culture_level_modifier: Culture modifier % (10/20/50/100)
+                - specialist_science: Raw science from specialists
+                - improvement_science: Raw science from improvements
+                - project_science: Raw science from city projects (Archives)
+                - sages_bonus: Bonus from Sages family (+10 per specialist)
+                - base_science: Total before modifiers
+                - library_modifier: Library modifier % (highest tier)
+                - musaeum_modifier: Musaeum modifier % (50 if present)
+                - scientific_method_modifier: Scientific Method modifier % (10 if present)
+                - clerics_stele_modifier: Clerics stele modifier % (10 if Clerics family)
+                - total_modifier: Sum of all modifiers (including culture level)
+                - modified_science: base_science * (1 + total_modifier/100)
+        """
+        if turn_number is None:
+            _, max_turn = self.get_territory_turn_range(match_id)
+            turn_number = max_turn
+
+        # Build list of science-producing improvements for SQL
+        science_improvements = (
+            "'IMPROVEMENT_WATERMILL', 'IMPROVEMENT_WINDMILL', "
+            "'IMPROVEMENT_MONASTERY_CHRISTIANITY', 'IMPROVEMENT_MONASTERY_JUDAISM', "
+            "'IMPROVEMENT_MONASTERY_MANICHAEISM', 'IMPROVEMENT_MONASTERY_ZOROASTRIANISM', "
+            "'IMPROVEMENT_SHRINE_NABU', 'IMPROVEMENT_SHRINE_ATHENA'"
+        )
+
+        # Build Sages family list for SQL
+        sages_list = ", ".join(f"'{f}'" for f in SAGES_FAMILIES)
+
+        # Build Clerics family list for SQL
+        clerics_list = ", ".join(f"'{f}'" for f in CLERICS_FAMILIES)
+
+        query = f"""
+        WITH player_order AS (
+            SELECT
+                match_id,
+                player_id,
+                player_name,
+                ROW_NUMBER() OVER (
+                    PARTITION BY match_id ORDER BY player_id
+                ) as match_player_order
+            FROM players
+        ),
+        -- Get specialists by city
+        city_specialists AS (
+            SELECT
+                t.city_id,
+                t.specialist_type,
+                COUNT(*) as count
+            FROM territories t
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.city_id IS NOT NULL
+              AND t.specialist_type IS NOT NULL
+            GROUP BY t.city_id, t.specialist_type
+        ),
+        -- Get science-producing improvements by city
+        city_improvements AS (
+            SELECT
+                t.city_id,
+                t.improvement_type,
+                COUNT(*) as count
+            FROM territories t
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.city_id IS NOT NULL
+              AND t.improvement_type IN ({science_improvements})
+            GROUP BY t.city_id, t.improvement_type
+        ),
+        -- Get Library modifiers by city (highest tier only)
+        city_libraries AS (
+            SELECT
+                t.city_id,
+                MAX(CASE
+                    WHEN t.improvement_type = 'IMPROVEMENT_LIBRARY_3' THEN 30
+                    WHEN t.improvement_type = 'IMPROVEMENT_LIBRARY_2' THEN 20
+                    WHEN t.improvement_type = 'IMPROVEMENT_LIBRARY_1' THEN 10
+                    ELSE 0
+                END) as library_modifier
+            FROM territories t
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.city_id IS NOT NULL
+              AND t.improvement_type LIKE 'IMPROVEMENT_LIBRARY%'
+            GROUP BY t.city_id
+        ),
+        -- Get Musaeum by city
+        city_musaeum AS (
+            SELECT
+                t.city_id,
+                50 as musaeum_modifier
+            FROM territories t
+            WHERE t.match_id = ?
+              AND t.turn_number = ?
+              AND t.city_id IS NOT NULL
+              AND t.improvement_type = 'IMPROVEMENT_MUSAEUM'
+            GROUP BY t.city_id
+        ),
+        -- Get Scientific Method projects by city
+        city_scientific_method AS (
+            SELECT
+                cp.city_id,
+                10 as scientific_method_modifier
+            FROM city_projects cp
+            WHERE cp.match_id = ?
+              AND cp.project_type = 'PROJECT_SCIENTIFIC_METHOD'
+        ),
+        -- Get other science modifier projects by city
+        city_other_modifiers AS (
+            SELECT
+                cp.city_id,
+                SUM(CASE
+                    WHEN cp.project_type = 'PROJECT_MIDWIFERY' THEN 20
+                    WHEN cp.project_type = 'PROJECT_PAGAN_COLLEGES' THEN 20
+                    WHEN cp.project_type = 'PROJECT_PAGAN_CULT_WISDOM' THEN 20
+                    WHEN cp.project_type = 'PROJECT_AVESTA_TREASURY' THEN 10
+                    WHEN cp.project_type = 'PROJECT_TERRACE_WISDOM_SHRINE' THEN 10
+                    ELSE 0
+                END) as other_modifier
+            FROM city_projects cp
+            WHERE cp.match_id = ?
+              AND cp.project_type IN (
+                  'PROJECT_MIDWIFERY', 'PROJECT_PAGAN_COLLEGES',
+                  'PROJECT_PAGAN_CULT_WISDOM', 'PROJECT_AVESTA_TREASURY',
+                  'PROJECT_TERRACE_WISDOM_SHRINE'
+              )
+            GROUP BY cp.city_id
+        ),
+        -- Get Archive projects by city
+        city_archives AS (
+            SELECT
+                cp.city_id,
+                MAX(CASE
+                    WHEN cp.project_type = 'PROJECT_ARCHIVE_4' THEN 150
+                    WHEN cp.project_type = 'PROJECT_ARCHIVE_3' THEN 70
+                    WHEN cp.project_type = 'PROJECT_ARCHIVE_2' THEN 30
+                    WHEN cp.project_type = 'PROJECT_ARCHIVE_1' THEN 10
+                    ELSE 0
+                END) as archive_science
+            FROM city_projects cp
+            WHERE cp.match_id = ?
+              AND cp.project_type LIKE 'PROJECT_ARCHIVE%'
+            GROUP BY cp.city_id
+        ),
+        -- Get other science-producing projects by city
+        city_other_projects AS (
+            SELECT
+                cp.city_id,
+                SUM(CASE
+                    WHEN cp.project_type = 'PROJECT_LOCAL_ASCETIC' THEN 20
+                    WHEN cp.project_type = 'PROJECT_GOVERNOR' THEN 20
+                    WHEN cp.project_type = 'PROJECT_NEIGHBORS_FEAST_PERSIA' THEN 20
+                    WHEN cp.project_type = 'PROJECT_CONVOY' THEN 10
+                    ELSE 0
+                END) as other_project_science
+            FROM city_projects cp
+            WHERE cp.match_id = ?
+              AND cp.project_type IN (
+                  'PROJECT_LOCAL_ASCETIC', 'PROJECT_GOVERNOR',
+                  'PROJECT_NEIGHBORS_FEAST_PERSIA', 'PROJECT_CONVOY'
+              )
+            GROUP BY cp.city_id
+        )
+        SELECT
+            p.player_id,
+            p.player_name,
+            c.city_id,
+            c.city_name,
+            c.family_name,
+            c.is_capital,
+            c.culture_level,
+            -- Culture level modifier: Weak=10%, Developing=20%, Strong=50%, Legendary=100%
+            CASE c.culture_level
+                WHEN 1 THEN 10
+                WHEN 2 THEN 20
+                WHEN 3 THEN 50
+                WHEN 4 THEN 100
+                ELSE 0  -- No modifier if culture level unknown
+            END as culture_level_modifier,
+            -- Base city science: every city generates +10 science (EFFECTCITY_BASE)
+            10 as base_city_science,
+            -- ALL specialists give science via EffectCityExtra bonuses!
+            -- Rural specialists: +10 (EFFECTCITY_SPECIALIST_RURAL)
+            -- Woodcutter: +10 (rural) + 10 (woodcutter effect) = +20
+            -- Urban tier 1 (_1): +20 (EFFECTCITY_SPECIALIST_APPRENTICE)
+            -- Urban tier 2 (_2): +30 (EFFECTCITY_SPECIALIST_MASTER)
+            -- Urban tier 3 (_3): +40 (EFFECTCITY_SPECIALIST_ELDER)
+            -- Philosophers add extra: +20/30/40 on top of apprentice/master/elder
+            COALESCE((
+                SELECT SUM(
+                    cs.count * CASE
+                        -- Philosophers: base + apprentice/master/elder
+                        WHEN cs.specialist_type = 'SPECIALIST_PHILOSOPHER_3' THEN 80  -- 40 + 40
+                        WHEN cs.specialist_type = 'SPECIALIST_PHILOSOPHER_2' THEN 60  -- 30 + 30
+                        WHEN cs.specialist_type = 'SPECIALIST_PHILOSOPHER_1' THEN 40  -- 20 + 20
+                        -- Woodcutter: rural + woodcutter effect
+                        WHEN cs.specialist_type = 'SPECIALIST_WOODCUTTER' THEN 20  -- 10 + 10
+                        -- Other rural specialists
+                        WHEN cs.specialist_type IN ('SPECIALIST_FARMER', 'SPECIALIST_MINER',
+                            'SPECIALIST_STONECUTTER', 'SPECIALIST_RANCHER', 'SPECIALIST_TRAPPER',
+                            'SPECIALIST_GARDENER', 'SPECIALIST_FISHER') THEN 10
+                        -- Urban tier 3 specialists (elder bonus)
+                        WHEN cs.specialist_type LIKE '%_3' THEN 40
+                        -- Urban tier 2 specialists (master bonus)
+                        WHEN cs.specialist_type LIKE '%_2' THEN 30
+                        -- Urban tier 1 specialists (apprentice bonus)
+                        WHEN cs.specialist_type LIKE '%_1' THEN 20
+                        ELSE 0
+                    END
+                )
+                FROM city_specialists cs
+                WHERE cs.city_id = c.city_id
+            ), 0) as specialist_science,
+            -- Doctor specialists give science based on culture level
+            -- DOCTOR_2: +10 × culture, DOCTOR_3: +20 × culture
+            COALESCE((
+                SELECT SUM(
+                    cs.count * CASE
+                        WHEN cs.specialist_type = 'SPECIALIST_DOCTOR_3' THEN 20
+                        WHEN cs.specialist_type = 'SPECIALIST_DOCTOR_2' THEN 10
+                        ELSE 0
+                    END
+                ) * COALESCE(c.culture_level, 2)
+                FROM city_specialists cs
+                WHERE cs.city_id = c.city_id
+            ), 0) as doctor_science,
+            -- Improvement science
+            COALESCE((
+                SELECT SUM(
+                    ci.count * CASE
+                        WHEN ci.improvement_type LIKE 'IMPROVEMENT_MONASTERY%' THEN 20
+                        WHEN ci.improvement_type IN ('IMPROVEMENT_WATERMILL', 'IMPROVEMENT_WINDMILL') THEN 20
+                        WHEN ci.improvement_type LIKE 'IMPROVEMENT_SHRINE%' THEN 10
+                        ELSE 0
+                    END
+                )
+                FROM city_improvements ci
+                WHERE ci.city_id = c.city_id
+            ), 0) as improvement_science,
+            -- Project science (Archives)
+            COALESCE(ca.archive_science, 0) as project_science,
+            -- Other projects that give science (Local Ascetic, Governor, Convoy, etc.)
+            COALESCE(cop.other_project_science, 0) as other_project_science,
+            -- Sages bonus: +10 per specialist in Sages family cities
+            CASE
+                WHEN c.family_name IN ({sages_list}) THEN
+                    COALESCE((
+                        SELECT SUM(cs.count) * 10
+                        FROM city_specialists cs
+                        WHERE cs.city_id = c.city_id
+                    ), 0)
+                ELSE 0
+            END as sages_bonus,
+            -- Library modifier
+            COALESCE(cl.library_modifier, 0) as library_modifier,
+            -- Musaeum modifier
+            COALESCE(cm.musaeum_modifier, 0) as musaeum_modifier,
+            -- Scientific Method modifier
+            COALESCE(csm.scientific_method_modifier, 0) as scientific_method_modifier,
+            -- Other project modifiers (Midwifery, Pagan Colleges, etc.)
+            COALESCE(com.other_modifier, 0) as other_project_modifier,
+            -- Clerics stele modifier (conservative +10% for Clerics family cities)
+            CASE
+                WHEN c.family_name IN ({clerics_list}) THEN 10
+                ELSE 0
+            END as clerics_stele_modifier
+        FROM cities c
+        JOIN player_order p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        LEFT JOIN city_libraries cl ON c.city_id = cl.city_id
+        LEFT JOIN city_musaeum cm ON c.city_id = cm.city_id
+        LEFT JOIN city_scientific_method csm ON c.city_id = csm.city_id
+        LEFT JOIN city_other_modifiers com ON c.city_id = com.city_id
+        LEFT JOIN city_archives ca ON c.city_id = ca.city_id
+        LEFT JOIN city_other_projects cop ON c.city_id = cop.city_id
+        WHERE c.match_id = ?
+        ORDER BY p.player_name, c.city_id
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(
+                query,
+                [
+                    match_id,
+                    turn_number,  # city_specialists
+                    match_id,
+                    turn_number,  # city_improvements
+                    match_id,
+                    turn_number,  # city_libraries
+                    match_id,
+                    turn_number,  # city_musaeum
+                    match_id,  # city_scientific_method
+                    match_id,  # city_other_modifiers
+                    match_id,  # city_archives
+                    match_id,  # city_other_projects
+                    match_id,  # main query
+                ],
+            ).df()
+
+        if df.empty:
+            return df
+
+        # Calculate derived columns
+        df["base_science"] = (
+            df["base_city_science"]  # +10 per city (EFFECTCITY_BASE)
+            + df["specialist_science"]
+            + df["doctor_science"]  # Doctors give science × culture level
+            + df["improvement_science"]
+            + df["project_science"]
+            + df["other_project_science"]  # Local Ascetic, Governor, Convoy, etc.
+            + df["sages_bonus"]
+        )
+        df["total_modifier"] = (
+            df["culture_level_modifier"]
+            + df["library_modifier"]
+            + df["musaeum_modifier"]
+            + df["scientific_method_modifier"]
+            + df["other_project_modifier"]  # Midwifery, Pagan Colleges, etc.
+            + df["clerics_stele_modifier"]
+        )
+        df["modified_science"] = df["base_science"] * (1 + df["total_modifier"] / 100.0)
+
+        return df
 
     def get_match_cities(self, match_id: int) -> pd.DataFrame:
         """Get all cities for a specific match.
@@ -5325,7 +6968,9 @@ class TournamentQueries:
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [match_id] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
+        params = [
+            match_id
+        ] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
@@ -5361,11 +7006,25 @@ class TournamentQueries:
         df["subtype"] = df.apply(get_subtype, axis=1)
 
         # Filter out ignored laws (titles are now "Adopted: X" format)
-        ignored_law_names = [l.replace("LAW_", "").replace("_", " ").title() for l in IGNORED_LAWS]
-        df = df[~((df["event_type"] == "law") & (df["subtype"].isna()) & (df["title"].str.replace("Adopted: ", "", regex=False).isin(ignored_law_names)))]
+        ignored_law_names = [
+            l.replace("LAW_", "").replace("_", " ").title() for l in IGNORED_LAWS
+        ]
+        df = df[
+            ~(
+                (df["event_type"] == "law")
+                & (df["subtype"].isna())
+                & (
+                    df["title"]
+                    .str.replace("Adopted: ", "", regex=False)
+                    .isin(ignored_law_names)
+                )
+            )
+        ]
 
         # Detect law swaps (same class adopted twice by same player)
-        law_history: dict[tuple[int, str], str] = {}  # (player_id, class) -> previous law title
+        law_history: dict[tuple[int, str], str] = (
+            {}
+        )  # (player_id, class) -> previous law title
         swap_indices = []
 
         for idx, row in df[df["event_type"] == "law"].iterrows():
@@ -5379,7 +7038,9 @@ class TournamentQueries:
                     prev_law_name = prev_title.replace("Adopted: ", "")
                     current_law_name = row["title"].replace("Adopted: ", "")
                     # Update title to show swap
-                    df.at[idx, "title"] = f"Swapped {prev_law_name} → {current_law_name}"
+                    df.at[idx, "title"] = (
+                        f"Swapped {prev_law_name} → {current_law_name}"
+                    )
                     df.at[idx, "event_type"] = "law_swap"
                     df.at[idx, "icon"] = TIMELINE_ICONS.get("law_swap", "⚖️")
                 # Track this law's title
@@ -5429,7 +7090,9 @@ class TournamentQueries:
 
         # Sort by turn, then by event priority
         df["_priority"] = df["event_type"].map(EVENT_PRIORITY).fillna(99)
-        df = df.sort_values(["turn", "player_id", "_priority"]).drop(columns=["_priority"])
+        df = df.sort_values(["turn", "player_id", "_priority"]).drop(
+            columns=["_priority"]
+        )
 
         # Add player names
         player_query = """
