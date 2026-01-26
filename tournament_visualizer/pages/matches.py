@@ -27,6 +27,10 @@ from tournament_visualizer.components.charts import (
     create_law_adoption_timeline_chart,
     create_match_legitimacy_chart,
     create_military_power_chart,
+    create_science_breakdown_chart,
+    create_science_infrastructure_timeline,
+    create_science_modifiers_chart,
+    create_science_sources_detail_chart,
     create_specialist_butterfly_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
@@ -985,6 +989,71 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                                     0, len(YIELD_TYPES), 2
                                 )  # Step by 2 to create pairs
                             ],
+                        ],
+                    },
+                    {
+                        "label": "Science",
+                        "tab_id": "science",
+                        "content": [
+                            # Row 1: Science Breakdown (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Science from Infrastructure",
+                                                chart_id="match-science-breakdown",
+                                                height="280px",
+                                                info_text="Tracked: base city (+10), Philosophers, Woodcutters, Doctors (×culture), mills, monasteries, shrines, libraries, Musaeum, archives, projects (Local Ascetic, Midwifery), laws (Centralization ×culture, Constitution, Philosophy), Sages/Clerics families, culture modifiers (+10-100%). Gap: wonders, trade routes.",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mt-3 mb-3",
+                            ),
+                            # Row 2: Sources + Modifiers (side by side)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Direct Science Sources",
+                                                chart_id="match-science-sources",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Science Modifiers",
+                                                chart_id="match-science-modifiers",
+                                                height="280px",
+                                            )
+                                        ],
+                                        width=6,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 3: Timeline (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Science Infrastructure Timeline",
+                                                chart_id="match-science-timeline",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
                         ],
                     },
                     {
@@ -2502,6 +2571,200 @@ def update_all_yield_charts(
             )
             for _, display_name in YIELD_TYPES
         ]
+
+
+# =============================================================================
+# Science Tab Callbacks
+# =============================================================================
+
+
+@callback(
+    Output("match-science-breakdown", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_breakdown_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update science breakdown chart showing all sources.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with stacked horizontal bar chart
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view science breakdown")
+
+    try:
+        queries = get_queries()
+        totals_df = queries.get_science_total_estimate(match_id)
+
+        if totals_df.empty:
+            return create_empty_chart_placeholder("No science data available")
+
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_breakdown_chart(totals_df, player_colors)
+
+    except Exception as e:
+        logger.error(f"Error loading science breakdown: {e}")
+        return create_empty_chart_placeholder("Error loading breakdown data")
+
+
+@callback(
+    Output("match-science-sources", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_sources_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update detailed science sources chart.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view science sources")
+
+    try:
+        queries = get_queries()
+        infra_df = queries.get_science_infrastructure_summary(match_id)
+
+        if infra_df.empty:
+            return create_empty_chart_placeholder("No science infrastructure data")
+
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_sources_detail_chart(infra_df, player_colors)
+
+    except Exception as e:
+        logger.error(f"Error loading science sources: {e}")
+        return create_empty_chart_placeholder("Error loading sources data")
+
+
+@callback(
+    Output("match-science-modifiers", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_modifiers_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update science modifiers chart.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with stacked horizontal bar chart
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view modifiers")
+
+    try:
+        queries = get_queries()
+        modifiers_df = queries.get_science_modifiers_summary(match_id)
+        projects_df = queries.get_science_projects_summary(match_id)
+
+        if modifiers_df.empty and projects_df.empty:
+            return create_empty_chart_placeholder("No science modifiers found")
+
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_modifiers_chart(modifiers_df, projects_df, player_colors)
+
+    except Exception as e:
+        logger.error(f"Error loading science modifiers: {e}")
+        return create_empty_chart_placeholder("Error loading modifiers data")
+
+
+@callback(
+    Output("match-science-timeline", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_timeline_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update stacked area chart for science infrastructure timeline.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with stacked area chart
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view science timeline")
+
+    try:
+        queries = get_queries()
+        df = queries.get_science_infrastructure_timeline(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No science timeline data")
+
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_infrastructure_timeline(df, player_colors)
+
+    except Exception as e:
+        logger.error(f"Error loading science timeline: {e}")
+        return create_empty_chart_placeholder("Error loading timeline data")
 
 
 @callback(

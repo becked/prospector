@@ -4276,6 +4276,71 @@ def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figu
     return fig
 
 
+def create_ruler_reign_duration_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a bar chart showing win rate by starting ruler reign duration.
+
+    Displays win rates for each reign duration quartile, colored by performance.
+    Quartile labels show the actual turn ranges for that bucket.
+
+    Args:
+        df: DataFrame with columns: quartile, quartile_label, min_turns,
+            max_turns, games, wins, win_rate
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No reign duration data available")
+
+    # Sort by quartile ascending (Q1 at bottom for horizontal bars)
+    df_sorted = df.sort_values("quartile", ascending=True)
+
+    # Color by win rate: red < 40%, orange 40-60%, green > 60%
+    colors = []
+    for _, row in df_sorted.iterrows():
+        wr = row["win_rate"]
+        if wr < 40:
+            colors.append("#d62728")  # Red
+        elif wr < 60:
+            colors.append("#ff7f0e")  # Orange
+        else:
+            colors.append("#2ca02c")  # Green
+
+    # Create hover text with full details
+    hover_text = [
+        f"<b>{row['quartile_label']}</b><br>"
+        f"Games: {int(row['games'])}<br>"
+        f"Wins: {int(row['wins'])}<br>"
+        f"Win Rate: {row['win_rate']:.1f}%"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig = create_base_figure(
+        x_title="Win Rate (%)",
+        y_title="Reign Duration Quartile",
+        show_legend=False,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["win_rate"],
+            y=df_sorted["quartile_label"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{wr:.0f}%" for wr in df_sorted["win_rate"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    # Set x-axis range to 0-100 for consistency
+    fig.update_xaxes(range=[0, 100])
+    fig.update_layout(height=300)
+
+    return fig
+
+
 def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
     """Create a line chart showing average science per turn across all matches.
 
@@ -7720,6 +7785,748 @@ def create_improvement_butterfly_chart(
         ),
         margin=dict(l=10, r=10, t=40, b=10),
         height=max(300, len(all_improvements) * 28 + 80),  # Dynamic height
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    return fig
+
+
+# =============================================================================
+# Science Infrastructure Charts
+# =============================================================================
+
+
+def _format_science_asset_name(asset_type: str) -> str:
+    """Format science asset type for display.
+
+    Handles both specialists and improvements:
+    - 'SPECIALIST_PHILOSOPHER_1' -> 'Apprentice Philosopher'
+    - 'IMPROVEMENT_LIBRARY_2' -> 'Library II'
+    - 'IMPROVEMENT_MONASTERY_CHRISTIANITY' -> 'Christian Monastery'
+
+    Args:
+        asset_type: Raw asset type from database
+
+    Returns:
+        Formatted display name
+    """
+    if not asset_type:
+        return "Unknown"
+
+    # Handle specialists - reuse existing helper
+    if asset_type.startswith("SPECIALIST_"):
+        return _format_specialist_name(asset_type)
+
+    # Handle improvements
+    if asset_type.startswith("IMPROVEMENT_"):
+        name = asset_type.replace("IMPROVEMENT_", "")
+
+        # Handle tiered improvements (LIBRARY_1 -> Library I)
+        tier_map = {"1": "I", "2": "II", "3": "III"}
+        for suffix, numeral in tier_map.items():
+            if name.endswith(f"_{suffix}"):
+                base = name[:-2].replace("_", " ").title()
+                return f"{base} {numeral}"
+
+        # Handle monasteries (MONASTERY_CHRISTIANITY -> Christian Monastery)
+        if name.startswith("MONASTERY_"):
+            religion = name.replace("MONASTERY_", "").title()
+            return f"{religion} Monastery"
+
+        # Default: just format the name
+        return name.replace("_", " ").title()
+
+    return asset_type
+
+
+def create_science_infrastructure_treemap(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create treemap showing science infrastructure hierarchy.
+
+    Hierarchy: Root > Player > Category (Specialists/Improvements) > Type
+
+    Args:
+        df: DataFrame from get_science_infrastructure_summary()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with treemap
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No science infrastructure data available")
+
+    # Build hierarchical data with unique IDs to avoid duplicate label issues
+    ids = ["Science"]
+    labels = ["Science"]
+    parents = [""]
+    values = [0]
+    colors = [CHART_THEME["paper_bgcolor"]]
+
+    # Add player level
+    players = df["player_name"].unique()
+    for player in players:
+        player_id = f"player-{player}"
+        ids.append(player_id)
+        labels.append(player)
+        parents.append("Science")
+        values.append(0)
+        color = player_colors.get(player, "#808080") if player_colors else "#808080"
+        colors.append(color)
+
+    # Add category level (Specialists, Improvements) under each player
+    for player in players:
+        player_data = df[df["player_name"] == player]
+        categories = player_data["asset_category"].unique()
+
+        for category in categories:
+            cat_id = f"{player}-{category}"
+            display_cat = "Specialists" if category == "specialist" else "Improvements"
+            ids.append(cat_id)
+            labels.append(display_cat)
+            parents.append(f"player-{player}")
+            values.append(0)
+            color = player_colors.get(player, "#808080") if player_colors else "#808080"
+            colors.append(color)
+
+            # Add individual asset types under each category
+            cat_data = player_data[player_data["asset_category"] == category]
+            for _, row in cat_data.iterrows():
+                asset_id = f"{cat_id}-{row['asset_type']}"
+                display_name = _format_science_asset_name(row["asset_type"])
+                ids.append(asset_id)
+                labels.append(display_name)
+                parents.append(cat_id)
+                values.append(int(row["count"]))
+                color = player_colors.get(player, "#808080") if player_colors else "#808080"
+                colors.append(color)
+
+    fig = go.Figure(
+        go.Treemap(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            marker=dict(colors=colors),
+            textinfo="label+value",
+            hovertemplate="<b>%{label}</b><br>Count: %{value}<extra></extra>",
+            branchvalues="remainder",
+        )
+    )
+
+    fig.update_layout(
+        height=500,
+        margin=dict(t=30, l=10, r=10, b=10),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+    )
+
+    return fig
+
+
+def create_science_infrastructure_sunburst(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create sunburst chart for science infrastructure drill-down.
+
+    Similar hierarchy to treemap but as concentric rings.
+    Center shows total, rings expand outward through hierarchy.
+
+    Args:
+        df: DataFrame from get_science_infrastructure_summary()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with sunburst chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No science infrastructure data available")
+
+    # Calculate total for root
+    total_assets = int(df["count"].sum())
+
+    # Build hierarchical data
+    ids = ["Total"]
+    labels = [f"{total_assets} assets"]
+    parents = [""]
+    values = [total_assets]
+    colors = [CHART_THEME["paper_bgcolor"]]
+
+    # Add player level
+    players = df["player_name"].unique()
+    for player in players:
+        player_id = f"player-{player}"
+        player_total = int(df[df["player_name"] == player]["count"].sum())
+        ids.append(player_id)
+        labels.append(player)
+        parents.append("Total")
+        values.append(player_total)
+        color = player_colors.get(player, "#808080") if player_colors else "#808080"
+        colors.append(color)
+
+    # Add category level under each player
+    for player in players:
+        player_data = df[df["player_name"] == player]
+        categories = player_data["asset_category"].unique()
+
+        for category in categories:
+            cat_id = f"{player}-{category}"
+            display_cat = "Specialists" if category == "specialist" else "Improvements"
+            cat_total = int(player_data[player_data["asset_category"] == category]["count"].sum())
+            ids.append(cat_id)
+            labels.append(display_cat)
+            parents.append(f"player-{player}")
+            values.append(cat_total)
+            color = player_colors.get(player, "#808080") if player_colors else "#808080"
+            colors.append(color)
+
+            # Add individual asset types
+            cat_data = player_data[player_data["asset_category"] == category]
+            for _, row in cat_data.iterrows():
+                asset_id = f"{cat_id}-{row['asset_type']}"
+                display_name = _format_science_asset_name(row["asset_type"])
+                ids.append(asset_id)
+                labels.append(display_name)
+                parents.append(cat_id)
+                values.append(int(row["count"]))
+                color = player_colors.get(player, "#808080") if player_colors else "#808080"
+                colors.append(color)
+
+    fig = go.Figure(
+        go.Sunburst(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            marker=dict(colors=colors),
+            branchvalues="total",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Count: %{value}<br>"
+                "%{percentParent:.1%} of parent<extra></extra>"
+            ),
+        )
+    )
+
+    fig.update_layout(
+        height=500,
+        margin=dict(t=30, l=10, r=10, b=10),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+    )
+
+    return fig
+
+
+def create_science_infrastructure_timeline(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create stacked area chart showing science infrastructure buildup.
+
+    Shows cumulative count of science-producing assets over time per player.
+
+    Args:
+        df: DataFrame from get_science_infrastructure_timeline()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with stacked area chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No science infrastructure timeline data")
+
+    # Aggregate by turn and player (total science assets across all types)
+    timeline = df.groupby(["turn_number", "player_name"])["count"].sum().reset_index()
+
+    fig = go.Figure()
+
+    players = sorted(timeline["player_name"].unique())
+
+    for i, player in enumerate(players):
+        player_data = timeline[timeline["player_name"] == player].sort_values("turn_number")
+
+        if player_colors:
+            color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
+        fig.add_trace(
+            go.Scatter(
+                x=player_data["turn_number"],
+                y=player_data["count"],
+                name=player,
+                mode="lines",
+                stackgroup="one",
+                fillcolor=color,
+                line=dict(width=0.5, color=color),
+                hovertemplate=(
+                    f"<b>{player}</b><br>"
+                    "Turn: %{x}<br>"
+                    "Science Assets: %{y}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        height=400,
+        xaxis_title="Turn Number",
+        yaxis_title="Total Science Infrastructure",
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        yaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        margin=dict(l=60, r=20, t=40, b=60),
+    )
+
+    return fig
+
+
+def create_science_sources_comparison(
+    df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create grouped bar chart comparing science sources between players.
+
+    Shows side-by-side bars for each asset type.
+
+    Args:
+        df: DataFrame from get_science_infrastructure_summary()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No science source comparison data")
+
+    # Format display names
+    df = df.copy()
+    df["display_name"] = df["asset_type"].apply(_format_science_asset_name)
+
+    # Get all asset types, sorted alphabetically
+    all_assets = sorted(df["display_name"].unique())
+
+    fig = go.Figure()
+
+    players = sorted(df["player_name"].unique())
+
+    for i, player in enumerate(players):
+        player_data = df[df["player_name"] == player]
+
+        # Build values list aligned with all_assets
+        values = []
+        for asset in all_assets:
+            asset_count = player_data[player_data["display_name"] == asset]["count"].sum()
+            values.append(int(asset_count))
+
+        if player_colors:
+            color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
+        fig.add_trace(
+            go.Bar(
+                name=player,
+                x=all_assets,
+                y=values,
+                marker_color=color,
+                text=[str(v) if v > 0 else "" for v in values],
+                textposition="auto",
+            )
+        )
+
+    fig.update_layout(
+        height=450,
+        barmode="group",
+        xaxis_title="Science Source",
+        yaxis_title="Count",
+        xaxis_tickangle=-45,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        yaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        margin=dict(l=60, r=20, t=40, b=100),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    return fig
+
+
+def create_science_breakdown_chart(
+    totals_df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create stacked horizontal bar chart showing science production breakdown.
+
+    Shows science from specialists, improvements, projects, and bonuses per player.
+
+    Args:
+        totals_df: DataFrame from get_science_total_estimate()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with stacked horizontal bar chart
+    """
+    if totals_df.empty:
+        return create_empty_chart_placeholder("No science data available")
+
+    categories = [
+        ("specialists_science", "Specialists", "#4CAF50"),
+        ("improvements_science", "Improvements", "#2196F3"),
+        ("projects_science", "Projects", "#FF9800"),
+        ("bonuses_science", "Bonuses", "#9C27B0"),
+    ]
+
+    fig = go.Figure()
+
+    for col, name, color in categories:
+        fig.add_trace(
+            go.Bar(
+                name=name,
+                y=totals_df["player_name"],
+                x=totals_df[col],
+                orientation="h",
+                marker_color=color,
+                text=totals_df[col].apply(lambda x: f"{int(x)}" if x > 0 else ""),
+                textposition="inside",
+                hovertemplate=(
+                    f"<b>{name}</b><br>"
+                    "Player: %{y}<br>"
+                    "Science: %{x}/turn<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        height=max(200, len(totals_df) * 80 + 100),
+        xaxis_title="Science per Turn",
+        yaxis_title="",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        yaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        margin=dict(l=120, r=100, t=40, b=40),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    # Add annotation for total with modifier and actual comparison
+    annotations = []
+    for i, row in totals_df.iterrows():
+        base = row["base_science"]
+        modifier = row["modifier_percent"]
+        total = row["estimated_total"]
+        actual = row.get("actual_science", 0)
+
+        # Build annotation text
+        parts = []
+
+        # Show tracked total with modifier if present
+        if modifier > 0:
+            parts.append(f"tracked: {int(total)} (×{1 + modifier/100:.1f})")
+        else:
+            parts.append(f"tracked: {int(base)}")
+
+        # Add actual science and coverage percentage
+        if actual > 0:
+            coverage = int(total / actual * 100) if actual > 0 else 0
+            parts.append(f"actual: {int(actual)} ({coverage}% tracked)")
+
+        text = " | ".join(parts)
+
+        annotations.append(
+            dict(
+                x=base + 5,
+                y=row["player_name"],
+                text=text,
+                showarrow=False,
+                font=dict(size=11, color=CHART_THEME["font_color"]),
+                xanchor="left",
+            )
+        )
+    fig.update_layout(annotations=annotations)
+
+    return fig
+
+
+def create_science_modifiers_chart(
+    modifiers_df: pd.DataFrame,
+    projects_df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create horizontal bar chart showing science modifiers per player.
+
+    Shows Libraries, Musaeum, and Scientific Method modifiers stacked.
+
+    Args:
+        modifiers_df: DataFrame from get_science_modifiers_summary()
+        projects_df: DataFrame from get_science_projects_summary()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with stacked horizontal bar chart
+    """
+    # Combine modifiers from improvements and projects
+    all_modifiers = []
+
+    if not modifiers_df.empty:
+        for _, row in modifiers_df.iterrows():
+            all_modifiers.append({
+                "player_name": row["player_name"],
+                "modifier_type": row["modifier_type"],
+                "modifier_percent": row["modifier_percent"] * row["count"],
+                "display_name": _format_science_asset_name(row["modifier_type"]),
+            })
+
+    if not projects_df.empty:
+        sm_projects = projects_df[projects_df["project_type"] == "PROJECT_SCIENTIFIC_METHOD"]
+        for _, row in sm_projects.iterrows():
+            all_modifiers.append({
+                "player_name": row["player_name"],
+                "modifier_type": "PROJECT_SCIENTIFIC_METHOD",
+                "modifier_percent": row["modifier_percent"] * row["count"],
+                "display_name": "Scientific Method",
+            })
+
+    if not all_modifiers:
+        return create_empty_chart_placeholder("No science modifiers found")
+
+    mod_df = pd.DataFrame(all_modifiers)
+
+    # Get unique players
+    players = mod_df["player_name"].unique()
+
+    # Define modifier colors
+    modifier_colors = {
+        "IMPROVEMENT_LIBRARY_1": "#81C784",
+        "IMPROVEMENT_LIBRARY_2": "#4CAF50",
+        "IMPROVEMENT_LIBRARY_3": "#2E7D32",
+        "IMPROVEMENT_MUSAEUM": "#FFD700",
+        "PROJECT_SCIENTIFIC_METHOD": "#64B5F6",
+    }
+
+    fig = go.Figure()
+
+    # Get unique modifier types
+    modifier_types = mod_df["modifier_type"].unique()
+
+    for mod_type in modifier_types:
+        mod_data = mod_df[mod_df["modifier_type"] == mod_type]
+        display_name = mod_data["display_name"].iloc[0] if not mod_data.empty else mod_type
+
+        # Build values for all players
+        values = []
+        for player in players:
+            player_mod = mod_data[mod_data["player_name"] == player]
+            if not player_mod.empty:
+                values.append(player_mod["modifier_percent"].sum())
+            else:
+                values.append(0)
+
+        fig.add_trace(
+            go.Bar(
+                name=display_name,
+                y=list(players),
+                x=values,
+                orientation="h",
+                marker_color=modifier_colors.get(mod_type, "#808080"),
+                text=[f"+{int(v)}%" if v > 0 else "" for v in values],
+                textposition="inside",
+                hovertemplate=(
+                    f"<b>{display_name}</b><br>"
+                    "Player: %{y}<br>"
+                    "Modifier: +%{x}%<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Calculate total modifiers per player for annotation
+    totals = mod_df.groupby("player_name")["modifier_percent"].sum()
+
+    fig.update_layout(
+        barmode="stack",
+        height=max(200, len(players) * 80 + 100),
+        xaxis_title="Total Modifier %",
+        yaxis_title="",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(
+            gridcolor=CHART_THEME["gridcolor"],
+            ticksuffix="%",
+        ),
+        yaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        margin=dict(l=120, r=80, t=40, b=40),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    # Add total annotation
+    annotations = []
+    for player in players:
+        total = totals.get(player, 0)
+        if total > 0:
+            annotations.append(
+                dict(
+                    x=total + 3,
+                    y=player,
+                    text=f"= ×{1 + total/100:.2f}",
+                    showarrow=False,
+                    font=dict(size=11, color=CHART_THEME["font_color"]),
+                    xanchor="left",
+                )
+            )
+    fig.update_layout(annotations=annotations)
+
+    return fig
+
+
+def create_science_sources_detail_chart(
+    infra_df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+) -> go.Figure:
+    """Create grouped bar chart showing detailed science sources.
+
+    Shows individual specialist and improvement types per player.
+
+    Args:
+        infra_df: DataFrame from get_science_infrastructure_summary()
+        player_colors: Optional dict mapping player names to colors
+
+    Returns:
+        Plotly figure with grouped bar chart
+    """
+    from ..data.queries import SCIENCE_VALUES
+
+    if infra_df.empty:
+        return create_empty_chart_placeholder("No science infrastructure data")
+
+    # Calculate science value for each row
+    infra_df = infra_df.copy()
+    infra_df["science_value"] = infra_df.apply(
+        lambda row: SCIENCE_VALUES.get(row["asset_type"], 0) * row["count"],
+        axis=1
+    )
+    infra_df["display_name"] = infra_df["asset_type"].apply(_format_science_asset_name)
+
+    # Filter to only rows with science value
+    infra_df = infra_df[infra_df["science_value"] > 0]
+
+    if infra_df.empty:
+        return create_empty_chart_placeholder("No science-producing assets found")
+
+    # Get all unique asset types
+    all_assets = sorted(infra_df["display_name"].unique())
+    players = sorted(infra_df["player_name"].unique())
+
+    fig = go.Figure()
+
+    for i, player in enumerate(players):
+        player_data = infra_df[infra_df["player_name"] == player]
+
+        values = []
+        texts = []
+        for asset in all_assets:
+            asset_data = player_data[player_data["display_name"] == asset]
+            if not asset_data.empty:
+                science = asset_data["science_value"].sum()
+                values.append(science)
+                texts.append(f"{int(science)}")
+            else:
+                values.append(0)
+                texts.append("")
+
+        color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]) if player_colors else Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
+        fig.add_trace(
+            go.Bar(
+                name=player,
+                x=all_assets,
+                y=values,
+                marker_color=color,
+                text=texts,
+                textposition="auto",
+                hovertemplate=(
+                    f"<b>{player}</b><br>"
+                    "Source: %{x}<br>"
+                    "Science: %{y}/turn<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        height=400,
+        xaxis_title="Science Source",
+        yaxis_title="Science per Turn",
+        xaxis_tickangle=-45,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        plot_bgcolor=CHART_THEME["plot_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        xaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        yaxis=dict(gridcolor=CHART_THEME["gridcolor"]),
+        margin=dict(l=60, r=20, t=40, b=120),
         hoverlabel=dict(
             bgcolor=CHART_THEME["hoverlabel_bgcolor"],
             bordercolor=CHART_THEME["hoverlabel_bordercolor"],

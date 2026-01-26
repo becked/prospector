@@ -39,6 +39,7 @@ from tournament_visualizer.components.charts import (
     create_pick_order_win_rate_chart,
     create_ruler_archetype_matchup_matrix,
     create_ruler_archetype_trait_combinations_chart,
+    create_ruler_reign_duration_chart,
     create_ruler_archetype_win_rates_chart,
     create_ruler_trait_performance_chart,
     create_science_per_turn_correlation_chart,
@@ -701,6 +702,51 @@ layout = html.Div(
                                         )
                                     ],
                                     width=4,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Reign duration analysis
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        dbc.Card(
+                                            [
+                                                dbc.CardHeader(
+                                                    [
+                                                        html.Span(
+                                                            "Win Rate by Starting Ruler Reign Duration",
+                                                            className="fw-bold",
+                                                        ),
+                                                        dbc.Checklist(
+                                                            id="overview-reign-exclude-entire-toggle",
+                                                            options=[
+                                                                {
+                                                                    "label": "Exclude full-game rulers",
+                                                                    "value": "exclude",
+                                                                }
+                                                            ],
+                                                            value=[],
+                                                            switch=True,
+                                                            className="ms-3",
+                                                        ),
+                                                    ],
+                                                    className="d-flex justify-content-between align-items-center",
+                                                ),
+                                                dbc.CardBody(
+                                                    [
+                                                        dcc.Graph(
+                                                            id="overview-ruler-reign-duration-chart",
+                                                            config=MODEBAR_CONFIG,
+                                                            style={"height": "300px"},
+                                                        )
+                                                    ],
+                                                ),
+                                            ]
+                                        )
+                                    ],
+                                    width=6,
                                 ),
                             ],
                             className="mb-4",
@@ -2265,6 +2311,87 @@ def update_ruler_combinations_chart(
 
     except Exception as e:
         logger.error(f"Error loading ruler combinations data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-reign-duration-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+    Input("overview-reign-exclude-entire-toggle", "value"),
+    prevent_initial_call=True,
+)
+def update_ruler_reign_duration_chart(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+    exclude_entire: List[str],
+) -> go.Figure:
+    """Update ruler reign duration win rates chart with filters.
+
+    Shows win rates by starting ruler's reign duration, bucketed by quartiles.
+    Quartiles are calculated dynamically based on filtered data.
+
+    Args:
+        active_tab: Currently active tab
+        round_num: Selected round number
+        turn_length: Maximum turn number cutoff
+        map_size: Map size filter
+        map_class: Map class filter
+        map_aspect: Map aspect ratio filter
+        nations: List of selected nations
+        players: List of selected players
+        result_filter: Filter by match result (winners/losers/all)
+        exclude_entire: List containing "exclude" if toggle is on
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    # Lazy loading: skip if tab not active
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        # Convert toggle value to boolean
+        exclude_entire_match = "exclude" in (exclude_entire or [])
+
+        df = queries.get_ruler_reign_duration_win_rates(
+            exclude_entire_match=exclude_entire_match,
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_ruler_reign_duration_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler reign duration data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 
