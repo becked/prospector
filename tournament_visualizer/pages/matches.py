@@ -29,7 +29,6 @@ from tournament_visualizer.components.charts import (
     create_military_power_chart,
     create_science_breakdown_chart,
     create_science_infrastructure_timeline,
-    create_science_modifiers_chart,
     create_science_sources_detail_chart,
     create_specialist_butterfly_chart,
     create_tech_completion_timeline_chart,
@@ -428,16 +427,20 @@ def update_match_options(pathname: str) -> List[Dict[str, Any]]:
         Output("match-empty-state", "style"),
     ],
     Input("match-selector", "value"),
+    State("match-url", "search"),
 )
-def update_match_details(match_id: Optional[int]) -> tuple:
+def update_match_details(match_id: Optional[int], url_search: Optional[str]) -> tuple:
     """Update match details when a match is selected.
 
     Args:
         match_id: Selected match ID
+        url_search: URL query string (e.g., "?beta=true")
 
     Returns:
         Tuple of (details_content, details_style, empty_state_style)
     """
+    # Check if beta features should be shown
+    show_beta = url_search and "beta=true" in url_search
     if not match_id:
         return html.Div(), {"display": "none"}, {"display": "block"}
 
@@ -991,71 +994,67 @@ def update_match_details(match_id: Optional[int]) -> tuple:
                             ],
                         ],
                     },
-                    {
-                        "label": "Science",
-                        "tab_id": "science",
-                        "content": [
-                            # Row 1: Science Breakdown (full width)
-                            dbc.Row(
-                                [
-                                    dbc.Col(
+                    # Science tab (beta) - only shown when ?beta=true in URL
+                    *(
+                        [
+                            {
+                                "label": "Science ᴮᵉᵗᵃ",
+                                "tab_id": "science",
+                                "content": [
+                                    # Row 1: Science Breakdown (full width)
+                                    dbc.Row(
                                         [
-                                            create_chart_card(
-                                                title="Science from Infrastructure",
-                                                chart_id="match-science-breakdown",
-                                                height="280px",
-                                                info_text="Tracked: base city (+10), Philosophers, Woodcutters, Doctors (×culture), mills, monasteries, shrines, libraries, Musaeum, archives, projects (Local Ascetic, Midwifery), laws (Centralization ×culture, Constitution, Philosophy), Sages/Clerics families, culture modifiers (+10-100%). Gap: wonders, trade routes.",
-                                            )
+                                            dbc.Col(
+                                                [
+                                                    create_chart_card(
+                                                        title="Science from Infrastructure",
+                                                        chart_id="match-science-breakdown",
+                                                        height="280px",
+                                                    )
+                                                ],
+                                                width=12,
+                                            ),
                                         ],
-                                        width=12,
+                                        className="mt-3 mb-3",
+                                    ),
+                                    # Row 2: Direct Science Sources (full width)
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                [
+                                                    create_chart_card(
+                                                        title="Direct Science Sources",
+                                                        chart_id="match-science-sources",
+                                                        height="400px",
+                                                    )
+                                                ],
+                                                width=12,
+                                            ),
+                                        ],
+                                        className="mb-3",
+                                    ),
+                                    # Row 3: Timeline (full width)
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                [
+                                                    create_chart_card(
+                                                        title="Science Infrastructure Timeline",
+                                                        chart_id="match-science-timeline",
+                                                        height="400px",
+                                                    )
+                                                ],
+                                                width=12,
+                                            ),
+                                        ],
+                                        className="mb-3",
                                     ),
                                 ],
-                                className="mt-3 mb-3",
-                            ),
-                            # Row 2: Sources + Modifiers (side by side)
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Direct Science Sources",
-                                                chart_id="match-science-sources",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Science Modifiers",
-                                                chart_id="match-science-modifiers",
-                                                height="280px",
-                                            )
-                                        ],
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Row 3: Timeline (full width)
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            create_chart_card(
-                                                title="Science Infrastructure Timeline",
-                                                chart_id="match-science-timeline",
-                                                height="400px",
-                                            )
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                        ],
-                    },
+                            }
+                        ]
+                        if show_beta
+                        else []
+                    ),
                     {
                         "label": "Ambitions",
                         "tab_id": "ambitions",
@@ -2612,13 +2611,13 @@ def update_science_breakdown_chart(
 
     try:
         queries = get_queries()
-        totals_df = queries.get_science_total_estimate(match_id)
+        breakdown_df = queries.get_science_breakdown_for_chart(match_id)
 
-        if totals_df.empty:
+        if breakdown_df.empty:
             return create_empty_chart_placeholder("No science data available")
 
         player_colors = get_player_colors_for_match(match_id)
-        return create_science_breakdown_chart(totals_df, player_colors)
+        return create_science_breakdown_chart(breakdown_df, player_colors)
 
     except Exception as e:
         logger.error(f"Error loading science breakdown: {e}")
@@ -2670,54 +2669,6 @@ def update_science_sources_chart(
     except Exception as e:
         logger.error(f"Error loading science sources: {e}")
         return create_empty_chart_placeholder("Error loading sources data")
-
-
-@callback(
-    Output("match-science-modifiers", "figure"),
-    Input("match-details-tabs", "active_tab"),
-    Input("match-selector", "value"),
-    State("match-tabs-loaded-store", "data"),
-    prevent_initial_call=True,
-)
-def update_science_modifiers_chart(
-    active_tab: Optional[str],
-    match_id: Optional[int],
-    loaded_state: Optional[Dict[str, Any]],
-) -> go.Figure:
-    """Update science modifiers chart.
-
-    Args:
-        active_tab: Currently active tab
-        match_id: Selected match ID
-        loaded_state: Tab loading state from store
-
-    Returns:
-        Plotly figure with stacked horizontal bar chart
-    """
-    if active_tab != "science":
-        raise dash.exceptions.PreventUpdate
-
-    if loaded_state and loaded_state.get("match_id") == match_id:
-        if "science" in loaded_state.get("loaded_tabs", []):
-            raise dash.exceptions.PreventUpdate
-
-    if not match_id:
-        return create_empty_chart_placeholder("Select a match to view modifiers")
-
-    try:
-        queries = get_queries()
-        modifiers_df = queries.get_science_modifiers_summary(match_id)
-        projects_df = queries.get_science_projects_summary(match_id)
-
-        if modifiers_df.empty and projects_df.empty:
-            return create_empty_chart_placeholder("No science modifiers found")
-
-        player_colors = get_player_colors_for_match(match_id)
-        return create_science_modifiers_chart(modifiers_df, projects_df, player_colors)
-
-    except Exception as e:
-        logger.error(f"Error loading science modifiers: {e}")
-        return create_empty_chart_placeholder("Error loading modifiers data")
 
 
 @callback(

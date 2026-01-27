@@ -8406,46 +8406,108 @@ def create_science_sources_comparison(
 
 
 def create_science_breakdown_chart(
-    totals_df: pd.DataFrame,
+    breakdown_df: pd.DataFrame,
     player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
     """Create stacked horizontal bar chart showing science production breakdown.
 
-    Shows science from specialists, improvements, projects, and bonuses per player.
+    Shows science from base city, specialists, improvements, projects, and bonuses.
+    All city-based values are POST-MODIFIER (already have library/culture bonuses applied).
 
     Args:
-        totals_df: DataFrame from get_science_total_estimate()
+        breakdown_df: DataFrame from get_science_breakdown_for_chart()
         player_colors: Optional dict mapping player names to colors
 
     Returns:
         Plotly figure with stacked horizontal bar chart
     """
-    if totals_df.empty:
+    import json
+
+    if breakdown_df.empty:
         return create_empty_chart_placeholder("No science data available")
 
+    # 6 categories: 5 positive sources + happiness penalty (negative)
     categories = [
+        ("base_city_science", "Base City", "#78909C"),
         ("specialists_science", "Specialists", "#4CAF50"),
         ("improvements_science", "Improvements", "#2196F3"),
         ("projects_science", "Projects", "#FF9800"),
-        ("bonuses_science", "Bonuses", "#9C27B0"),
+        ("bonuses_science", "Empire Bonuses", "#9C27B0"),
+        ("happiness_penalty", "Discontent Penalty", "#E53935"),
     ]
 
     fig = go.Figure()
 
     for col, name, color in categories:
+        # Build customdata for rich tooltips
+        customdata = []
+        for _, row in breakdown_df.iterrows():
+            tooltip_data = json.loads(row.get("tooltip_data", "{}"))
+
+            if col == "base_city_science":
+                city_count = tooltip_data.get("city_count", 0)
+                avg_mod = tooltip_data.get("avg_modifier", 0)
+                detail = f"{city_count} cities × 1.0 base"
+                if avg_mod > 0:
+                    detail += f" × {1 + avg_mod/100:.2f} avg modifier"
+            elif col == "specialists_science":
+                avg_mod = tooltip_data.get("avg_modifier", 0)
+                detail = "Philosophers, Scribes, rural specialists"
+                if avg_mod > 0:
+                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+            elif col == "improvements_science":
+                avg_mod = tooltip_data.get("avg_modifier", 0)
+                detail = "Watermills, Windmills, Monasteries, Shrines"
+                if avg_mod > 0:
+                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+            elif col == "projects_science":
+                avg_mod = tooltip_data.get("avg_modifier", 0)
+                detail = "Archives, Sages family bonus"
+                if avg_mod > 0:
+                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+            elif col == "bonuses_science":
+                bonuses = tooltip_data.get("bonuses", [])
+                if bonuses:
+                    bonus_lines = [
+                        f"{b['source']}: +{b['value']:.0f}"
+                        for b in bonuses
+                        if b["value"] > 0
+                    ]
+                    detail = "<br>".join(bonus_lines) if bonus_lines else "None"
+                    detail += "<br><i>Not affected by modifiers</i>"
+                else:
+                    detail = "None"
+            elif col == "happiness_penalty":
+                net_happiness = tooltip_data.get("net_happiness", 0)
+                penalty_pct = tooltip_data.get("happiness_penalty_pct", 0)
+                if net_happiness < 0:
+                    detail = f"Net happiness: {net_happiness:.0f}"
+                    detail += f"<br>Penalty: -{penalty_pct:.1f}%"
+                    detail += "<br><i>-5% per 20 unhappiness</i>"
+                else:
+                    detail = "No penalty (happiness ≥ 0)"
+            else:
+                detail = ""
+
+            customdata.append([name, detail])
+
         fig.add_trace(
             go.Bar(
                 name=name,
-                y=totals_df["player_name"],
-                x=totals_df[col],
+                y=breakdown_df["player_name"],
+                x=breakdown_df[col],
                 orientation="h",
                 marker_color=color,
-                text=totals_df[col].apply(lambda x: f"{int(x)}" if x > 0 else ""),
+                text=breakdown_df[col].apply(
+                    lambda x: f"{x:.0f}" if x >= 1 else ""
+                ),
                 textposition="inside",
+                customdata=customdata,
                 hovertemplate=(
-                    f"<b>{name}</b><br>"
-                    "Player: %{y}<br>"
-                    "Science: %{x}/turn<br>"
+                    "<b>%{customdata[0]}</b><br>"
+                    "Science: %{x:.1f}/turn<br>"
+                    "---<br>"
+                    "%{customdata[1]}<br>"
                     "<extra></extra>"
                 ),
             )
@@ -8453,7 +8515,7 @@ def create_science_breakdown_chart(
 
     fig.update_layout(
         barmode="stack",
-        height=max(200, len(totals_df) * 80 + 100),
+        height=max(200, len(breakdown_df) * 80 + 100),
         xaxis_title="Science per Turn",
         yaxis_title="",
         legend=dict(
@@ -8475,42 +8537,6 @@ def create_science_breakdown_chart(
             font=dict(color=CHART_THEME["hoverlabel_font_color"]),
         ),
     )
-
-    # Add annotation for total with modifier and actual comparison
-    annotations = []
-    for i, row in totals_df.iterrows():
-        base = row["base_science"]
-        modifier = row["modifier_percent"]
-        total = row["estimated_total"]
-        actual = row.get("actual_science", 0)
-
-        # Build annotation text
-        parts = []
-
-        # Show tracked total with modifier if present
-        if modifier > 0:
-            parts.append(f"tracked: {int(total)} (×{1 + modifier/100:.1f})")
-        else:
-            parts.append(f"tracked: {int(base)}")
-
-        # Add actual science and coverage percentage
-        if actual > 0:
-            coverage = int(total / actual * 100) if actual > 0 else 0
-            parts.append(f"actual: {int(actual)} ({coverage}% tracked)")
-
-        text = " | ".join(parts)
-
-        annotations.append(
-            dict(
-                x=base + 5,
-                y=row["player_name"],
-                text=text,
-                showarrow=False,
-                font=dict(size=11, color=CHART_THEME["font_color"]),
-                xanchor="left",
-            )
-        )
-    fig.update_layout(annotations=annotations)
 
     return fig
 

@@ -5506,6 +5506,208 @@ class TournamentQueries:
 
         return pd.DataFrame(results)
 
+    def get_science_breakdown_for_chart(self, match_id: int) -> pd.DataFrame:
+        """Get science breakdown with post-modifier values for chart display.
+
+        Each category shows science AFTER city modifiers are applied.
+        Empire bonuses are separate (not affected by city modifiers).
+        Happiness penalty is calculated based on net happiness (-5% per 20 unhappiness).
+
+        Args:
+            match_id: Match to query
+
+        Returns:
+            DataFrame with columns:
+                - player_id, player_name
+                - base_city_science: Post-modifier base city science (+10/city)
+                - specialists_science: Post-modifier specialist science
+                - improvements_science: Post-modifier improvement science
+                - projects_science: Post-modifier project + sages bonus
+                - bonuses_science: Empire-wide bonuses (NOT modified, display units)
+                - happiness_penalty: Negative value from unhappiness (-5% per 20)
+                - total_science: Sum of all categories (before penalty)
+                - net_science: total_science + happiness_penalty
+                - actual_science: From yield history
+                - tooltip_data: Dict with breakdown details for tooltips
+        """
+        import json
+
+        # Get per-city science breakdown with modifiers
+        city_df = self.get_science_by_city(match_id)
+
+        # Get empire-wide bonuses
+        bonuses_df = self.get_science_bonuses_summary(match_id)
+
+        # Get actual science and happiness from yield history
+        actual_query = """
+        SELECT
+            p.player_id,
+            p.player_name,
+            COALESCE((
+                SELECT yh.amount / 10.0
+                FROM player_yield_history yh
+                WHERE yh.match_id = p.match_id
+                  AND yh.player_id = p.player_id
+                  AND yh.resource_type = 'YIELD_SCIENCE'
+                  AND yh.turn_number = (
+                      SELECT MAX(turn_number)
+                      FROM player_yield_history
+                      WHERE match_id = yh.match_id
+                        AND player_id = yh.player_id
+                        AND resource_type = 'YIELD_SCIENCE'
+                  )
+            ), 0) as actual_science,
+            COALESCE((
+                SELECT yh.amount / 10.0
+                FROM player_yield_history yh
+                WHERE yh.match_id = p.match_id
+                  AND yh.player_id = p.player_id
+                  AND yh.resource_type = 'YIELD_HAPPINESS'
+                  AND yh.turn_number = (
+                      SELECT MAX(turn_number)
+                      FROM player_yield_history
+                      WHERE match_id = yh.match_id
+                        AND player_id = yh.player_id
+                        AND resource_type = 'YIELD_HAPPINESS'
+                  )
+            ), 0) as net_happiness
+        FROM players p
+        WHERE p.match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            actual_df = conn.execute(actual_query, [match_id]).df()
+
+        results = []
+        for _, player in actual_df.iterrows():
+            pid = player["player_id"]
+            pname = player["player_name"]
+            actual = player["actual_science"]
+
+            # Get this player's cities
+            player_cities = city_df[city_df["player_id"] == pid]
+
+            # Initialize category totals (raw values, will convert to display at end)
+            base_city_modified = 0.0
+            specialists_modified = 0.0
+            improvements_modified = 0.0
+            projects_modified = 0.0  # Includes sages_bonus
+
+            # Tooltip detail builders
+            city_count = len(player_cities)
+            modifier_sum = 0.0
+            modifier_count = 0
+
+            if not player_cities.empty:
+                for _, city in player_cities.iterrows():
+                    # Get modifier factor for this city
+                    total_mod = float(city.get("total_modifier", 0) or 0)
+                    modifier_factor = 1 + total_mod / 100
+
+                    # Track for average modifier calculation
+                    modifier_sum += total_mod
+                    modifier_count += 1
+
+                    # Base city science (+10 per city, affected by modifier)
+                    base_raw = float(city.get("base_city_science", 10) or 10)
+                    base_city_modified += base_raw * modifier_factor
+
+                    # Specialists (specialist_science + doctor_science, NO sages)
+                    spec_raw = float(city.get("specialist_science", 0) or 0) + float(
+                        city.get("doctor_science", 0) or 0
+                    )
+                    specialists_modified += spec_raw * modifier_factor
+
+                    # Improvements
+                    imp_raw = float(city.get("improvement_science", 0) or 0)
+                    improvements_modified += imp_raw * modifier_factor
+
+                    # Projects (archives + other projects + sages_bonus)
+                    proj_raw = (
+                        float(city.get("project_science", 0) or 0)
+                        + float(city.get("other_project_science", 0) or 0)
+                        + float(city.get("sages_bonus", 0) or 0)
+                    )
+                    projects_modified += proj_raw * modifier_factor
+
+            # Convert to display values (divide by 10)
+            base_city_display = base_city_modified / 10.0
+            specialists_display = specialists_modified / 10.0
+            improvements_display = improvements_modified / 10.0
+            projects_display = projects_modified / 10.0
+
+            # Average modifier for tooltip
+            avg_modifier = modifier_sum / modifier_count if modifier_count > 0 else 0
+
+            # Empire bonuses (not affected by city modifiers)
+            # Note: bonuses_df science_value is in RAW units, divide by 10
+            bonuses_raw = 0.0
+            bonus_list: list[dict[str, Any]] = []
+            if not bonuses_df.empty:
+                player_bonuses = bonuses_df[bonuses_df["player_id"] == pid]
+                bonuses_raw = float(player_bonuses["science_value"].sum())
+                for _, bonus in player_bonuses.iterrows():
+                    bonus_list.append(
+                        {
+                            "source": bonus["bonus_source"],
+                            "value": float(bonus["science_value"]) / 10.0,  # Display
+                            "details": bonus.get("details", ""),
+                        }
+                    )
+            bonuses_display = bonuses_raw / 10.0
+
+            # Total science from tracked sources (before happiness penalty)
+            total_science = (
+                base_city_display
+                + specialists_display
+                + improvements_display
+                + projects_display
+                + bonuses_display
+            )
+
+            # Calculate happiness penalty
+            # From yield.xml: iNegativeHappinessModifier = -5 (per level)
+            # Based on data analysis: 1 level = 20 happiness points
+            net_happiness = float(player.get("net_happiness", 0) or 0)
+            happiness_penalty = 0.0
+            happiness_penalty_pct = 0.0
+            if net_happiness < 0:
+                # Calculate penalty: -5% per 20 unhappiness
+                happiness_levels = abs(net_happiness) / 20.0
+                happiness_penalty_pct = happiness_levels * 5.0
+                # Apply penalty to total science (as negative value)
+                happiness_penalty = -total_science * (happiness_penalty_pct / 100.0)
+
+            # Net science after happiness penalty
+            net_science = total_science + happiness_penalty
+
+            # Build tooltip data
+            tooltip_data = {
+                "city_count": city_count,
+                "avg_modifier": round(avg_modifier, 1),
+                "bonuses": bonus_list,
+                "net_happiness": round(net_happiness, 1),
+                "happiness_penalty_pct": round(happiness_penalty_pct, 1),
+            }
+
+            results.append(
+                {
+                    "player_id": pid,
+                    "player_name": pname,
+                    "base_city_science": round(base_city_display, 1),
+                    "specialists_science": round(specialists_display, 1),
+                    "improvements_science": round(improvements_display, 1),
+                    "projects_science": round(projects_display, 1),
+                    "bonuses_science": round(bonuses_display, 1),
+                    "happiness_penalty": round(happiness_penalty, 1),
+                    "total_science": round(total_science, 1),
+                    "net_science": round(net_science, 1),
+                    "actual_science": round(actual, 1),
+                    "tooltip_data": json.dumps(tooltip_data),
+                }
+            )
+
+        return pd.DataFrame(results)
+
     def get_science_by_city(
         self, match_id: int, turn_number: Optional[int] = None
     ) -> pd.DataFrame:
