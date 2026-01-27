@@ -42,8 +42,10 @@ from tournament_visualizer.components.charts import (
     create_ruler_reign_duration_chart,
     create_ruler_archetype_win_rates_chart,
     create_ruler_trait_performance_chart,
+    create_ruler_survival_chart,
     create_science_per_turn_correlation_chart,
     create_science_progression_chart,
+    create_succession_rate_chart,
     create_yield_stacked_chart,
     create_summary_metrics_cards,
     create_tournament_expansion_timeline_chart,
@@ -706,7 +708,7 @@ layout = html.Div(
                             ],
                             className="mb-4",
                         ),
-                        # Reign duration analysis
+                        # Reign duration and succession rate analysis
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -747,6 +749,61 @@ layout = html.Div(
                                         )
                                     ],
                                     width=6,
+                                ),
+                                dbc.Col(
+                                    [
+                                        dbc.Card(
+                                            [
+                                                dbc.CardHeader(
+                                                    [
+                                                        html.Span(
+                                                            "Win Rate by Succession Rate",
+                                                            className="fw-bold",
+                                                        ),
+                                                        dbc.Checklist(
+                                                            id="overview-succession-exclude-zero-toggle",
+                                                            options=[
+                                                                {
+                                                                    "label": "Exclude full-game rulers",
+                                                                    "value": "exclude",
+                                                                }
+                                                            ],
+                                                            value=[],
+                                                            switch=True,
+                                                            className="ms-3",
+                                                        ),
+                                                    ],
+                                                    className="d-flex justify-content-between align-items-center",
+                                                ),
+                                                dbc.CardBody(
+                                                    [
+                                                        dcc.Graph(
+                                                            id="overview-ruler-succession-rate-chart",
+                                                            config=MODEBAR_CONFIG,
+                                                            style={"height": "300px"},
+                                                        )
+                                                    ],
+                                                ),
+                                            ]
+                                        )
+                                    ],
+                                    width=6,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Starting ruler survival curve
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Starting Ruler Survival",
+                                            chart_id="overview-ruler-survival-chart",
+                                            height="400px",
+                                        )
+                                    ],
+                                    width=12,
                                 ),
                             ],
                             className="mb-4",
@@ -2392,6 +2449,127 @@ def update_ruler_reign_duration_chart(
 
     except Exception as e:
         logger.error(f"Error loading ruler reign duration data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-succession-rate-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+    Input("overview-succession-exclude-zero-toggle", "value"),
+    prevent_initial_call=True,
+)
+def update_ruler_succession_rate_chart(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+    exclude_zero: List[str],
+) -> go.Figure:
+    """Update succession rate chart with filters.
+
+    Shows win rates by succession rate (successions per 100 turns),
+    bucketed by quartiles to normalize for game length.
+    """
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        # Convert toggle value to boolean
+        exclude_zero_successions = "exclude" in (exclude_zero or [])
+
+        df = queries.get_succession_rate_win_rates(
+            exclude_zero_successions=exclude_zero_successions,
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_succession_rate_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading succession rate data: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-ruler-survival-chart", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def update_ruler_survival_chart(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+) -> go.Figure:
+    """Update starting ruler survival curve with filters.
+
+    Shows % of starting rulers still in power at each turn,
+    split by winners and losers.
+    """
+    if active_tab != "rulers-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_starting_ruler_survival_curve(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_ruler_survival_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading ruler survival data: {e}")
         return create_empty_chart_placeholder(f"Error: {str(e)}")
 
 

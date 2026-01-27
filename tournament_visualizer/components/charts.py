@@ -4341,6 +4341,230 @@ def create_ruler_reign_duration_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def create_succession_rate_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a bar chart showing win rate by succession rate (per 100 turns).
+
+    Displays win rates for each succession rate quartile, colored by performance.
+
+    Args:
+        df: DataFrame with columns: quartile, quartile_label, min_rate,
+            max_rate, games, wins, win_rate
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No succession rate data available")
+
+    # Sort by quartile ascending (Q1 at bottom for horizontal bars)
+    df_sorted = df.sort_values("quartile", ascending=True)
+
+    # Color by win rate: red < 40%, orange 40-60%, green > 60%
+    colors = []
+    for _, row in df_sorted.iterrows():
+        wr = row["win_rate"]
+        if wr < 40:
+            colors.append("#d62728")  # Red
+        elif wr < 60:
+            colors.append("#ff7f0e")  # Orange
+        else:
+            colors.append("#2ca02c")  # Green
+
+    # Create hover text with full details
+    hover_text = [
+        f"<b>{row['quartile_label']}</b><br>"
+        f"Games: {int(row['games'])}<br>"
+        f"Wins: {int(row['wins'])}<br>"
+        f"Win Rate: {row['win_rate']:.1f}%"
+        for _, row in df_sorted.iterrows()
+    ]
+
+    fig = create_base_figure(
+        x_title="Win Rate (%)",
+        y_title="Succession Rate Quartile",
+        show_legend=False,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=df_sorted["win_rate"],
+            y=df_sorted["quartile_label"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{wr:.0f}%" for wr in df_sorted["win_rate"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_xaxes(range=[0, 100])
+    fig.update_layout(height=300)
+
+    return fig
+
+
+def create_succession_expected_vs_actual_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a bar chart showing win rate by expected vs actual successions.
+
+    Displays win rates for each category with annotation about the 27-turn average.
+
+    Args:
+        df: DataFrame with columns: category, games, wins, win_rate,
+            avg_actual, avg_expected
+
+    Returns:
+        Plotly figure with horizontal bar chart
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No succession data available")
+
+    # Color by win rate: red < 40%, orange 40-60%, green > 60%
+    colors = []
+    for _, row in df.iterrows():
+        wr = row["win_rate"]
+        if wr < 40:
+            colors.append("#d62728")  # Red
+        elif wr < 60:
+            colors.append("#ff7f0e")  # Orange
+        else:
+            colors.append("#2ca02c")  # Green
+
+    # Create hover text with full details
+    hover_text = [
+        f"<b>{row['category']}</b><br>"
+        f"Games: {int(row['games'])}<br>"
+        f"Wins: {int(row['wins'])}<br>"
+        f"Win Rate: {row['win_rate']:.1f}%<br>"
+        f"Avg Actual: {row['avg_actual']:.1f}<br>"
+        f"Avg Expected: {row['avg_expected']:.1f}"
+        for _, row in df.iterrows()
+    ]
+
+    fig = create_base_figure(
+        x_title="Win Rate (%)",
+        y_title="",
+        show_legend=False,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=df["win_rate"],
+            y=df["category"],
+            orientation="h",
+            marker=dict(color=colors),
+            text=[f"{wr:.0f}%" for wr in df["win_rate"]],
+            textposition="auto",
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.update_xaxes(range=[0, 100])
+    fig.update_layout(height=250)
+
+    # Add annotation explaining the calculation
+    fig.add_annotation(
+        text="Based on avg reign of 27 turns",
+        xref="paper",
+        yref="paper",
+        x=1.0,
+        y=-0.15,
+        showarrow=False,
+        font=dict(size=10, color="gray"),
+        xanchor="right",
+    )
+
+    return fig
+
+
+def create_ruler_survival_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a survival curve showing % of starting rulers still in power over time.
+
+    Shows overall survival rate with separate lines for winners and losers,
+    plus a secondary axis for sample size (games at each turn).
+
+    Args:
+        df: DataFrame with columns: turn_number, games_at_turn, survival_rate,
+            winners_survival_rate, losers_survival_rate
+
+    Returns:
+        Plotly figure with survival curves
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No ruler survival data available")
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = apply_dark_theme(fig)
+
+    # Winners survival line (green)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["winners_survival_rate"],
+            mode="lines",
+            name="Winners",
+            line=dict(color="#2ca02c", width=2),
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Winners: %{y:.1f}% still ruling<br>"
+                "<extra></extra>"
+            ),
+        ),
+        secondary_y=False,
+    )
+
+    # Losers survival line (red)
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["losers_survival_rate"],
+            mode="lines",
+            name="Losers",
+            line=dict(color="#d62728", width=2),
+            hovertemplate=(
+                "<b>Turn %{x}</b><br>"
+                "Losers: %{y:.1f}% still ruling<br>"
+                "<extra></extra>"
+            ),
+        ),
+        secondary_y=False,
+    )
+
+    # Sample size dashed line on secondary y-axis
+    fig.add_trace(
+        go.Scatter(
+            x=df["turn_number"],
+            y=df["games_at_turn"],
+            mode="lines",
+            name="Games",
+            line=dict(color="rgba(128, 128, 128, 0.5)", width=1, dash="dot"),
+            hovertemplate="Turn %{x}<br>Games: %{y}<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_layout(
+        height=400,
+        showlegend=True,
+        legend=dict(x=0.02, y=0.98, xanchor="left", yanchor="top"),
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(title_text="Turn Number")
+    fig.update_yaxes(
+        title_text="% Starting Rulers Still Ruling",
+        range=[0, 105],
+        secondary_y=False,
+    )
+    fig.update_yaxes(
+        title_text="Games",
+        secondary_y=True,
+    )
+
+    return fig
+
+
 def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
     """Create a line chart showing average science per turn across all matches.
 

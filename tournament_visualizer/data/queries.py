@@ -3302,6 +3302,357 @@ class TournamentQueries:
 
         return df
 
+    def get_succession_rate_win_rates(
+        self,
+        exclude_zero_successions: bool = False,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get win rates by succession rate (successions per 100 turns), bucketed by quartiles.
+
+        Normalizes succession count by game length to account for longer games
+        naturally having more ruler transitions.
+
+        Args:
+            exclude_zero_successions: If True, exclude players with 0 successions
+                (full-game rulers). Default False (include all).
+            tournament_round: Filter by tournament round numbers
+            bracket: Bracket filter ("Winners", "Losers", "Unknown")
+            min_turns: Minimum total match turns
+            max_turns: Maximum total match turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns:
+            - quartile: 1-4 (1=lowest rate, 4=highest rate)
+            - quartile_label: Human-readable label (e.g., "Q1: 0.0-2.1 per 100 turns")
+            - min_rate: Minimum succession rate in this quartile
+            - max_rate: Maximum succession rate in this quartile
+            - games: Number of games in this quartile
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="r"
+        )
+        params["exclude_zero"] = exclude_zero_successions
+
+        query = f"""
+        WITH player_successions AS (
+            SELECT
+                r.match_id,
+                r.player_id,
+                m.total_turns,
+                COUNT(*) - 1 as succession_count,
+                MAX(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as won
+            FROM rulers r
+            JOIN matches m ON r.match_id = m.match_id
+            JOIN match_winners mw ON r.match_id = mw.match_id
+            WHERE {where_clause}
+            GROUP BY r.match_id, r.player_id, m.total_turns
+        ),
+        filtered_successions AS (
+            SELECT * FROM player_successions
+            WHERE ($exclude_zero = FALSE OR succession_count > 0)
+        ),
+        with_rate AS (
+            SELECT
+                *,
+                ROUND(succession_count * 100.0 / total_turns, 2) as succession_rate
+            FROM filtered_successions
+            WHERE total_turns > 0
+        ),
+        quartiled AS (
+            SELECT *, NTILE(4) OVER (ORDER BY succession_rate) as quartile
+            FROM with_rate
+        )
+        SELECT
+            quartile,
+            MIN(succession_rate) as min_rate,
+            MAX(succession_rate) as max_rate,
+            COUNT(*) as games,
+            SUM(won) as wins,
+            ROUND(SUM(won) * 100.0 / COUNT(*), 2) as win_rate
+        FROM quartiled
+        GROUP BY quartile
+        ORDER BY quartile
+        """
+
+        with self.db.get_connection() as conn:
+            df = conn.execute(query, params).df()
+
+        if df.empty:
+            return df
+
+        # Add human-readable quartile labels
+        df["quartile_label"] = df.apply(
+            lambda row: f"Q{int(row['quartile'])}: {row['min_rate']:.1f}-{row['max_rate']:.1f} per 100 turns",
+            axis=1,
+        )
+
+        return df
+
+    def get_starting_ruler_survival_curve(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get survival curve data for starting rulers over time.
+
+        Shows what percentage of starting rulers (succession_order=0) are still
+        in power at each turn number, split by winners and losers.
+
+        Args:
+            tournament_round: Filter by tournament round numbers
+            bracket: Bracket filter ("Winners", "Losers", "Unknown")
+            min_turns: Minimum total match turns
+            max_turns: Maximum total match turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+
+        Returns:
+            DataFrame with columns:
+            - turn_number: Turn number (1 to max)
+            - games_at_turn: Number of games that reached this turn
+            - survival_rate: % of starting rulers still ruling (all players)
+            - winners_survival_rate: % of starting rulers still ruling (winners only)
+            - losers_survival_rate: % of starting rulers still ruling (losers only)
+        """
+        # Get filtered match IDs (no result_filter since we want both winners and losers)
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=None,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        # Build match filter
+        if isinstance(filtered[0], tuple):
+            # Result filter returned tuples, extract just match IDs
+            match_ids = list(set(m for m, _ in filtered))
+        else:
+            match_ids = filtered
+
+        query = """
+        WITH starting_rulers AS (
+            SELECT
+                r.match_id,
+                r.player_id,
+                r.succession_turn as start_turn,
+                m.total_turns,
+                (SELECT MIN(r2.succession_turn)
+                 FROM rulers r2
+                 WHERE r2.match_id = r.match_id
+                 AND r2.player_id = r.player_id
+                 AND r2.succession_order > 0) as successor_turn,
+                CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END as won
+            FROM rulers r
+            JOIN matches m ON r.match_id = m.match_id
+            JOIN match_winners mw ON r.match_id = mw.match_id
+            WHERE r.succession_order = 0
+            AND r.match_id = ANY($match_ids)
+        ),
+        with_reign_end AS (
+            SELECT
+                match_id,
+                player_id,
+                start_turn,
+                total_turns,
+                won,
+                COALESCE(successor_turn, total_turns + 1) as reign_end_turn
+            FROM starting_rulers
+        ),
+        turn_series AS (
+            SELECT UNNEST(generate_series(1, (SELECT MAX(total_turns) FROM with_reign_end))) as turn_number
+        ),
+        survival_by_turn AS (
+            SELECT
+                t.turn_number,
+                COUNT(*) as games_at_turn,
+                SUM(CASE WHEN wr.reign_end_turn > t.turn_number THEN 1 ELSE 0 END) as still_ruling,
+                SUM(CASE WHEN wr.won = 1 THEN 1 ELSE 0 END) as winners_at_turn,
+                SUM(CASE WHEN wr.won = 1 AND wr.reign_end_turn > t.turn_number THEN 1 ELSE 0 END) as winners_still_ruling,
+                SUM(CASE WHEN wr.won = 0 THEN 1 ELSE 0 END) as losers_at_turn,
+                SUM(CASE WHEN wr.won = 0 AND wr.reign_end_turn > t.turn_number THEN 1 ELSE 0 END) as losers_still_ruling
+            FROM turn_series t
+            CROSS JOIN with_reign_end wr
+            WHERE t.turn_number <= wr.total_turns
+            GROUP BY t.turn_number
+        )
+        SELECT
+            turn_number,
+            games_at_turn,
+            ROUND(still_ruling * 100.0 / games_at_turn, 2) as survival_rate,
+            ROUND(winners_still_ruling * 100.0 / NULLIF(winners_at_turn, 0), 2) as winners_survival_rate,
+            ROUND(losers_still_ruling * 100.0 / NULLIF(losers_at_turn, 0), 2) as losers_survival_rate
+        FROM survival_by_turn
+        ORDER BY turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, {"match_ids": match_ids}).df()
+
+    def get_succession_expected_vs_actual_win_rates(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get win rates comparing actual vs expected successions.
+
+        Expected successions are calculated based on average reign duration of 27 turns.
+        Categories: "Fewer than expected", "As expected", "More than expected".
+
+        Args:
+            tournament_round: Filter by tournament round numbers
+            bracket: Bracket filter ("Winners", "Losers", "Unknown")
+            min_turns: Minimum total match turns
+            max_turns: Maximum total match turns
+            map_size: Map size filter
+            map_class: Map class filter
+            map_aspect: Map aspect ratio filter
+            nations: List of civilizations to filter
+            players: List of player names to filter
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns:
+            - category: "Fewer than expected", "As expected", "More than expected"
+            - games: Number of games in this category
+            - wins: Number of wins
+            - win_rate: Win percentage (0-100)
+            - avg_actual: Average actual successions in this category
+            - avg_expected: Average expected successions in this category
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        where_clause, params = self._build_player_filter(
+            filtered, result_filter, table_alias="r"
+        )
+
+        # Average reign duration is 27 turns (calculated from actual data)
+        avg_reign = 27.0
+
+        query = f"""
+        WITH player_successions AS (
+            SELECT
+                r.match_id,
+                r.player_id,
+                m.total_turns,
+                COUNT(*) - 1 as actual_successions,
+                ROUND(m.total_turns / {avg_reign}, 1) as expected_successions,
+                MAX(CASE WHEN mw.winner_player_id = r.player_id THEN 1 ELSE 0 END) as won
+            FROM rulers r
+            JOIN matches m ON r.match_id = m.match_id
+            JOIN match_winners mw ON r.match_id = mw.match_id
+            WHERE {where_clause}
+            GROUP BY r.match_id, r.player_id, m.total_turns
+        ),
+        with_deviation AS (
+            SELECT
+                *,
+                actual_successions - expected_successions as deviation
+            FROM player_successions
+        ),
+        categorized AS (
+            SELECT
+                *,
+                CASE
+                    WHEN deviation < -0.5 THEN 'Fewer than expected'
+                    WHEN deviation > 0.5 THEN 'More than expected'
+                    ELSE 'As expected'
+                END as category
+            FROM with_deviation
+        )
+        SELECT
+            category,
+            COUNT(*) as games,
+            SUM(won) as wins,
+            ROUND(SUM(won) * 100.0 / COUNT(*), 2) as win_rate,
+            ROUND(AVG(actual_successions), 2) as avg_actual,
+            ROUND(AVG(expected_successions), 2) as avg_expected
+        FROM categorized
+        GROUP BY category
+        ORDER BY
+            CASE category
+                WHEN 'Fewer than expected' THEN 1
+                WHEN 'As expected' THEN 2
+                WHEN 'More than expected' THEN 3
+            END
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
     def get_nation_counter_pick_matrix(
         self,
         min_games: int = 1,
