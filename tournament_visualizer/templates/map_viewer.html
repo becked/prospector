@@ -703,8 +703,9 @@
         function hexToPixel(x, y) {
             // Pointy-top hex tessellation (odd-r offset coordinates)
             // - Odd rows are offset horizontally by half the width
+            // - Y is flipped: Old World uses Y=0 at south, but screen coords have Y=0 at top
             const pixelX = x * CONFIG.hexHorizontalSpacing + (y % 2) * (CONFIG.hexHorizontalSpacing / 2);
-            const pixelY = y * CONFIG.hexVerticalSpacing;
+            const pixelY = (mapData.map_info.height - 1 - y) * CONFIG.hexVerticalSpacing;
             return { x: pixelX, y: pixelY };
         }
 
@@ -790,26 +791,27 @@
             }
 
             // Get neighbor offsets for POINTY-TOP odd-r coordinates
+            // Note: dy values are inverted because screen Y is flipped (see hexToPixel)
             function getNeighborOffset(y, edgeIndex) {
                 const isOddRow = y % 2 === 1;
                 // For pointy-top hexes with odd-r offset (odd rows shifted right)
                 if (isOddRow) {
                     return [
-                        [1, -1],   // Edge 0: upper-right neighbor
+                        [1, 1],    // Edge 0: screen top-right neighbor
                         [1, 0],    // Edge 1: right neighbor
-                        [1, 1],    // Edge 2: lower-right neighbor
-                        [0, 1],    // Edge 3: lower-left neighbor
+                        [1, -1],   // Edge 2: screen bottom-right neighbor
+                        [0, -1],   // Edge 3: screen bottom-left neighbor
                         [-1, 0],   // Edge 4: left neighbor
-                        [0, -1],   // Edge 5: upper-left neighbor
+                        [0, 1],    // Edge 5: screen top-left neighbor
                     ][edgeIndex];
                 } else {
                     return [
-                        [0, -1],   // Edge 0: upper-right neighbor
+                        [0, 1],    // Edge 0: screen top-right neighbor
                         [1, 0],    // Edge 1: right neighbor
-                        [0, 1],    // Edge 2: lower-right neighbor
-                        [-1, 1],   // Edge 3: lower-left neighbor
+                        [0, -1],   // Edge 2: screen bottom-right neighbor
+                        [-1, -1],  // Edge 3: screen bottom-left neighbor
                         [-1, 0],   // Edge 4: left neighbor
-                        [-1, -1],  // Edge 5: upper-left neighbor
+                        [-1, 1],   // Edge 5: screen top-left neighbor
                     ][edgeIndex];
                 }
             }
