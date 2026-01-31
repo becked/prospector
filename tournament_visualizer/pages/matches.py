@@ -209,6 +209,9 @@ layout = html.Div(
         ),
         # Match details section (shown when match is selected)
         html.Div(id="match-details-section", style={"display": "none"}),
+        # Hidden placeholder tabs for callbacks that reference match-details-tabs
+        # The actual tabs are created dynamically when a match is selected
+        dbc.Tabs(id="match-details-tabs", active_tab="overview", style={"display": "none"}),
         # Default empty state
         html.Div(
             id="match-empty-state",
