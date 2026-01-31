@@ -942,23 +942,26 @@ def summarize_laws_religion_wonders(
         },
     }
 
-    # Laws from law_df
-    if not law_df.empty:
-        for pid, pname in [(p1_id, p1_name), (p2_id, p2_name)]:
-            player_laws = law_df[law_df["player_id"] == pid]
-            total = len(player_laws)
-            result["laws"][pname]["total"] = total
+    # Laws: count adoptions from law_df, swaps from events_df
+    # Net unique laws = adoptions - swaps (swaps replace existing laws)
+    for pid, pname in [(p1_id, p1_name), (p2_id, p2_name)]:
+        adoptions = 0
+        swaps = 0
 
-    # Laws swaps from events_df
-    if not events_df.empty:
-        for pid, pname in [(p1_id, p1_name), (p2_id, p2_name)]:
+        if not law_df.empty:
+            player_laws = law_df[law_df["player_id"] == pid]
+            adoptions = len(player_laws)
+
+        if not events_df.empty:
             swap_events = events_df[
                 (events_df["player_id"] == pid)
                 & (events_df["event_type"] == "law_swap")
             ]
             swaps = len(swap_events)
-            result["laws"][pname]["swaps"] = swaps
-            result["laws"][pname]["style"] = "Cycling" if swaps >= 2 else "Stable"
+
+        result["laws"][pname]["total"] = adoptions - swaps
+        result["laws"][pname]["swaps"] = swaps
+        result["laws"][pname]["style"] = "Cycling" if swaps >= 2 else "Stable"
 
     # Religions from events_df
     if not events_df.empty:
