@@ -7475,7 +7475,13 @@ class TournamentQueries:
         ),
 
         -- 9. Religion founding events (RELIGION_FOUNDED)
-        -- Only show for the player who actually founded it (first player to see it)
+        -- Deduplicate: both players get notified, but only one actually founded it.
+        -- Priority: 1) adopted same turn, 2) city matches civilization, 3) lowest player_id
+        religion_adopted_lookup AS (
+            SELECT turn_number, player_id, description
+            FROM events
+            WHERE match_id = ? AND event_type = 'RELIGION_ADOPTED'
+        ),
         religion_events_raw AS (
             SELECT
                 e.turn_number as turn,
@@ -7487,11 +7493,63 @@ class TournamentQueries:
                     e.description
                 ) as title,
                 e.description as details,
+                -- Check if player adopted this religion on the same turn (strong signal)
+                CASE WHEN ra.player_id IS NOT NULL THEN 1 ELSE 0 END as adopted_same_turn,
+                -- Check if city in description matches player's civilization
+                CASE
+                    WHEN e.description LIKE '%Babylon%' AND p.civilization = 'Babylonia' THEN 1
+                    WHEN e.description LIKE '%Carthag%' AND p.civilization = 'Carthage' THEN 1
+                    WHEN e.description LIKE '%Eshnunna%' AND p.civilization = 'Babylonia' THEN 1
+                    WHEN e.description LIKE '%Akkad%' AND p.civilization = 'Babylonia' THEN 1
+                    WHEN e.description LIKE '%Ur %' AND p.civilization = 'Babylonia' THEN 1
+                    WHEN e.description LIKE '%Leptis%' AND p.civilization = 'Carthage' THEN 1
+                    WHEN e.description LIKE '%Gadir%' AND p.civilization = 'Carthage' THEN 1
+                    WHEN e.description LIKE '%Thapsus%' AND p.civilization = 'Carthage' THEN 1
+                    WHEN e.description LIKE '%Rome%' AND p.civilization = 'Rome' THEN 1
+                    WHEN e.description LIKE '%Athens%' AND p.civilization = 'Greece' THEN 1
+                    WHEN e.description LIKE '%Sparta%' AND p.civilization = 'Greece' THEN 1
+                    WHEN e.description LIKE '%Thebes%' AND p.civilization = 'Greece' THEN 1
+                    WHEN e.description LIKE '%Memphis%' AND p.civilization = 'Egypt' THEN 1
+                    WHEN e.description LIKE '%Persepolis%' AND p.civilization = 'Persia' THEN 1
+                    WHEN e.description LIKE '%Susa%' AND p.civilization = 'Persia' THEN 1
+                    WHEN e.description LIKE '%Hattusa%' AND p.civilization = 'Hatti' THEN 1
+                    WHEN e.description LIKE '%Kush%' AND p.civilization = 'Kush' THEN 1
+                    WHEN e.description LIKE '%Meroe%' AND p.civilization = 'Kush' THEN 1
+                    ELSE 0
+                END as city_matches_civ,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.turn_number, REGEXP_EXTRACT(e.description, '^(.+?) founded', 1)
-                    ORDER BY e.player_id
+                    ORDER BY
+                        CASE WHEN ra.player_id IS NOT NULL THEN 0 ELSE 1 END,  -- adopted same turn first
+                        CASE
+                            WHEN e.description LIKE '%Babylon%' AND p.civilization = 'Babylonia' THEN 0
+                            WHEN e.description LIKE '%Carthag%' AND p.civilization = 'Carthage' THEN 0
+                            WHEN e.description LIKE '%Eshnunna%' AND p.civilization = 'Babylonia' THEN 0
+                            WHEN e.description LIKE '%Akkad%' AND p.civilization = 'Babylonia' THEN 0
+                            WHEN e.description LIKE '%Ur %' AND p.civilization = 'Babylonia' THEN 0
+                            WHEN e.description LIKE '%Leptis%' AND p.civilization = 'Carthage' THEN 0
+                            WHEN e.description LIKE '%Gadir%' AND p.civilization = 'Carthage' THEN 0
+                            WHEN e.description LIKE '%Thapsus%' AND p.civilization = 'Carthage' THEN 0
+                            WHEN e.description LIKE '%Rome%' AND p.civilization = 'Rome' THEN 0
+                            WHEN e.description LIKE '%Athens%' AND p.civilization = 'Greece' THEN 0
+                            WHEN e.description LIKE '%Sparta%' AND p.civilization = 'Greece' THEN 0
+                            WHEN e.description LIKE '%Thebes%' AND p.civilization = 'Greece' THEN 0
+                            WHEN e.description LIKE '%Memphis%' AND p.civilization = 'Egypt' THEN 0
+                            WHEN e.description LIKE '%Persepolis%' AND p.civilization = 'Persia' THEN 0
+                            WHEN e.description LIKE '%Susa%' AND p.civilization = 'Persia' THEN 0
+                            WHEN e.description LIKE '%Hattusa%' AND p.civilization = 'Hatti' THEN 0
+                            WHEN e.description LIKE '%Kush%' AND p.civilization = 'Kush' THEN 0
+                            WHEN e.description LIKE '%Meroe%' AND p.civilization = 'Kush' THEN 0
+                            ELSE 1
+                        END,  -- city matches civ second
+                        e.player_id  -- fallback to lowest player_id
                 ) as rn
             FROM events e
+            JOIN players p ON e.player_id = p.player_id AND e.match_id = p.match_id
+            LEFT JOIN religion_adopted_lookup ra
+                ON e.turn_number = ra.turn_number
+                AND e.player_id = ra.player_id
+                AND ra.description LIKE '%' || SPLIT_PART(REGEXP_EXTRACT(e.description, '^(.+?) founded', 1), ' ', 1) || '%'
             WHERE e.match_id = ?
               AND e.event_type = 'RELIGION_FOUNDED'
         ),
@@ -7626,7 +7684,7 @@ class TournamentQueries:
 
         params = [
             match_id
-        ] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
+        ] * 17  # 17 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion_adopted_lookup, religion, theology, religion_adopted
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
