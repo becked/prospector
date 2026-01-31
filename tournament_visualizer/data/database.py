@@ -143,6 +143,7 @@ class TournamentDatabase:
         self._create_territories_table()
         self._create_events_table()
         self._create_resources_table()
+        self._create_yield_total_history_table()
         self._create_technology_progress_table()
         self._create_player_statistics_table()
         self._create_units_produced_table()
@@ -187,6 +188,7 @@ class TournamentDatabase:
             "CREATE SEQUENCE IF NOT EXISTS religion_opinion_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS city_unit_production_id_seq START 1;",
             "CREATE SEQUENCE IF NOT EXISTS city_projects_id_seq START 1;",
+            "CREATE SEQUENCE IF NOT EXISTS yield_total_history_id_seq START 1;",
         ]
 
         with self.get_connection() as conn:
@@ -429,6 +431,34 @@ class TournamentDatabase:
         CREATE INDEX IF NOT EXISTS idx_yield_history_turn ON player_yield_history(turn_number);
         CREATE INDEX IF NOT EXISTS idx_yield_history_type ON player_yield_history(resource_type);
         CREATE INDEX IF NOT EXISTS idx_yield_history_match_turn_type ON player_yield_history(match_id, turn_number, resource_type);
+        """
+        with self.get_connection() as conn:
+            conn.execute(query)
+
+    def _create_yield_total_history_table(self) -> None:
+        """Create the player_yield_total_history table for cumulative yield totals.
+
+        This stores YieldTotalHistory data from v1.0.81366+ saves, which provides
+        accurate cumulative totals that cannot be derived from rate history alone
+        (due to yields from events, bonuses, specialists, trade, etc.).
+        """
+        query = """
+        CREATE TABLE IF NOT EXISTS player_yield_total_history (
+            total_id BIGINT PRIMARY KEY,
+            match_id BIGINT NOT NULL REFERENCES matches(match_id),
+            player_id BIGINT NOT NULL REFERENCES players(player_id),
+            turn_number INTEGER NOT NULL,
+            resource_type VARCHAR(50) NOT NULL,
+            amount INTEGER NOT NULL,
+
+            CONSTRAINT check_total_turn_number CHECK(turn_number >= 0),
+            CONSTRAINT unique_yield_total_turn UNIQUE(match_id, player_id, turn_number, resource_type)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_yield_total_history_match_player ON player_yield_total_history(match_id, player_id);
+        CREATE INDEX IF NOT EXISTS idx_yield_total_history_turn ON player_yield_total_history(turn_number);
+        CREATE INDEX IF NOT EXISTS idx_yield_total_history_type ON player_yield_total_history(resource_type);
+        CREATE INDEX IF NOT EXISTS idx_yield_total_history_match_turn_type ON player_yield_total_history(match_id, turn_number, resource_type);
         """
         with self.get_connection() as conn:
             conn.execute(query)
@@ -1611,6 +1641,47 @@ class TournamentDatabase:
 
             conn.executemany(query, values)
 
+    def bulk_insert_yield_total_history(
+        self, yield_total_data: List[Dict[str, Any]]
+    ) -> None:
+        """Bulk insert yield cumulative total history records.
+
+        This stores YieldTotalHistory data from v1.0.81366+ saves, providing
+        accurate cumulative totals that include yields from all sources
+        (not just rate-based production).
+
+        Args:
+            yield_total_data: List of yield total history dictionaries with keys:
+                match_id, player_id, turn_number, resource_type, amount
+        """
+        if not yield_total_data:
+            return
+
+        with self.get_connection() as conn:
+            query = """
+            INSERT INTO player_yield_total_history (
+                total_id, match_id, player_id, turn_number, resource_type, amount
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """
+
+            values = []
+            for record in yield_total_data:
+                total_id = conn.execute(
+                    "SELECT nextval('yield_total_history_id_seq')"
+                ).fetchone()[0]
+                values.append(
+                    [
+                        total_id,
+                        record["match_id"],
+                        record["player_id"],
+                        record["turn_number"],
+                        record["resource_type"],
+                        record["amount"],
+                    ]
+                )
+
+            conn.executemany(query, values)
+
     def bulk_insert_technology_progress(
         self, tech_progress_data: List[Dict[str, Any]]
     ) -> None:
@@ -2063,6 +2134,115 @@ class TournamentDatabase:
                 )
 
             conn.executemany(query, values)
+
+    def delete_match(self, match_id: int) -> bool:
+        """Delete a match and all associated data from the database.
+
+        Deletes from all child tables first to respect foreign key constraints,
+        then deletes the match itself. Also clears the matched_match_id reference
+        in pick_order_games.
+
+        Args:
+            match_id: The match_id to delete
+
+        Returns:
+            True if the match was deleted, False if it didn't exist
+        """
+        with self.get_connection() as conn:
+            # Check if match exists
+            result = conn.execute(
+                "SELECT match_id FROM matches WHERE match_id = ?", [match_id]
+            ).fetchone()
+            if not result:
+                return False
+
+            # Delete from all child tables in order (children first)
+            # History tables (reference players which references matches)
+            conn.execute(
+                "DELETE FROM player_yield_total_history WHERE match_id = ?",
+                [match_id],
+            )
+            conn.execute(
+                "DELETE FROM player_yield_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM player_points_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM player_military_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM player_legitimacy_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM family_opinion_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM religion_opinion_history WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM player_statistics WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM technology_progress WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM units_produced WHERE match_id = ?", [match_id]
+            )
+
+            # City-related tables
+            conn.execute(
+                "DELETE FROM city_unit_production WHERE match_id = ?", [match_id]
+            )
+            conn.execute(
+                "DELETE FROM city_projects WHERE match_id = ?", [match_id]
+            )
+            conn.execute("DELETE FROM cities WHERE match_id = ?", [match_id])
+
+            # Other match-level tables
+            conn.execute("DELETE FROM territories WHERE match_id = ?", [match_id])
+            conn.execute("DELETE FROM events WHERE match_id = ?", [match_id])
+            conn.execute("DELETE FROM rulers WHERE match_id = ?", [match_id])
+            conn.execute("DELETE FROM match_metadata WHERE match_id = ?", [match_id])
+            conn.execute("DELETE FROM match_winners WHERE match_id = ?", [match_id])
+            conn.execute(
+                "DELETE FROM participant_name_overrides WHERE match_id = ?", [match_id]
+            )
+
+            # Clear reference in pick_order_games (don't delete the row)
+            conn.execute(
+                """UPDATE pick_order_games
+                   SET matched_match_id = NULL,
+                       match_confidence = NULL,
+                       match_reason = NULL,
+                       matched_at = NULL
+                   WHERE matched_match_id = ?""",
+                [match_id],
+            )
+
+            # Delete players (must be after history tables that reference player_id)
+            conn.execute("DELETE FROM players WHERE match_id = ?", [match_id])
+
+            # Finally delete the match itself
+            conn.execute("DELETE FROM matches WHERE match_id = ?", [match_id])
+
+            return True
+
+    def get_match_id_by_challonge_id(self, challonge_match_id: int) -> Optional[int]:
+        """Get the database match_id for a given Challonge match ID.
+
+        Args:
+            challonge_match_id: The Challonge match ID
+
+        Returns:
+            The database match_id, or None if not found
+        """
+        with self.get_connection() as conn:
+            result = conn.execute(
+                "SELECT match_id FROM matches WHERE challonge_match_id = ?",
+                [challonge_match_id],
+            ).fetchone()
+            return result[0] if result else None
 
 
 # Import Config for database path

@@ -7,7 +7,7 @@ for the Match Card "Overview (Beta)" tab.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -663,6 +663,7 @@ def generate_empire_profile(
     captured_cities: int,
     lost_cities: int,
     total_turns: int,
+    yield_total_df: Optional[pd.DataFrame] = None,
 ) -> dict[str, Any]:
     """Generate a comprehensive profile for a player.
 
@@ -679,6 +680,8 @@ def generate_empire_profile(
         captured_cities: Number of cities captured by this player
         lost_cities: Number of cities lost by this player
         total_turns: Total turns in the match
+        yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
+            (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
 
     Returns:
         Dict with playstyle_tags, army_composition, wonders_built
@@ -694,7 +697,9 @@ def generate_empire_profile(
     )
 
     # Economy focus
-    playstyle_tags["economy"] = _classify_economy_focus(player_id, yield_df)
+    playstyle_tags["economy"] = _classify_economy_focus(
+        player_id, yield_df, yield_total_df
+    )
 
     # Identity tag
     playstyle_tags["identity"] = _classify_identity(player_id, events_df)
@@ -753,20 +758,52 @@ def _classify_military_posture(
         return "Passive"
 
 
-def _classify_economy_focus(player_id: int, yield_df: pd.DataFrame) -> str:
-    """Classify economy focus based on cumulative yields."""
-    if yield_df.empty:
-        return "Balanced"
+def _classify_economy_focus(
+    player_id: int,
+    yield_df: pd.DataFrame,
+    yield_total_df: Optional[pd.DataFrame] = None,
+) -> str:
+    """Classify economy focus based on cumulative yields.
 
-    player_yields = yield_df[yield_df["player_id"] == player_id]
-    if player_yields.empty:
-        return "Balanced"
+    Args:
+        player_id: Player's database ID
+        yield_df: DataFrame from get_yield_history_by_match() (per-turn rates)
+        yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
+            (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
+    """
+    # Prefer actual totals when available (v1.0.81366+ saves)
+    if yield_total_df is not None and not yield_total_df.empty:
+        player_yields = yield_total_df[yield_total_df["player_id"] == player_id]
+        if not player_yields.empty:
+            # Get final turn totals for each yield type
+            totals = {}
+            for yield_type in ["YIELD_SCIENCE", "YIELD_TRAINING", "YIELD_MONEY"]:
+                type_df = player_yields[player_yields["resource_type"] == yield_type]
+                if not type_df.empty:
+                    # Use max turn's value (the final cumulative total)
+                    max_turn = type_df["turn_number"].max()
+                    final_value = type_df[type_df["turn_number"] == max_turn][
+                        "amount"
+                    ].iloc[0]
+                    totals[yield_type] = final_value
+                else:
+                    totals[yield_type] = 0
+        else:
+            totals = {}
+    else:
+        # Fall back to summing rates (older saves)
+        if yield_df.empty:
+            return "Balanced"
 
-    # Sum up key yield types
-    totals = {}
-    for yield_type in ["YIELD_SCIENCE", "YIELD_TRAINING", "YIELD_MONEY"]:
-        type_df = player_yields[player_yields["resource_type"] == yield_type]
-        totals[yield_type] = type_df["amount"].sum() if not type_df.empty else 0
+        player_yields = yield_df[yield_df["player_id"] == player_id]
+        if player_yields.empty:
+            return "Balanced"
+
+        # Sum up key yield types
+        totals = {}
+        for yield_type in ["YIELD_SCIENCE", "YIELD_TRAINING", "YIELD_MONEY"]:
+            type_df = player_yields[player_yields["resource_type"] == yield_type]
+            totals[yield_type] = type_df["amount"].sum() if not type_df.empty else 0
 
     if not totals:
         return "Balanced"
@@ -1288,6 +1325,7 @@ def analyze_yield_comparison(
     yield_df: pd.DataFrame,
     points_df: pd.DataFrame,
     player_ids: tuple[int, int],
+    yield_total_df: Optional[pd.DataFrame] = None,
 ) -> dict[str, Any]:
     """Calculate cumulative yield totals for comparison charts.
 
@@ -1295,6 +1333,8 @@ def analyze_yield_comparison(
         yield_df: DataFrame from get_yield_history_by_match()
         points_df: DataFrame from get_points_history_by_match()
         player_ids: Tuple of (player1_id, player2_id)
+        yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
+            (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
 
     Returns:
         Dict with yield comparison data for each metric
@@ -1311,12 +1351,31 @@ def analyze_yield_comparison(
 
     result = {}
 
+    # Use actual totals when available (v1.0.81366+ saves)
+    use_totals = yield_total_df is not None and not yield_total_df.empty
+
     # Calculate cumulative totals for each yield type
     for display_name, yield_type in metrics:
         p1_total = 0.0
         p2_total = 0.0
 
-        if not yield_df.empty:
+        if use_totals:
+            # Use actual cumulative totals (includes events, bonuses, trade, etc.)
+            yield_data = yield_total_df[yield_total_df["resource_type"] == yield_type]
+            for player_id, total_var in [(p1_id, "p1"), (p2_id, "p2")]:
+                player_data = yield_data[yield_data["player_id"] == player_id]
+                if not player_data.empty:
+                    # Get final turn's cumulative total
+                    max_turn = player_data["turn_number"].max()
+                    final_value = player_data[player_data["turn_number"] == max_turn][
+                        "amount"
+                    ].iloc[0]
+                    if total_var == "p1":
+                        p1_total = final_value
+                    else:
+                        p2_total = final_value
+        elif not yield_df.empty:
+            # Fall back to summing rates (older saves)
             yield_data = yield_df[yield_df["resource_type"] == yield_type]
             p1_data = yield_data[yield_data["player_id"] == p1_id]
             p2_data = yield_data[yield_data["player_id"] == p2_id]
@@ -1375,6 +1434,7 @@ def analyze_match(
     player_ids: tuple[int, int],
     player_names: tuple[str, str],
     civilizations: tuple[str, str],
+    yield_total_df: Optional[pd.DataFrame] = None,
 ) -> dict[str, Any]:
     """Run all match analyses and return combined results.
 
@@ -1396,6 +1456,8 @@ def analyze_match(
         player_ids: Tuple of (player1_id, player2_id)
         player_names: Tuple of (player1_name, player2_name)
         civilizations: Tuple of (player1_civ, player2_civ)
+        yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
+            (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
 
     Returns:
         Dict with all analysis results
@@ -1436,6 +1498,7 @@ def analyze_match(
         captured_cities=p1_captured,
         lost_cities=p1_lost,
         total_turns=total_turns,
+        yield_total_df=yield_total_df,
     )
 
     p2_profile = generate_empire_profile(
@@ -1451,6 +1514,7 @@ def analyze_match(
         captured_cities=p2_captured,
         lost_cities=p2_lost,
         total_turns=total_turns,
+        yield_total_df=yield_total_df,
     )
 
     # Key Events
@@ -1487,7 +1551,9 @@ def analyze_match(
     )
 
     # Yield Comparison
-    yield_comparison = analyze_yield_comparison(yield_df, points_df, player_ids)
+    yield_comparison = analyze_yield_comparison(
+        yield_df, points_df, player_ids, yield_total_df
+    )
 
     return {
         "match_id": match_id,

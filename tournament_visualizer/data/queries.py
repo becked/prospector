@@ -2278,6 +2278,77 @@ class TournamentQueries:
             df = conn.execute(query, params).df()
             return df["resource_type"].tolist() if not df.empty else []
 
+    def has_yield_total_history(self, match_id: int) -> bool:
+        """Check if a match has YieldTotalHistory data.
+
+        YieldTotalHistory is only available in v1.0.81366+ saves and provides
+        accurate cumulative totals (summing rates gives ~30% lower values).
+
+        Args:
+            match_id: Match ID to check
+
+        Returns:
+            True if the match has yield total history data
+        """
+        query = """
+        SELECT EXISTS (
+            SELECT 1 FROM player_yield_total_history
+            WHERE match_id = ?
+            LIMIT 1
+        )
+        """
+        with self.db.get_connection() as conn:
+            result = conn.execute(query, [match_id]).fetchone()
+            return bool(result[0]) if result else False
+
+    def get_yield_total_history_by_match(
+        self, match_id: int, yield_types: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """Get cumulative yield totals for all players in a match.
+
+        Returns data from player_yield_total_history showing turn-by-turn
+        cumulative totals. Only available for v1.0.81366+ saves.
+
+        These totals include yields from ALL sources (events, bonuses,
+        specialists, trade, etc.) - not just rate-based production.
+        Summing rates gives ~30% lower values than actual totals.
+
+        Args:
+            match_id: Match ID to query
+            yield_types: Optional list of yield types to filter
+
+        Returns:
+            DataFrame with columns:
+            - player_id, player_name, civilization
+            - turn_number
+            - resource_type: The yield type
+            - amount: Cumulative total for that yield through that turn
+        """
+        base_query = """
+        SELECT
+            yth.player_id,
+            p.player_name,
+            p.civilization,
+            yth.turn_number,
+            yth.resource_type,
+            yth.amount / 10.0 AS amount  -- Old World stores in 0.1 units
+        FROM player_yield_total_history yth
+        JOIN players p ON yth.player_id = p.player_id AND yth.match_id = p.match_id
+        WHERE yth.match_id = ?
+        """
+
+        params = [match_id]
+
+        if yield_types:
+            placeholders = ", ".join(["?" for _ in yield_types])
+            base_query += f" AND yth.resource_type IN ({placeholders})"
+            params.extend(yield_types)
+
+        base_query += " ORDER BY yth.turn_number, yth.player_id, yth.resource_type"
+
+        with self.db.get_connection() as conn:
+            return conn.execute(base_query, params).df()
+
     def get_military_history_by_match(self, match_id: int) -> pd.DataFrame:
         """Get military power progression for all players in a match.
 
@@ -4113,14 +4184,30 @@ class TournamentQueries:
         ORDER BY yh.turn_number
         """
 
-        # Cumulative yield: first compute running sum per player/match,
-        # then aggregate across all to get percentiles.
-        # NOTE: For matches with delta-encoded history (v1.0.81366+, Jan 2026),
-        # this cumulative calculation is slightly inaccurate because sparse data
-        # isn't forward-filled before summing. Only 2/47 matches are affected.
-        # Individual match views use forward-fill in charts.py for accurate display.
+        # Cumulative yield: Use actual totals from player_yield_total_history
+        # when available (v1.0.81366+ saves), fall back to SUM() OVER for older saves.
+        # Summing rates gives ~30% lower values than actual totals because yields
+        # from events, bonuses, specialists, trade, etc. aren't in rate history.
         cumulative_query = f"""
-        WITH cumulative_per_player AS (
+        WITH
+        -- Matches that have accurate total history (v1.0.81366+)
+        matches_with_totals AS (
+            SELECT DISTINCT match_id
+            FROM player_yield_total_history
+        ),
+        -- Actual cumulative totals for newer saves
+        actual_totals AS (
+            SELECT
+                yth.match_id,
+                yth.player_id,
+                yth.turn_number,
+                yth.amount / 10.0 as cumulative_yield
+            FROM player_yield_total_history yth
+            WHERE yth.resource_type = $yield_type
+                AND {where_clause.replace('yh.', 'yth.')}
+        ),
+        -- Calculated cumulative totals for older saves (fallback)
+        calculated_totals AS (
             SELECT
                 yh.match_id,
                 yh.player_id,
@@ -4132,6 +4219,13 @@ class TournamentQueries:
             FROM player_yield_history yh
             WHERE yh.resource_type = $yield_type
                 AND {where_clause}
+                AND yh.match_id NOT IN (SELECT match_id FROM matches_with_totals)
+        ),
+        -- Combine both sources
+        cumulative_per_player AS (
+            SELECT * FROM actual_totals
+            UNION ALL
+            SELECT * FROM calculated_totals
         )
         SELECT
             turn_number,

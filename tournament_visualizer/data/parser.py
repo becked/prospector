@@ -1661,6 +1661,80 @@ class OldWorldSaveParser:
 
         return yield_data
 
+    def extract_yield_total_history(self) -> List[Dict[str, Any]]:
+        """Extract cumulative yield totals from YieldTotalHistory.
+
+        YieldTotalHistory (v1.0.81366+) contains accurate cumulative totals
+        that include yields from ALL sources (events, bonuses, specialists,
+        trade, etc.) - not just rate-based production. Summing rates gives
+        ~30% lower values than actual totals.
+
+        Structure is identical to YieldRateHistory:
+        <YieldTotalHistory>
+            <YIELD_GROWTH>
+                <T2>144</T2>
+                <T3>288</T3>
+            </YIELD_GROWTH>
+        </YieldTotalHistory>
+
+        Returns:
+            List of yield total history dictionaries with:
+            - player_id: Database player ID (1-based)
+            - turn_number: Game turn number
+            - resource_type: Type of yield (YIELD_GROWTH, YIELD_CIVICS, etc.)
+            - amount: Cumulative total for that yield through that turn
+        """
+        if self.root is None:
+            raise ValueError("XML not parsed. Call extract_and_parse() first.")
+
+        yield_total_data = []
+
+        # Find all player elements with OnlineID (human players)
+        player_elements = self.root.findall(".//Player[@OnlineID]")
+
+        for player_elem in player_elements:
+            # Get player's XML ID (0-based)
+            player_xml_id = player_elem.get("ID")
+            if player_xml_id is None:
+                continue
+
+            # Convert to 1-based player_id for database
+            player_id = int(player_xml_id) + 1
+
+            # Find YieldTotalHistory for this player (v1.0.81366+ only)
+            yield_total_history = player_elem.find(".//YieldTotalHistory")
+            if yield_total_history is None:
+                continue
+
+            # Process each yield type (YIELD_GROWTH, YIELD_CIVICS, etc.)
+            for yield_type_elem in yield_total_history:
+                yield_type = yield_type_elem.tag  # e.g., "YIELD_GROWTH"
+
+                # Process each turn within this yield type (T2, T3, ...)
+                for turn_elem in yield_type_elem:
+                    turn_tag = turn_elem.tag  # e.g., "T2"
+
+                    # Extract turn number from tag (T2 → 2)
+                    if not turn_tag.startswith("T"):
+                        continue
+
+                    turn_number = self._safe_int(turn_tag[1:])
+                    amount = self._safe_int(turn_elem.text)
+
+                    if turn_number is None or amount is None:
+                        continue
+
+                    yield_total_data.append(
+                        {
+                            "player_id": player_id,
+                            "turn_number": turn_number,
+                            "resource_type": yield_type,
+                            "amount": amount,
+                        }
+                    )
+
+        return yield_total_data
+
     def extract_military_history(self) -> List[Dict[str, Any]]:
         """Extract military power progression from MilitaryPowerHistory.
 
@@ -2318,6 +2392,7 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
 
     # Extract turn-by-turn history data
     yield_history = parser.extract_yield_history()
+    yield_total_history = parser.extract_yield_total_history()  # v1.0.81366+ only
     points_history = parser.extract_points_history()
     military_history = parser.extract_military_history()
     legitimacy_history = parser.extract_legitimacy_history()
@@ -2348,6 +2423,7 @@ def parse_tournament_file(zip_file_path: str) -> Dict[str, Any]:
         "detailed_metadata": detailed_metadata,
         # Turn-by-turn history data
         "yield_history": yield_history,
+        "yield_total_history": yield_total_history,  # v1.0.81366+ only
         "points_history": points_history,
         "military_history": military_history,
         "legitimacy_history": legitimacy_history,

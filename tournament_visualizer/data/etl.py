@@ -398,6 +398,25 @@ class TournamentETL:
             self.db.bulk_insert_yield_history(yield_history)
             logger.info(f"Inserted {len(yield_history)} yield history records")
 
+        # Process yield total history (v1.0.81366+ saves only)
+        yield_total_history = parsed_data.get("yield_total_history", [])
+        for yield_total_data in yield_total_history:
+            yield_total_data["match_id"] = match_id
+            # Map player_id if present
+            if (
+                yield_total_data.get("player_id")
+                and yield_total_data["player_id"] in player_id_mapping
+            ):
+                yield_total_data["player_id"] = player_id_mapping[
+                    yield_total_data["player_id"]
+                ]
+
+        if yield_total_history:
+            self.db.bulk_insert_yield_total_history(yield_total_history)
+            logger.info(
+                f"Inserted {len(yield_total_history)} yield total history records"
+            )
+
         # Process military history
         military_history = parsed_data.get("military_history", [])
         for military_data in military_history:

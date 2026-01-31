@@ -3011,6 +3011,7 @@ def create_match_yield_stacked_chart(
     yield_type: str = "YIELD_FOOD",
     display_name: Optional[str] = None,
     player_colors: Optional[Dict[str, str]] = None,
+    cumulative_df: Optional[pd.DataFrame] = None,
 ) -> go.Figure:
     """Create stacked subplots showing per-player yield rate and cumulative.
 
@@ -3024,6 +3025,10 @@ def create_match_yield_stacked_chart(
         yield_type: The yield type being displayed (e.g., "YIELD_FOOD")
         display_name: Optional human-readable name (e.g., "Food")
         player_colors: Optional dict mapping player names to hex colors
+        cumulative_df: Optional DataFrame with actual cumulative totals
+            (from get_yield_total_history_by_match). When provided, uses these
+            accurate totals instead of summing rates (~30% more accurate for
+            v1.0.81366+ saves because it includes events, bonuses, trade, etc.)
 
     Returns:
         Plotly figure with two vertically stacked subplots
@@ -3066,12 +3071,37 @@ def create_match_yield_stacked_chart(
         turns = player_data["turn_number"].tolist()
         yields = player_data["amount"].tolist()
 
-        # Calculate cumulative yields
-        cumulative = []
-        running_total = 0.0
-        for y in yields:
-            running_total += y
-            cumulative.append(running_total)
+        # Use actual cumulative totals if provided (v1.0.81366+ saves)
+        # These include yields from ALL sources, not just rate-based production
+        if cumulative_df is not None and not cumulative_df.empty:
+            player_cumulative = cumulative_df[
+                cumulative_df["player_name"] == player
+            ].sort_values("turn_number")
+            if not player_cumulative.empty:
+                # Build cumulative from actual totals
+                cumulative = player_cumulative["amount"].tolist()
+                # Ensure turns match between rate and total data
+                cumulative_turns = player_cumulative["turn_number"].tolist()
+                if cumulative_turns != turns:
+                    # Align cumulative to rate turns via lookup
+                    turn_to_total = dict(
+                        zip(cumulative_turns, player_cumulative["amount"])
+                    )
+                    cumulative = [turn_to_total.get(t, 0) for t in turns]
+            else:
+                # Fall back to calculated cumulative
+                cumulative = []
+                running_total = 0.0
+                for y in yields:
+                    running_total += y
+                    cumulative.append(running_total)
+        else:
+            # Calculate cumulative by summing rates (older saves)
+            cumulative = []
+            running_total = 0.0
+            for y in yields:
+                running_total += y
+                cumulative.append(running_total)
 
         # Extend lines to match end if total_turns provided
         if total_turns and turns and turns[-1] < total_turns:

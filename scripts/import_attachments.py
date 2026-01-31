@@ -6,11 +6,14 @@ and imports them into the DuckDB database for visualization.
 
 Usage:
     python import_tournaments.py [--directory DIRECTORY] [--verbose] [--force]
+    python import_tournaments.py --match-id 426504724  # Reimport single match
 """
 
 import argparse
+import glob
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from tournament_visualizer.config import Config
 from tournament_visualizer.data.etl import (
+    TournamentETL,
+    fetch_tournament_rounds,
     initialize_database,
     process_tournament_directory,
 )
@@ -137,6 +142,117 @@ def print_summary(results: dict) -> None:
     print("=" * 60)
 
 
+def find_match_file(challonge_match_id: int, directory: str) -> Path | None:
+    """Find the save file for a given Challonge match ID.
+
+    Filenames follow the pattern: match_{challonge_match_id}_*.zip
+    Example: match_426504724_moose-mongreleyes.zip
+
+    Args:
+        challonge_match_id: The Challonge match ID to find
+        directory: Directory to search in
+
+    Returns:
+        Path to the file, or None if not found
+    """
+    pattern = f"match_{challonge_match_id}_*.zip"
+    matches = list(Path(directory).glob(pattern))
+
+    if not matches:
+        return None
+    if len(matches) > 1:
+        print(f"Warning: Found multiple files for match {challonge_match_id}:")
+        for m in matches:
+            print(f"  - {m.name}")
+        print(f"Using: {matches[0].name}")
+
+    return matches[0]
+
+
+def reimport_single_match(
+    challonge_match_id: int, directory: str, verbose: bool = False
+) -> None:
+    """Reimport a single match by its Challonge match ID.
+
+    This deletes all existing data for the match and reimports it from
+    the save file.
+
+    Args:
+        challonge_match_id: The Challonge match ID to reimport
+        directory: Directory containing save files
+        verbose: Enable verbose logging
+    """
+    setup_logging(verbose)
+    logger = logging.getLogger(__name__)
+
+    print(f"\n{'='*60}")
+    print(f"SINGLE MATCH REIMPORT: {challonge_match_id}")
+    print(f"{'='*60}")
+
+    # Find the save file
+    save_file = find_match_file(challonge_match_id, directory)
+    if not save_file:
+        print(f"\n❌ No save file found for match {challonge_match_id}")
+        print(f"   Expected pattern: match_{challonge_match_id}_*.zip")
+        print(f"   Searched in: {directory}")
+        sys.exit(1)
+
+    print(f"\nFound save file: {save_file.name}")
+
+    # Initialize database
+    print("Initializing database...")
+    db = initialize_database()
+
+    # Check if match exists in database
+    existing_match_id = db.get_match_id_by_challonge_id(challonge_match_id)
+
+    if existing_match_id:
+        print(f"Found existing match in database (match_id: {existing_match_id})")
+        print("Deleting existing data...")
+
+        if db.delete_match(existing_match_id):
+            print(f"✓ Deleted match {existing_match_id} and all associated data")
+        else:
+            print(f"⚠ Match {existing_match_id} not found (may have been deleted)")
+    else:
+        print("No existing match found in database (new import)")
+
+    # Fetch Challonge round data
+    print("\nFetching tournament round data from Challonge...")
+    round_cache = fetch_tournament_rounds()
+    if round_cache:
+        round_num = round_cache.get(challonge_match_id)
+        if round_num:
+            bracket = "Winners" if round_num > 0 else "Losers"
+            print(f"✓ Match is in {bracket} Bracket, Round {abs(round_num)}")
+        else:
+            print("⚠ Round data not found for this match")
+    else:
+        print("⚠ Could not fetch round data (API unavailable)")
+
+    # Process the file
+    print(f"\nImporting: {save_file.name}")
+    print("-" * 60)
+
+    etl = TournamentETL(database=db, round_cache=round_cache)
+    success = etl.process_tournament_file(str(save_file), challonge_match_id)
+
+    if success:
+        # Get the new match_id
+        new_match_id = db.get_match_id_by_challonge_id(challonge_match_id)
+        print(f"\n{'='*60}")
+        print(f"✅ Successfully reimported match!")
+        print(f"   Challonge ID: {challonge_match_id}")
+        print(f"   Database ID:  {new_match_id}")
+        print(f"{'='*60}")
+    else:
+        print(f"\n❌ Failed to import match {challonge_match_id}")
+        print("Check the log file 'tournament_import.log' for details.")
+        sys.exit(1)
+
+    db.close()
+
+
 def main() -> None:
     """Main import function."""
     parser = argparse.ArgumentParser(
@@ -173,6 +289,13 @@ def main() -> None:
         help="Keep duplicate files instead of automatically skipping them",
     )
 
+    parser.add_argument(
+        "--match-id",
+        "-m",
+        type=int,
+        help="Reimport a single match by its Challonge match ID (e.g., 426504724)",
+    )
+
     args = parser.parse_args()
 
     # Set up logging
@@ -180,6 +303,11 @@ def main() -> None:
     logger = logging.getLogger(__name__)
 
     try:
+        # Handle single-match reimport
+        if args.match_id:
+            reimport_single_match(args.match_id, args.directory, args.verbose)
+            return
+
         # Validate directory
         directory = validate_directory(args.directory)
 

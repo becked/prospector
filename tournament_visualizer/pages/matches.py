@@ -2533,6 +2533,12 @@ def update_all_yield_charts(
                 for _, display_name in YIELD_TYPES
             ]
 
+        # Check for actual cumulative totals (v1.0.81366+ saves)
+        # These are ~30% more accurate because they include events, bonuses, etc.
+        yield_total_df = None
+        if queries.has_yield_total_history(match_id):
+            yield_total_df = queries.get_yield_total_history_by_match(match_id)
+
         # Get total turns for the match to extend chart lines
         match_df = queries.get_match_summary()
         match_info = match_df[match_df["match_id"] == match_id]
@@ -2549,6 +2555,13 @@ def update_all_yield_charts(
             # Filter to this specific yield type
             df_yield = all_yields_df[all_yields_df["resource_type"] == yield_type]
 
+            # Filter cumulative totals for this yield type if available
+            cumulative_df = None
+            if yield_total_df is not None and not yield_total_df.empty:
+                cumulative_df = yield_total_df[
+                    yield_total_df["resource_type"] == yield_type
+                ]
+
             # Create stacked chart with rate + cumulative (using nation colors)
             chart = create_match_yield_stacked_chart(
                 df_yield,
@@ -2556,6 +2569,7 @@ def update_all_yield_charts(
                 yield_type=yield_type,
                 display_name=display_name,
                 player_colors=player_colors,
+                cumulative_df=cumulative_df,
             )
             charts.append(chart)
 
@@ -4119,6 +4133,12 @@ def update_overview_beta(
         units_df = queries.get_match_units_produced(match_id)
         law_df = queries.get_law_timeline(match_id)
 
+        # Get actual cumulative totals if available (v1.0.81366+ saves)
+        # These are ~30% more accurate because they include events, bonuses, etc.
+        yield_total_df = None
+        if queries.has_yield_total_history(match_id):
+            yield_total_df = queries.get_yield_total_history_by_match(match_id)
+
         # Get match summary for metadata
         match_summary_df = queries.get_match_summary()
         match_info = match_summary_df[match_summary_df["match_id"] == match_id]
@@ -4202,6 +4222,7 @@ def update_overview_beta(
             player_ids=(player1_id, player2_id),
             player_names=(player1_name, player2_name),
             civilizations=(player1_civ, player2_civ),
+            yield_total_df=yield_total_df,
         )
 
         # Create and return the layout
