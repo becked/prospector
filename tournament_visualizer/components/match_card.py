@@ -554,8 +554,26 @@ def _find_major_battles(
     if military_df.empty:
         return []
 
-    # Calculate total military per turn (sum of both players)
-    total_by_turn = military_df.groupby("turn_number")["military_power"].sum()
+    # Newer save files (Jan 2026+) use delta encoding - they only record military
+    # power when it changes, not every turn. We need to forward-fill each player's
+    # last known value to get accurate totals per turn.
+    min_turn = military_df["turn_number"].min()
+    max_turn = military_df["turn_number"].max()
+    all_turns = range(min_turn, max_turn + 1)
+
+    # Forward-fill each player's military power across all turns
+    player_ids = military_df["player_id"].unique()
+    filled_totals = pd.Series(0, index=all_turns)
+
+    for player_id in player_ids:
+        player_data = military_df[military_df["player_id"] == player_id][
+            ["turn_number", "military_power"]
+        ].set_index("turn_number")
+        # Reindex to all turns and forward-fill missing values
+        player_filled = player_data.reindex(all_turns).ffill().fillna(0)
+        filled_totals = filled_totals + player_filled["military_power"]
+
+    total_by_turn = filled_totals
 
     if len(total_by_turn) < window + 1:
         return []
