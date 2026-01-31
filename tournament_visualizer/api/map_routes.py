@@ -167,23 +167,24 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
         # Build tiles array
         tiles = []
         for _, row in df.iterrows():
-            # Handle pandas NaN values properly
-            owner_id = row.get("owner_player_id")
-            owner = int(owner_id) if pd.notna(owner_id) else None
+            # Handle pandas NaN values - NaN is not valid JSON, must convert to None
+            def safe_str(val: Any) -> str | None:
+                return val if pd.notna(val) else None
 
-            population = row.get("population")
-            pop_value = int(population) if pd.notna(population) else None
+            def safe_int(val: Any) -> int | None:
+                return int(val) if pd.notna(val) else None
 
             tile = {
                 "x": int(row["x_coordinate"]),
                 "y": int(row["y_coordinate"]),
-                "terrain": row.get("terrain_type"),
-                "owner": owner,
-                "improvement": row.get("improvement_type"),
-                "specialist": row.get("specialist_type"),
-                "resource": row.get("resource_type"),
+                "terrain": safe_str(row.get("terrain_type")),
+                "owner": safe_int(row.get("owner_player_id")),
+                "improvement": safe_str(row.get("improvement_type")),
+                "specialist": safe_str(row.get("specialist_type")),
+                "resource": safe_str(row.get("resource_type")),
                 "road": bool(row.get("has_road", False)),
             }
+            pop_value = safe_int(row.get("population"))
 
             # Add city info if this is a city tile
             city_name = row.get("city_name")
