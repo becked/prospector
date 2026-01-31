@@ -3957,6 +3957,11 @@ class TournamentQueries:
             filtered, result_filter, table_alias="h"
         )
 
+        # NOTE: For matches with delta-encoded history (v1.0.81366+, Jan 2026),
+        # percentiles are calculated only on recorded turns. Some turns may be
+        # missing for sparse matches (2/47 affected). Individual match views
+        # use forward-fill in charts.py for complete time series.
+
         # Science per turn (YIELD_SCIENCE)
         science_query = f"""
         SELECT
@@ -4109,7 +4114,11 @@ class TournamentQueries:
         """
 
         # Cumulative yield: first compute running sum per player/match,
-        # then aggregate across all to get percentiles
+        # then aggregate across all to get percentiles.
+        # NOTE: For matches with delta-encoded history (v1.0.81366+, Jan 2026),
+        # this cumulative calculation is slightly inaccurate because sparse data
+        # isn't forward-filled before summing. Only 2/47 matches are affected.
+        # Individual match views use forward-fill in charts.py for accurate display.
         cumulative_query = f"""
         WITH cumulative_per_player AS (
             SELECT

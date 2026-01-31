@@ -11,6 +11,11 @@ from typing import Any
 
 import pandas as pd
 
+from tournament_visualizer.data.transformations import (
+    forward_fill_history,
+    forward_fill_history_by_category,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,8 +89,14 @@ def analyze_vp_lead(
 
     p1_id, p2_id = player_ids
 
+    # Forward-fill sparse points data (delta-encoded in newer save files)
+    filled_df = forward_fill_history(
+        points_df,
+        value_cols=["points"],
+    )
+
     # Pivot to get each player's points per turn
-    pivot = points_df.pivot_table(
+    pivot = filled_df.pivot_table(
         index="turn_number",
         columns="player_id",
         values="points",
@@ -393,8 +404,15 @@ def _find_science_lead_milestones(
 
     p1_id, p2_id = player_ids
 
+    # Forward-fill sparse science rates (delta-encoded in newer save files)
+    # This ensures cumsum correctly accounts for rates persisting across turns
+    filled_df = forward_fill_history(
+        science_df,
+        value_cols=["amount"],
+    )
+
     # Pivot by turn and player
-    pivot = science_df.pivot_table(
+    pivot = filled_df.pivot_table(
         index="turn_number",
         columns="player_id",
         values="amount",
@@ -475,8 +493,14 @@ def _find_military_lead_milestones(
 
     p1_id, p2_id = player_ids
 
+    # Forward-fill sparse military data (delta-encoded in newer save files)
+    filled_df = forward_fill_history(
+        military_df,
+        value_cols=["military_power"],
+    )
+
     # Pivot by turn and player
-    pivot = military_df.pivot_table(
+    pivot = filled_df.pivot_table(
         index="turn_number",
         columns="player_id",
         values="military_power",

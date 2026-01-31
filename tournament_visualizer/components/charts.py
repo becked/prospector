@@ -19,6 +19,7 @@ from ..config import (
 )
 from ..nation_colors import get_nation_color
 from ..theme import CHART_THEME
+from ..data.transformations import forward_fill_history, forward_fill_history_by_category
 
 
 def _get_text_color_for_background(bg_color: str) -> str:
@@ -2921,6 +2922,13 @@ def create_yield_chart(
             f"No {display_name} yield data available for this match"
         )
 
+    # Forward-fill sparse yield data (delta-encoded in newer save files)
+    df = forward_fill_history(
+        df,
+        value_cols=["amount"],
+        preserve_columns=["player_name", "resource_type"],
+    )
+
     fig = create_base_figure(
         title="",
         x_title="Turn Number",
@@ -3027,6 +3035,13 @@ def create_match_yield_stacked_chart(
         return create_empty_chart_placeholder(
             f"No {display_name} yield data available for this match"
         )
+
+    # Forward-fill sparse yield data (delta-encoded in newer save files)
+    df = forward_fill_history(
+        df,
+        value_cols=["amount"],
+        preserve_columns=["player_name", "resource_type"],
+    )
 
     fig = make_subplots(
         rows=2,
@@ -6733,6 +6748,13 @@ def create_military_power_chart(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return create_empty_chart_placeholder("No military power data available")
 
+    # Forward-fill sparse military data (delta-encoded in newer save files)
+    df = forward_fill_history(
+        df,
+        value_cols=["military_power"],
+        preserve_columns=["player_name", "civilization"],
+    )
+
     fig = create_base_figure(
         title="",
         x_title="Turn Number",
@@ -6841,6 +6863,13 @@ def create_match_legitimacy_chart(df: pd.DataFrame) -> go.Figure:
     """
     if df.empty:
         return create_empty_chart_placeholder("No legitimacy data available")
+
+    # Forward-fill sparse legitimacy data (delta-encoded in newer save files)
+    df = forward_fill_history(
+        df,
+        value_cols=["legitimacy"],
+        preserve_columns=["player_name", "civilization"],
+    )
 
     fig = create_base_figure(
         title="",
