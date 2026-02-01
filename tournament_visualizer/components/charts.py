@@ -8844,3 +8844,206 @@ def create_science_sources_detail_chart(
     )
 
     return fig
+
+
+def create_skill_radar_chart(
+    players_data: List[Dict[str, Any]],
+    height: int = 400,
+) -> go.Figure:
+    """Create a radar chart showing skill dimension breakdown for players.
+
+    Displays 6 skill dimensions in a radar/spider chart format, allowing
+    comparison of multiple players simultaneously.
+
+    Args:
+        players_data: List of dicts with player skill metrics. Each dict should have:
+            - player_name: str
+            - win_rate: float (0-100)
+            - avg_win_margin: float
+            - avg_total_yields: float (sum of all productive yields per turn)
+            - avg_expansion_rate: float
+            - avg_legitimacy: float
+            - avg_law_rate: float (laws adopted per 100 turns)
+        height: Chart height in pixels
+
+    Returns:
+        Plotly radar chart figure
+    """
+    if not players_data:
+        fig = go.Figure()
+        fig.update_layout(
+            height=height,
+            paper_bgcolor=CHART_THEME["paper_bgcolor"],
+            plot_bgcolor=CHART_THEME["plot_bgcolor"],
+            font=dict(color=CHART_THEME["font_color"]),
+            annotations=[
+                dict(
+                    text="No player data available",
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5,
+                    showarrow=False,
+                    font=dict(size=16, color=CHART_THEME["font_color"]),
+                )
+            ],
+        )
+        return fig
+
+    # Define the 6 skill dimensions
+    categories = [
+        "Win Rate",
+        "Win Margin",
+        "Yields",
+        "Expansion",
+        "Legitimacy",
+        "Law Rate",
+    ]
+
+    # Normalize values to 0-100 scale for radar chart
+    def normalize_to_100(value: float, min_val: float, max_val: float) -> float:
+        """Normalize value to 0-100 range."""
+        if max_val == min_val:
+            return 50.0
+        return ((value - min_val) / (max_val - min_val)) * 100
+
+    # Find min/max for each metric across all players for normalization
+    all_values = {
+        "win_rate": [p.get("win_rate", 0) for p in players_data],
+        "avg_win_margin": [p.get("avg_win_margin", 0) for p in players_data],
+        "avg_total_yields": [p.get("avg_total_yields", 0) for p in players_data],
+        "avg_expansion_rate": [p.get("avg_expansion_rate", 0) for p in players_data],
+        "avg_legitimacy": [p.get("avg_legitimacy", 50) for p in players_data],
+        "avg_law_rate": [p.get("avg_law_rate", 0) for p in players_data],
+    }
+
+    # For single player, use absolute scale; for multiple, use relative
+    if len(players_data) == 1:
+        # Absolute scale
+        ranges = {
+            "win_rate": (0, 100),
+            "avg_win_margin": (0, 30),  # Typical range
+            "avg_total_yields": (0, 800),  # Sum of all yields, typical range
+            "avg_expansion_rate": (0, 25),  # Typical range
+            "avg_legitimacy": (0, 150),  # Can exceed 100 in Old World
+            "avg_law_rate": (0, 20),  # Laws per 100 turns, typical range
+        }
+    else:
+        # Relative scale based on players being compared
+        ranges = {
+            key: (min(vals) * 0.8, max(vals) * 1.2) if max(vals) > 0 else (0, 100)
+            for key, vals in all_values.items()
+        }
+
+    # Player colors
+    player_colors = [
+        Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        for i in range(len(players_data))
+    ]
+
+    fig = go.Figure()
+
+    for i, player in enumerate(players_data):
+        player_name = player.get("player_name", f"Player {i+1}")
+
+        # Get normalized values for each dimension
+        values = [
+            normalize_to_100(
+                player.get("win_rate", 0),
+                ranges["win_rate"][0],
+                ranges["win_rate"][1],
+            ),
+            normalize_to_100(
+                player.get("avg_win_margin", 0),
+                ranges["avg_win_margin"][0],
+                ranges["avg_win_margin"][1],
+            ),
+            normalize_to_100(
+                player.get("avg_total_yields", 0),
+                ranges["avg_total_yields"][0],
+                ranges["avg_total_yields"][1],
+            ),
+            normalize_to_100(
+                player.get("avg_expansion_rate", 0),
+                ranges["avg_expansion_rate"][0],
+                ranges["avg_expansion_rate"][1],
+            ),
+            normalize_to_100(
+                player.get("avg_legitimacy", 50),
+                ranges["avg_legitimacy"][0],
+                ranges["avg_legitimacy"][1],
+            ),
+            normalize_to_100(
+                player.get("avg_law_rate", 0),
+                ranges["avg_law_rate"][0],
+                ranges["avg_law_rate"][1],
+            ),
+        ]
+
+        # Raw values for hover
+        raw_values = [
+            f"{player.get('win_rate', 0):.1f}%",
+            f"{player.get('avg_win_margin', 0):.1f} pts",
+            f"{player.get('avg_total_yields', 0):.1f}/turn",
+            f"{player.get('avg_expansion_rate', 0):.1f} cities/100t",
+            f"{player.get('avg_legitimacy', 50):.1f}",
+            f"{player.get('avg_law_rate', 0):.1f} laws/100t",
+        ]
+
+        # Close the radar by repeating first value
+        values.append(values[0])
+        categories_closed = categories + [categories[0]]
+        raw_values.append(raw_values[0])
+
+        fig.add_trace(
+            go.Scatterpolar(
+                r=values,
+                theta=categories_closed,
+                fill="toself",
+                fillcolor=f"rgba({int(player_colors[i][1:3], 16)}, "
+                          f"{int(player_colors[i][3:5], 16)}, "
+                          f"{int(player_colors[i][5:7], 16)}, 0.2)",
+                line=dict(color=player_colors[i], width=2),
+                name=player_name,
+                customdata=raw_values,
+                hovertemplate=(
+                    "<b>%{theta}</b><br>"
+                    f"{player_name}: %{{customdata}}<br>"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                tickfont=dict(color=CHART_THEME["font_color"], size=10),
+                gridcolor=CHART_THEME["gridcolor"],
+            ),
+            angularaxis=dict(
+                tickfont=dict(color=CHART_THEME["font_color"], size=11),
+                gridcolor=CHART_THEME["gridcolor"],
+            ),
+            bgcolor=CHART_THEME["plot_bgcolor"],
+        ),
+        height=height,
+        paper_bgcolor=CHART_THEME["paper_bgcolor"],
+        font=dict(color=CHART_THEME["font_color"]),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.15,
+            xanchor="center",
+            x=0.5,
+        ),
+        margin=dict(l=60, r=60, t=40, b=60),
+        hoverlabel=dict(
+            bgcolor=CHART_THEME["hoverlabel_bgcolor"],
+            bordercolor=CHART_THEME["hoverlabel_bordercolor"],
+            font=dict(color=CHART_THEME["hoverlabel_font_color"]),
+        ),
+    )
+
+    return fig

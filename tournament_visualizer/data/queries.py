@@ -9203,6 +9203,466 @@ class TournamentQueries:
         df["avg_opinion"] = df["avg_opinion"].round(2)
         return df
 
+    # =========================================================================
+    # Player Skill Rating Methods
+    # =========================================================================
+
+    def get_player_skill_ratings(self, min_matches: int = 1) -> pd.DataFrame:
+        """Calculate composite skill ratings for all players.
+
+        Combines win rate, economic efficiency, and governance stability into
+        a single skill score (0-100). Players with fewer matches have their
+        scores regressed toward the population mean.
+
+        Components:
+        - Win Component (40%): Win rate (70%) + Win margin percentile (30%)
+        - Economy Component (35%): Total productive yields per turn
+        - Governance Component (25%): Legitimacy (33%) + Expansion rate (33%) + Law rate (33%)
+
+        Args:
+            min_matches: Minimum matches played to include (default 1)
+
+        Returns:
+            DataFrame with columns:
+                - player_name: Display name
+                - participant_id: Participant ID (NULL if unlinked)
+                - matches_played: Number of matches
+                - skill_score: Composite score (0-100)
+                - is_provisional: True if < 3 matches
+                - win_component: Win-based sub-score (0-100)
+                - economy_component: Economy sub-score (0-100)
+                - governance_component: Governance sub-score (0-100)
+        """
+        # Get per-game metrics for all players
+        per_game_df = self._get_per_game_skill_metrics()
+
+        if per_game_df.empty:
+            return pd.DataFrame()
+
+        # Aggregate to player level with game-length weighting
+        player_df = self._aggregate_skill_metrics(per_game_df)
+
+        if player_df.empty:
+            return pd.DataFrame()
+
+        # Filter by minimum matches
+        player_df = player_df[player_df["matches_played"] >= min_matches].copy()
+
+        if player_df.empty:
+            return pd.DataFrame()
+
+        # Calculate percentiles within population for normalization
+        player_df = self._normalize_skill_metrics(player_df)
+
+        # Calculate composite score with confidence adjustment
+        player_df = self._calculate_composite_score(player_df)
+
+        player_df["is_provisional"] = player_df["matches_played"] < 3
+
+        # Select and order final columns
+        result_columns = [
+            "player_name",
+            "participant_id",
+            "matches_played",
+            "skill_score",
+            "is_provisional",
+            "win_component",
+            "economy_component",
+            "governance_component",
+            "win_rate",
+            "avg_win_margin",
+            "avg_total_yields",
+            "avg_expansion_rate",
+            "avg_law_rate",
+            "avg_legitimacy",
+        ]
+
+        # Only include columns that exist
+        result_columns = [c for c in result_columns if c in player_df.columns]
+
+        return player_df[result_columns].sort_values(
+            "skill_score", ascending=False
+        ).reset_index(drop=True)
+
+    def _get_per_game_skill_metrics(self) -> pd.DataFrame:
+        """Calculate skill metrics for each player in each match.
+
+        Returns:
+            DataFrame with per-game metrics for aggregation
+        """
+        query = """
+        WITH match_game_lengths AS (
+            SELECT match_id, total_turns
+            FROM matches
+            WHERE total_turns >= 20  -- Exclude very short games
+        ),
+        player_wins AS (
+            SELECT
+                p.player_id,
+                p.match_id,
+                CASE WHEN mw.winner_player_id = p.player_id THEN 1 ELSE 0 END as won
+            FROM players p
+            LEFT JOIN match_winners mw ON p.match_id = mw.match_id
+        ),
+        final_points AS (
+            -- Get final turn points for each player
+            SELECT
+                pph.player_id,
+                pph.match_id,
+                pph.points as final_points
+            FROM player_points_history pph
+            INNER JOIN (
+                SELECT player_id, match_id, MAX(turn_number) as max_turn
+                FROM player_points_history
+                GROUP BY player_id, match_id
+            ) last_turn ON pph.player_id = last_turn.player_id
+                AND pph.match_id = last_turn.match_id
+                AND pph.turn_number = last_turn.max_turn
+        ),
+        point_margins AS (
+            -- Calculate win margin (winner points - loser points)
+            SELECT
+                mw.match_id,
+                mw.winner_player_id,
+                fp_winner.final_points - fp_loser.final_points as win_margin
+            FROM match_winners mw
+            JOIN final_points fp_winner ON mw.match_id = fp_winner.match_id
+                AND mw.winner_player_id = fp_winner.player_id
+            JOIN players p_loser ON mw.match_id = p_loser.match_id
+                AND p_loser.player_id != mw.winner_player_id
+            JOIN final_points fp_loser ON p_loser.match_id = fp_loser.match_id
+                AND p_loser.player_id = fp_loser.player_id
+        ),
+        total_yields_per_turn AS (
+            -- Sum of all productive yields per turn for each player-match
+            -- Includes: science, civics, training, culture, money, growth, food, orders
+            -- Normalized by sqrt(game_length/50) to account for yield scaling with game progression
+            SELECT
+                yh.player_id,
+                yh.match_id,
+                AVG(yh.amount / 10.0) as avg_total_yields_raw,
+                -- Normalize: divide by sqrt(game_length/50) so shorter games aren't penalized
+                AVG(yh.amount / 10.0) / SQRT(m.total_turns / 50.0) as avg_total_yields
+            FROM player_yield_history yh
+            JOIN matches m ON yh.match_id = m.match_id
+            WHERE yh.resource_type IN (
+                'YIELD_SCIENCE', 'YIELD_CIVICS', 'YIELD_TRAINING', 'YIELD_CULTURE',
+                'YIELD_MONEY', 'YIELD_GROWTH', 'YIELD_FOOD', 'YIELD_ORDERS'
+            )
+            AND m.total_turns > 0
+            GROUP BY yh.player_id, yh.match_id, m.total_turns
+        ),
+        expansion_rates AS (
+            -- Cities per 100 turns for each player-match
+            SELECT
+                c.player_id,
+                c.match_id,
+                (COUNT(DISTINCT c.city_id) * 100.0 / m.total_turns) as expansion_rate
+            FROM cities c
+            JOIN matches m ON c.match_id = m.match_id
+            WHERE m.total_turns > 0
+            GROUP BY c.player_id, c.match_id, m.total_turns
+        ),
+        law_rates AS (
+            -- Laws adopted per 100 turns for each player-match
+            SELECT
+                e.player_id,
+                e.match_id,
+                (COUNT(*) * 100.0 / m.total_turns) as law_rate
+            FROM events e
+            JOIN matches m ON e.match_id = m.match_id
+            WHERE e.event_type = 'LAW_ADOPTED'
+                AND e.player_id IS NOT NULL
+                AND m.total_turns > 0
+            GROUP BY e.player_id, e.match_id, m.total_turns
+        ),
+        legitimacy_stats AS (
+            -- Legitimacy avg and min for each player-match
+            SELECT
+                lh.player_id,
+                lh.match_id,
+                AVG(lh.legitimacy) as avg_legitimacy,
+                MIN(lh.legitimacy) as min_legitimacy
+            FROM player_legitimacy_history lh
+            GROUP BY lh.player_id, lh.match_id
+        )
+        SELECT
+            p.player_id,
+            p.match_id,
+            COALESCE(tp.display_name, p.player_name) as player_name,
+            tp.participant_id,
+            COALESCE(
+                CAST(tp.participant_id AS VARCHAR),
+                'unlinked_' || p.player_name_normalized
+            ) as grouping_key,
+            mgl.total_turns as game_length,
+            pw.won,
+            COALESCE(pm.win_margin, 0) as win_margin,
+            COALESCE(typt.avg_total_yields, 0) as total_yields_per_turn,
+            COALESCE(er.expansion_rate, 0) as expansion_rate,
+            COALESCE(lr.law_rate, 0) as law_rate,
+            COALESCE(ls.avg_legitimacy, 50) as avg_legitimacy,
+            COALESCE(ls.min_legitimacy, 0) as min_legitimacy
+        FROM players p
+        JOIN match_game_lengths mgl ON p.match_id = mgl.match_id
+        LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+        LEFT JOIN player_wins pw ON p.player_id = pw.player_id AND p.match_id = pw.match_id
+        LEFT JOIN point_margins pm ON p.match_id = pm.match_id
+            AND p.player_id = pm.winner_player_id
+        LEFT JOIN total_yields_per_turn typt ON p.player_id = typt.player_id
+            AND p.match_id = typt.match_id
+        LEFT JOIN expansion_rates er ON p.player_id = er.player_id
+            AND p.match_id = er.match_id
+        LEFT JOIN law_rates lr ON p.player_id = lr.player_id
+            AND p.match_id = lr.match_id
+        LEFT JOIN legitimacy_stats ls ON p.player_id = ls.player_id
+            AND p.match_id = ls.match_id
+        ORDER BY p.player_id, p.match_id
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query).df()
+
+    def _load_player_name_aliases(self) -> dict[str, str]:
+        """Load player name aliases from config file.
+
+        Returns:
+            Dict mapping normalized names to canonical names
+        """
+        import json
+        from pathlib import Path
+
+        alias_file = Path("data/player_name_aliases.json")
+        if not alias_file.exists():
+            return {}
+
+        try:
+            with open(alias_file) as f:
+                data = json.load(f)
+            return data.get("aliases", {})
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load player name aliases: {e}")
+            return {}
+
+    def _apply_name_aliases(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply player name aliases to grouping_key column.
+
+        Args:
+            df: DataFrame with grouping_key column
+
+        Returns:
+            DataFrame with aliases applied to grouping_key
+        """
+        aliases = self._load_player_name_aliases()
+        if not aliases:
+            return df
+
+        # Apply aliases to grouping_key (format: 'unlinked_<normalized_name>')
+        def apply_alias(key: str) -> str:
+            if key.startswith("unlinked_"):
+                normalized = key[9:]  # Remove 'unlinked_' prefix
+                if normalized in aliases:
+                    return f"unlinked_{aliases[normalized]}"
+            return key
+
+        df = df.copy()
+        df["grouping_key"] = df["grouping_key"].apply(apply_alias)
+        return df
+
+    def _aggregate_skill_metrics(self, per_game_df: pd.DataFrame) -> pd.DataFrame:
+        """Aggregate per-game metrics to player level with game-length weighting.
+
+        Args:
+            per_game_df: DataFrame from _get_per_game_skill_metrics()
+
+        Returns:
+            DataFrame with one row per player, aggregated metrics
+        """
+        import numpy as np
+
+        if per_game_df.empty:
+            return pd.DataFrame()
+
+        # Apply name aliases before aggregation
+        per_game_df = self._apply_name_aliases(per_game_df)
+
+        # Weight by sqrt(game_length) for balanced short/long game influence
+        per_game_df["weight"] = np.sqrt(per_game_df["game_length"])
+
+        def weighted_avg(group: pd.DataFrame, col: str) -> float:
+            """Calculate weighted average for a column."""
+            weights = group["weight"]
+            values = group[col]
+            # Handle NaN values
+            mask = ~np.isnan(values)
+            if not mask.any():
+                return 0.0
+            return np.average(values[mask], weights=weights[mask])
+
+        # Group by player (using grouping_key for consistency)
+        aggregated = per_game_df.groupby("grouping_key").agg(
+            player_name=("player_name", "first"),
+            participant_id=("participant_id", "first"),
+            matches_played=("match_id", "nunique"),
+            wins=("won", "sum"),
+            total_win_margin=("win_margin", "sum"),
+        ).reset_index()
+
+        # Calculate win rate
+        aggregated["win_rate"] = (
+            aggregated["wins"] * 100.0 / aggregated["matches_played"]
+        ).round(2)
+
+        # Calculate average win margin (only for wins)
+        win_margins = per_game_df[per_game_df["won"] == 1].groupby("grouping_key").agg(
+            avg_win_margin=("win_margin", "mean")
+        ).reset_index()
+        aggregated = aggregated.merge(win_margins, on="grouping_key", how="left")
+        aggregated["avg_win_margin"] = aggregated["avg_win_margin"].fillna(0)
+
+        # Calculate weighted averages for other metrics
+        weighted_metrics = per_game_df.groupby("grouping_key").apply(
+            lambda g: pd.Series({
+                "avg_total_yields": weighted_avg(g, "total_yields_per_turn"),
+                "avg_expansion_rate": weighted_avg(g, "expansion_rate"),
+                "avg_law_rate": weighted_avg(g, "law_rate"),
+                "avg_legitimacy": weighted_avg(g, "avg_legitimacy"),
+            }),
+            include_groups=False
+        ).reset_index()
+
+        aggregated = aggregated.merge(weighted_metrics, on="grouping_key", how="left")
+
+        return aggregated
+
+    def _normalize_skill_metrics(self, player_df: pd.DataFrame) -> pd.DataFrame:
+        """Convert raw metrics to percentiles within the population.
+
+        Args:
+            player_df: DataFrame with aggregated player metrics
+
+        Returns:
+            DataFrame with percentile-normalized metrics added
+        """
+        from scipy import stats
+
+        def to_percentile(series: pd.Series) -> pd.Series:
+            """Convert values to percentiles (0-100)."""
+            return series.apply(
+                lambda x: stats.percentileofscore(series.dropna(), x)
+                if pd.notna(x) else 50.0
+            )
+
+        # Normalize each metric to percentile
+        player_df["win_rate_pct"] = to_percentile(player_df["win_rate"])
+        player_df["win_margin_pct"] = to_percentile(player_df["avg_win_margin"])
+        player_df["total_yields_pct"] = to_percentile(player_df["avg_total_yields"])
+        player_df["expansion_pct"] = to_percentile(player_df["avg_expansion_rate"])
+        player_df["law_rate_pct"] = to_percentile(player_df["avg_law_rate"])
+        player_df["legitimacy_pct"] = to_percentile(player_df["avg_legitimacy"])
+
+        return player_df
+
+    def _calculate_composite_score(self, player_df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate final composite skill score with confidence adjustment.
+
+        Formula:
+        - Win Component (40%): win_rate_pct * 0.7 + win_margin_pct * 0.3
+        - Economy Component (35%): total_yields_pct (all productive yields combined)
+        - Governance Component (25%): legitimacy (33%) + expansion (33%) + law rate (33%)
+
+        Low-sample players are regressed toward population mean (50).
+
+        Args:
+            player_df: DataFrame with percentile-normalized metrics
+
+        Returns:
+            DataFrame with composite scores added
+        """
+        import numpy as np
+
+        # Calculate component scores
+        player_df["win_component"] = (
+            player_df["win_rate_pct"] * 0.7 +
+            player_df["win_margin_pct"] * 0.3
+        )
+
+        player_df["economy_component"] = player_df["total_yields_pct"]
+
+        player_df["governance_component"] = (
+            player_df["legitimacy_pct"] / 3.0 +
+            player_df["expansion_pct"] / 3.0 +
+            player_df["law_rate_pct"] / 3.0
+        )
+
+        # Calculate raw composite score
+        raw_score = (
+            player_df["win_component"] * 0.40 +
+            player_df["economy_component"] * 0.35 +
+            player_df["governance_component"] * 0.25
+        )
+
+        # Apply confidence adjustment (regress toward 50 for low sample sizes)
+        # At 1 match: 20% actual, 80% population mean
+        # At 3 matches: 50% actual, 50% population mean
+        # At 5+ matches: 80%+ actual
+        confidence_threshold = 5
+        confidence = np.minimum(
+            player_df["matches_played"] / confidence_threshold, 1.0
+        )
+        weight = np.sqrt(confidence)  # sqrt for faster initial confidence gain
+
+        population_mean = 50.0
+        player_df["skill_score"] = (
+            weight * raw_score + (1 - weight) * population_mean
+        ).round(1)
+
+        # Round component scores for display
+        player_df["win_component"] = player_df["win_component"].round(1)
+        player_df["economy_component"] = player_df["economy_component"].round(1)
+        player_df["governance_component"] = player_df["governance_component"].round(1)
+
+        return player_df
+
+    def get_player_skill_breakdown(self, player_name: str) -> pd.DataFrame:
+        """Get detailed skill breakdown for a specific player.
+
+        Shows per-game performance with all raw metrics for detailed analysis.
+
+        Args:
+            player_name: Player name to look up
+
+        Returns:
+            DataFrame with per-game metrics for this player
+        """
+        per_game_df = self._get_per_game_skill_metrics()
+
+        if per_game_df.empty:
+            return pd.DataFrame()
+
+        # Filter to specific player
+        player_games = per_game_df[
+            per_game_df["player_name"].str.lower() == player_name.lower()
+        ].copy()
+
+        if player_games.empty:
+            return pd.DataFrame()
+
+        # Add readable columns
+        player_games["result"] = player_games["won"].map({1: "Win", 0: "Loss"})
+
+        return player_games[[
+            "match_id",
+            "game_length",
+            "result",
+            "win_margin",
+            "science_per_turn",
+            "expansion_rate",
+            "ambition_rate",
+            "avg_legitimacy",
+            "min_legitimacy",
+        ]].sort_values("match_id")
+
 
 # Global queries instance
 queries = TournamentQueries()

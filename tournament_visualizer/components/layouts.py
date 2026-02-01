@@ -194,12 +194,15 @@ def create_chart_card(
 
 
 def create_data_table_card(
-    title: str, table_id: str, columns: List[Dict[str, str]], export_button: bool = True
+    title: Optional[str],
+    table_id: str,
+    columns: List[Dict[str, str]],
+    export_button: bool = True,
 ) -> dbc.Card:
     """Create a card containing a data table.
 
     Args:
-        title: Card title
+        title: Card title (None to omit header)
         table_id: ID for the table component
         columns: Table column definitions
         export_button: Whether to include export button
@@ -209,26 +212,34 @@ def create_data_table_card(
     """
     from dash import dash_table
 
-    header_controls = [html.H5(title, className="card-title mb-0")]
-
-    if export_button:
-        header_controls.append(
-            dbc.Button(
-                [html.I(className="bi bi-download me-2"), "Export"],
-                id=f"{table_id}-export",
-                color="outline-primary",
-                size="sm",
+    # Build header section with title and/or export button
+    header_section = []
+    if title or export_button:
+        header_content = []
+        if title:
+            header_content.append(html.H5(title, className="card-title mb-0"))
+        else:
+            header_content.append(html.Div())  # Spacer
+        if export_button:
+            header_content.append(
+                dbc.Button(
+                    [html.I(className="bi bi-download me-2"), "Export"],
+                    id=f"{table_id}-export",
+                    color="outline-secondary",
+                    size="sm",
+                )
+            )
+        header_section.append(
+            html.Div(
+                header_content,
+                className="d-flex justify-content-between align-items-center mb-3",
             )
         )
 
     return dbc.Card(
         [
             dbc.CardBody(
-                [
-                    html.Div(
-                        header_controls,
-                        className="d-flex justify-content-between align-items-center mb-3",
-                    ),
+                header_section + [
                     dash_table.DataTable(
                         id=table_id,
                         columns=columns,

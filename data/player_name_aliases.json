@@ -1,0 +1,18 @@
+{
+  "_comment": "Maps normalized player names to a canonical name for grouping",
+  "_instructions": [
+    "Keys are normalized names (lowercase, no spaces/punctuation)",
+    "Values are the canonical normalized name to group under",
+    "Used by skill ratings and other aggregation queries"
+  ],
+  "aliases": {
+    "klasskoalas": "klasskoala",
+    "fiddlers25": "fiddler",
+    "ninjaa": "ninja",
+    "clifford": "cliff",
+    "fluffybunny": "fluffbunny",
+    "fluffster": "fluffbunny",
+    "michaelofminsk": "michael",
+    "yagman": "yagiz"
+  }
+}

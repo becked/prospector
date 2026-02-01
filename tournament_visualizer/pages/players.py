@@ -1,7 +1,7 @@
 """Player performance analytics page.
 
-This page provides comprehensive player statistics, head-to-head comparisons,
-and performance trends analysis.
+This page provides comprehensive player statistics, skill ratings,
+and performance comparisons.
 """
 
 import logging
@@ -13,11 +13,9 @@ import pandas as pd
 from dash import Input, Output, callback, dcc, html
 
 from tournament_visualizer.components.charts import (
-    create_empty_chart_placeholder,
-    create_head_to_head_chart,
+    create_skill_radar_chart,
 )
 from tournament_visualizer.components.layouts import (
-    create_chart_card,
     create_data_table_card,
     create_empty_state,
     create_metric_grid,
@@ -35,47 +33,29 @@ dash.register_page(__name__, path="/players", name="Players")
 # Page layout
 layout = html.Div(
     [
+        # Download component for exports
+        dcc.Download(id="skill-rankings-download"),
         # Page header
         create_page_header(
             title=PAGE_CONFIG["players"]["title"],
             description=PAGE_CONFIG["players"]["description"],
             icon="bi-people-fill",
         ),
-        # Participant linking info alert
-        dbc.Alert(
-            [
-                html.Div(
-                    [
-                        html.I(className="bi bi-info-circle me-2"),
-                        html.Span(
-                            "Players marked with ⚠️ are not yet linked to tournament participants. "
-                            "This may happen when player names in save files don't match Challonge usernames."
-                        ),
-                    ]
-                )
-            ],
-            color="info",
-            className="mb-4",
-            dismissable=True,
-            id="participant-linking-info",
-        ),
         # Tabbed analytics sections
         create_tab_layout(
             [
                 {
-                    "label": "Player Rankings",
-                    "tab_id": "rankings",
+                    "label": "Skill Ratings",
+                    "tab_id": "skill-ratings",
                     "content": [
-                        # Summary metrics
-                        html.Div(id="player-summary-metrics", className="mb-4"),
-                        # Detailed rankings table
+                        # Full-width table
                         dbc.Row(
                             [
                                 dbc.Col(
                                     [
                                         create_data_table_card(
-                                            title="Player Performance Rankings",
-                                            table_id="players-rankings-table",
+                                            title=None,
+                                            table_id="skill-rankings-table",
                                             columns=[
                                                 {
                                                     "name": "Rank",
@@ -88,107 +68,218 @@ layout = html.Div(
                                                     "presentation": "markdown",
                                                 },
                                                 {
-                                                    "name": "Matches",
-                                                    "id": "total_matches",
-                                                    "type": "numeric",
-                                                },
-                                                {
-                                                    "name": "Wins",
-                                                    "id": "wins",
-                                                    "type": "numeric",
-                                                },
-                                                {
-                                                    "name": "Win Rate",
-                                                    "id": "win_rate",
-                                                    "type": "numeric",
-                                                    "format": {"specifier": ".1%"},
-                                                },
-                                                {
-                                                    "name": "Avg Score",
-                                                    "id": "avg_score",
+                                                    "name": "Score",
+                                                    "id": "skill_score",
                                                     "type": "numeric",
                                                     "format": {"specifier": ".1f"},
+                                                },
+                                                {
+                                                    "name": "Matches",
+                                                    "id": "matches_played",
+                                                    "type": "numeric",
                                                 },
                                                 {
                                                     "name": "Civilizations",
                                                     "id": "civilizations_display",
                                                     "presentation": "markdown",
                                                 },
+                                                {
+                                                    "name": "Win",
+                                                    "id": "win_component",
+                                                    "type": "numeric",
+                                                    "format": {"specifier": ".0f"},
+                                                },
+                                                {
+                                                    "name": "Econ",
+                                                    "id": "economy_component",
+                                                    "type": "numeric",
+                                                    "format": {"specifier": ".0f"},
+                                                },
+                                                {
+                                                    "name": "Gov",
+                                                    "id": "governance_component",
+                                                    "type": "numeric",
+                                                    "format": {"specifier": ".0f"},
+                                                },
                                             ],
-                                        )
+                                        ),
                                     ],
                                     width=12,
-                                )
+                                ),
                             ]
+                        ),
+                        # Methodology reference
+                        dbc.Card(
+                            [
+                                dbc.CardHeader("How Skill Ratings Work"),
+                                dbc.CardBody(
+                                    [
+                                        html.P(
+                                            "The skill score combines three components into a single 0-100 rating:",
+                                            className="mb-2",
+                                        ),
+                                        html.Pre(
+                                            "Score = (Win × 0.40) + (Economy × 0.35) + (Governance × 0.25)",
+                                            className="bg-dark p-2 rounded small",
+                                        ),
+                                        html.H6("Components", className="mt-4 mb-3"),
+                                        html.Div(
+                                            [
+                                                html.Div(
+                                                    [
+                                                        html.Strong("Win (40%): "),
+                                                        html.Span(
+                                                            "Win rate (70%) + Victory point margin (30%)"
+                                                        ),
+                                                    ],
+                                                    className="mb-2",
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        html.Strong("Economy (35%): "),
+                                                        html.Span(
+                                                            "Total productive yields per turn (science, civics, training, culture, money, growth, food, orders)"
+                                                        ),
+                                                    ],
+                                                    className="mb-2",
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        html.Strong("Governance (25%): "),
+                                                        html.Span(
+                                                            "Legitimacy (33%) + Expansion rate (33%) + Law adoption rate (33%)"
+                                                        ),
+                                                    ],
+                                                    className="mb-2",
+                                                ),
+                                            ]
+                                        ),
+                                        html.H6("Normalization", className="mt-4 mb-3"),
+                                        html.Ul(
+                                            [
+                                                html.Li(
+                                                    "All metrics are converted to percentiles within the tournament population"
+                                                ),
+                                                html.Li(
+                                                    "Per-game metrics are weighted by game length (longer games count more)"
+                                                ),
+                                                html.Li(
+                                                    "Economy yields are normalized by game length to avoid penalizing quick wins"
+                                                ),
+                                                html.Li(
+                                                    [
+                                                        html.Span("Players with "),
+                                                        html.Strong("<3 matches"),
+                                                        html.Span(
+                                                            " have their scores regressed toward the population mean"
+                                                        ),
+                                                    ]
+                                                ),
+                                            ],
+                                            className="small mb-0",
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            className="mt-4",
                         ),
                     ],
                 },
                 {
-                    "label": "Head-to-Head",
-                    "tab_id": "head-to-head",
+                    "label": "Skills Comparison",
+                    "tab_id": "skills-comparison",
                     "content": [
-                        # Player selection
-                        dbc.Card(
+                        # Radar chart with selector on right
+                        dbc.Row(
                             [
-                                dbc.CardBody(
+                                dbc.Col(
                                     [
-                                        html.H5(
-                                            "Head-to-Head Comparison",
-                                            className="card-title",
+                                        dbc.Card(
+                                            dbc.CardBody(
+                                                dcc.Graph(
+                                                    id="skill-radar-chart",
+                                                    config={"displayModeBar": False},
+                                                    style={"height": "500px"},
+                                                ),
+                                            ),
                                         ),
-                                        dbc.Row(
+                                    ],
+                                    lg=8,
+                                    md=12,
+                                ),
+                                dbc.Col(
+                                    [
+                                        # Dimensions legend
+                                        dbc.Card(
                                             [
-                                                dbc.Col(
+                                                dbc.CardHeader("Dimensions"),
+                                                dbc.CardBody(
                                                     [
-                                                        html.Label(
-                                                            "Player 1:",
-                                                            className="form-label",
+                                                        html.Ul(
+                                                            [
+                                                                html.Li([
+                                                                    html.Strong("Win Rate: "),
+                                                                    html.Span("Match win percentage"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Win Margin: "),
+                                                                    html.Span("Average victory point lead in wins"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Yields: "),
+                                                                    html.Span("Total productive output per turn"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Expansion: "),
+                                                                    html.Span("City founding rate"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Legitimacy: "),
+                                                                    html.Span("Average governance stability"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Law Rate: "),
+                                                                    html.Span("Laws adopted per 100 turns"),
+                                                                ]),
+                                                            ],
+                                                            className="small mb-0",
                                                         ),
-                                                        dcc.Dropdown(
-                                                            id="h2h-player1-selector",
-                                                            placeholder="Select first player...",
-                                                            options=[],
-                                                        ),
-                                                    ],
-                                                    width=5,
+                                                    ]
                                                 ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Div(
-                                                            "vs",
-                                                            className="text-center mt-4",
-                                                        ),
-                                                    ],
-                                                    width=2,
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        html.Label(
-                                                            "Player 2:",
-                                                            className="form-label",
-                                                        ),
-                                                        dcc.Dropdown(
-                                                            id="h2h-player2-selector",
-                                                            placeholder="Select first player first...",
-                                                            options=[],
-                                                            disabled=True,
-                                                        ),
-                                                    ],
-                                                    width=5,
-                                                ),
-                                            ]
+                                            ],
+                                            className="mb-3",
                                         ),
-                                    ]
-                                )
-                            ],
-                            className="mb-4",
+                                        # Player selector
+                                        dbc.Card(
+                                            [
+                                                dbc.CardHeader("Select Players"),
+                                                dbc.CardBody(
+                                                    [
+                                                        html.P(
+                                                            "Select players to compare",
+                                                            className="text-muted small mb-2",
+                                                        ),
+                                                        dcc.Dropdown(
+                                                            id="skill-compare-selector",
+                                                            placeholder="Select players...",
+                                                            options=[],
+                                                            multi=True,
+                                                        ),
+                                                    ]
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                    lg=4,
+                                    md=12,
+                                    className="mt-4 mt-lg-0",
+                                ),
+                            ]
                         ),
-                        # Head-to-head results
-                        html.Div(id="h2h-results-section"),
                     ],
                 },
             ],
-            active_tab="rankings",
+            active_tab="skill-ratings",
         ),
     ]
 )
@@ -223,321 +314,168 @@ def _format_civilizations_display(civs_played: str, favorite: str) -> str:
     return ", ".join(formatted)
 
 
+# Skill Ratings tab callbacks
 @callback(
-    Output("player-summary-metrics", "children"),
+    Output("skill-rankings-table", "data"),
     Input("_pages_location", "pathname"),
 )
-def update_player_summary_metrics(pathname: str) -> html.Div:
-    """Update player summary metrics.
+def update_skill_rankings_table(pathname: str) -> List[Dict[str, Any]]:
+    """Update skill rankings table.
 
     Args:
         pathname: Current page path (triggers on page load)
 
     Returns:
-        Metrics grid component with participant linking stats
+        List of skill ranking data with civilizations
     """
     try:
         queries = get_queries()
-        df = queries.get_player_performance()
-
-        if df.empty:
-            return create_empty_state("No player data available")
-
-        # Count total players (all)
-        total_players = len(df)
-
-        # Count linked vs unlinked
-        linked_count = len(df[df["is_unlinked"] == False])
-        unlinked_count = len(df[df["is_unlinked"] == True])
-
-        # Calculate linking percentage
-        linking_pct = (linked_count / total_players * 100) if total_players > 0 else 0
-
-        metrics = [
-            {
-                "title": "Total Players",
-                "value": total_players,
-                "icon": "bi-people",
-                "color": "primary",
-            },
-            {
-                "title": "Linked Participants",
-                "value": linked_count,
-                "icon": "bi-link-45deg",
-                "color": "success",
-            },
-            {
-                "title": "Unlinked Players",
-                "value": unlinked_count,
-                "icon": "bi-exclamation-triangle",
-                "color": "warning" if unlinked_count > 0 else "secondary",
-            },
-            {
-                "title": "Linking Coverage",
-                "value": f"{linking_pct:.0f}%",
-                "icon": "bi-diagram-3",
-                "color": "info",
-            },
-        ]
-
-        return create_metric_grid(metrics)
-
-    except Exception as e:
-        return create_empty_state(f"Error loading metrics: {str(e)}")
-
-
-@callback(
-    Output("h2h-player1-selector", "options"),
-    Input("_pages_location", "pathname"),
-)
-def update_h2h_player1_options(pathname: str) -> List[Dict[str, str]]:
-    """Update Player 1 selector options.
-
-    Args:
-        pathname: Current page path (triggers on page load)
-
-    Returns:
-        List of player options sorted by activity
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_player_performance()
+        df = queries.get_player_skill_ratings()
 
         if df.empty:
             return []
 
-        # Create player options sorted by activity
+        # Get civilization data from player performance
+        perf_df = queries.get_player_performance()
+        if not perf_df.empty:
+            civ_data = perf_df[["player_name", "civilizations_played", "favorite_civilization"]]
+            df = df.merge(civ_data, on="player_name", how="left")
+
+            # Format civilizations display
+            df["civilizations_display"] = df.apply(
+                lambda row: _format_civilizations_display(
+                    row.get("civilizations_played", ""),
+                    row.get("favorite_civilization", "")
+                ),
+                axis=1,
+            )
+        else:
+            df["civilizations_display"] = "—"
+
+        # Add rank
+        df["rank"] = range(1, len(df) + 1)
+
+        # Use player name directly for display
+        df["player_display"] = df["player_name"]
+
+        return df.to_dict("records")
+
+    except Exception as e:
+        logger.error(f"Error updating skill rankings table: {e}")
+        return []
+
+
+@callback(
+    Output("skill-compare-selector", "options"),
+    Input("_pages_location", "pathname"),
+)
+def update_skill_compare_options(pathname: str) -> List[Dict[str, str]]:
+    """Update skill comparison player selector options.
+
+    Args:
+        pathname: Current page path (triggers on page load)
+
+    Returns:
+        List of player options for radar chart comparison
+    """
+    try:
+        queries = get_queries()
+        df = queries.get_player_skill_ratings()
+
+        if df.empty:
+            return []
+
+        # Create options sorted by skill score
         options = []
-        for _, player in df.sort_values("total_matches", ascending=False).iterrows():
-            label = f"{player['player_name']} ({player['total_matches']} matches)"
+        for _, player in df.iterrows():
+            score = player["skill_score"]
+            label = f"{player['player_name']} ({score:.0f})"
             options.append({"label": label, "value": player["player_name"]})
 
         return options
 
     except Exception as e:
-        logger.error(f"Error updating H2H Player 1 options: {e}")
+        logger.error(f"Error updating skill compare options: {e}")
         return []
 
 
 @callback(
-    [
-        Output("h2h-player2-selector", "options"),
-        Output("h2h-player2-selector", "value"),
-        Output("h2h-player2-selector", "disabled"),
-    ],
-    Input("h2h-player1-selector", "value"),
+    Output("skill-radar-chart", "figure"),
+    Input("skill-compare-selector", "value"),
 )
-def update_h2h_player2_options(
-    player1: Optional[str],
-) -> tuple[List[Dict[str, str]], Optional[str], bool]:
-    """Update Player 2 selector options based on Player 1 selection.
+def update_skill_radar_chart(selected_players: Optional[List[str]]):
+    """Update skill radar chart based on selected players.
 
     Args:
-        player1: Selected Player 1 name
+        selected_players: List of selected player names
 
     Returns:
-        Tuple of (player2_options, player2_value, disabled)
+        Radar chart figure comparing selected players
     """
-    if not player1:
-        # Player 1 not selected - disable Player 2
-        return [], None, True
+    if not selected_players:
+        return create_skill_radar_chart([])
 
     try:
         queries = get_queries()
-        opponents = queries.get_opponents(player1)
-
-        if not opponents:
-            # No opponents found - disable Player 2
-            return [], None, True
-
-        # Create opponent options (already sorted alphabetically by query)
-        options = [{"label": name, "value": name} for name in opponents]
-
-        # Enable Player 2 dropdown
-        return options, None, False
-
-    except Exception as e:
-        logger.error(f"Error updating H2H Player 2 options: {e}")
-        return [], None, True
-
-
-@callback(
-    Output("h2h-results-section", "children"),
-    [Input("h2h-player1-selector", "value"), Input("h2h-player2-selector", "value")],
-)
-def update_h2h_results(player1: Optional[str], player2: Optional[str]) -> html.Div:
-    """Update head-to-head results section.
-
-    Args:
-        player1: First player name
-        player2: Second player name
-
-    Returns:
-        Head-to-head results component
-    """
-    if not player1 or not player2:
-        return create_empty_state(
-            title="Select Two Players",
-            message="Choose two players from the dropdowns above to compare their head-to-head record.",
-            icon="bi-people",
-        )
-
-    if player1 == player2:
-        return create_empty_state(
-            title="Different Players Required",
-            message="Please select two different players for comparison.",
-            icon="bi-exclamation-circle",
-        )
-
-    try:
-        queries = get_queries()
-        stats = queries.get_head_to_head_stats(player1, player2)
-
-        if not stats or stats.get("total_matches", 0) == 0:
-            return create_empty_state(
-                title="No Head-to-Head Matches",
-                message=f"{player1} and {player2} have not played against each other.",
-                icon="bi-question-circle",
-            )
-
-        # Create results layout
-        results = [
-            # Summary metrics
-            create_metric_grid(
-                [
-                    {
-                        "title": "Total Matches",
-                        "value": stats["total_matches"],
-                        "icon": "bi-trophy",
-                        "color": "primary",
-                    },
-                    {
-                        "title": f"{player1} Wins",
-                        "value": stats["player1_wins"],
-                        "icon": "bi-check-circle",
-                        "color": "success",
-                    },
-                    {
-                        "title": f"{player2} Wins",
-                        "value": stats["player2_wins"],
-                        "icon": "bi-check-circle",
-                        "color": "info",
-                    },
-                    {
-                        "title": "Avg Match Length",
-                        "value": (
-                            f"{stats['avg_match_length']:.0f} turns"
-                            if stats["avg_match_length"]
-                            else "N/A"
-                        ),
-                        "icon": "bi-clock",
-                        "color": "warning",
-                    },
-                ]
-            ),
-            # Head-to-head chart
-            dbc.Row(
-                [
-                    dbc.Col(
-                        [
-                            create_chart_card(
-                                title=f"{player1} vs {player2}",
-                                chart_id="h2h-chart",
-                                height="400px",
-                            )
-                        ],
-                        width=12,
-                    )
-                ],
-                className="mt-4",
-            ),
-        ]
-
-        return html.Div(results)
-
-    except Exception as e:
-        return create_empty_state(
-            title="Error Loading Head-to-Head",
-            message=f"Unable to load comparison: {str(e)}",
-            icon="bi-exclamation-triangle",
-        )
-
-
-@callback(
-    Output("h2h-chart", "figure"),
-    [Input("h2h-player1-selector", "value"), Input("h2h-player2-selector", "value")],
-)
-def update_h2h_chart(player1: Optional[str], player2: Optional[str]):
-    """Update head-to-head comparison chart.
-
-    Args:
-        player1: First player name
-        player2: Second player name
-
-    Returns:
-        Plotly figure for head-to-head comparison
-    """
-    if not player1 or not player2 or player1 == player2:
-        return create_empty_chart_placeholder("Select two different players")
-
-    try:
-        queries = get_queries()
-        stats = queries.get_head_to_head_stats(player1, player2)
-
-        return create_head_to_head_chart(stats, player1, player2)
-
-    except Exception as e:
-        return create_empty_chart_placeholder(f"Error loading H2H chart: {str(e)}")
-
-
-# Data table callbacks
-@callback(
-    Output("players-rankings-table", "data"),
-    Input("_pages_location", "pathname"),
-)
-def update_rankings_table(pathname: str) -> List[Dict[str, Any]]:
-    """Update player rankings table.
-
-    Args:
-        pathname: Current page path (triggers on page load)
-
-    Returns:
-        List of player ranking data with visual indicators for unlinked players
-    """
-    try:
-        queries = get_queries()
-        df = queries.get_player_performance()
+        df = queries.get_player_skill_ratings()
 
         if df.empty:
-            return []
+            return create_skill_radar_chart([])
 
-        # Sort by win rate and add rank
-        df = df.sort_values("win_rate", ascending=False).reset_index(drop=True)
-        df["rank"] = range(1, len(df) + 1)
+        # Filter to selected players
+        selected = df[df["player_name"].isin(selected_players)]
 
-        # Convert win rate to percentage for display (already 0-100, need 0-1 for formatter)
-        df["win_rate"] = df["win_rate"] / 100
+        if selected.empty:
+            return create_skill_radar_chart([])
 
-        # Create display columns with indicators
-        df["player_display"] = df.apply(
-            lambda row: (
-                f"⚠️ {row['player_name']}"  # Warning emoji for unlinked
-                if row["is_unlinked"]
-                else row["player_name"]
-            ),
-            axis=1,
-        )
+        # Convert to list of dicts for chart function
+        players_data = selected.to_dict("records")
 
-        # Format civilizations with favorite highlighted
-        df["civilizations_display"] = df.apply(
-            lambda row: _format_civilizations_display(
-                row["civilizations_played"], row["favorite_civilization"]
-            ),
-            axis=1,
-        )
-
-        return df.to_dict("records")
+        return create_skill_radar_chart(players_data)
 
     except Exception as e:
-        logger.error(f"Error updating rankings table: {e}")
-        return []
+        logger.error(f"Error updating skill radar chart: {e}")
+        return create_skill_radar_chart([])
+
+
+@callback(
+    Output("skill-rankings-download", "data"),
+    Input("skill-rankings-table-export", "n_clicks"),
+    prevent_initial_call=True,
+)
+def export_skill_rankings(n_clicks: int) -> dict:
+    """Export skill rankings table to CSV.
+
+    Args:
+        n_clicks: Number of export button clicks
+
+    Returns:
+        Download data dict for CSV file
+    """
+    if not n_clicks:
+        return dash.no_update
+
+    try:
+        queries = get_queries()
+        df = queries.get_player_skill_ratings()
+
+        if df.empty:
+            return dash.no_update
+
+        # Select columns for export
+        export_cols = [
+            "player_name",
+            "skill_score",
+            "matches_played",
+            "win_rate",
+            "win_component",
+            "economy_component",
+            "governance_component",
+        ]
+        export_df = df[[c for c in export_cols if c in df.columns]]
+
+        return dcc.send_data_frame(export_df.to_csv, "skill_rankings.csv", index=False)
+
+    except Exception as e:
+        logger.error(f"Error exporting skill rankings: {e}")
+        return dash.no_update
