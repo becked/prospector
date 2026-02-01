@@ -7692,7 +7692,8 @@ def _format_specialist_name(specialist_type: str) -> str:
     Converts 'SPECIALIST_MINER' to 'Miner'.
     Converts 'SPECIALIST_ACOLYTE_1' to 'Apprentice Acolyte'.
     Converts 'SPECIALIST_ACOLYTE_2' to 'Master Acolyte'.
-    Converts 'SPECIALIST_ACOLYTE_3' to 'Elite Acolyte'.
+    Converts 'SPECIALIST_ACOLYTE_3' to 'Elder Acolyte'.
+    Converts 'SPECIALIST_OFFICER_3' to 'Elite Officer'.
     """
     import re
 
@@ -7702,15 +7703,19 @@ def _format_specialist_name(specialist_type: str) -> str:
     # Remove SPECIALIST_ prefix
     name = specialist_type.replace("SPECIALIST_", "")
 
-    # Map tier numbers to tier names
-    tier_map = {"1": "Apprentice", "2": "Master", "3": "Elite"}
-
     # Check for tier suffix (e.g., ACOLYTE_1 -> Apprentice Acolyte)
     match = re.match(r"^(.+)_(\d)$", name)
     if match:
         base_name = match.group(1).replace("_", " ").title()
         tier_num = match.group(2)
-        tier_name = tier_map.get(tier_num, f"Tier {tier_num}")
+
+        # Acolytes and Monks use "Elder" for tier 3, others use "Elite"
+        if tier_num == "3" and match.group(1) in ("ACOLYTE", "MONK"):
+            tier_name = "Elder"
+        else:
+            tier_map = {"1": "Apprentice", "2": "Master", "3": "Elite"}
+            tier_name = tier_map.get(tier_num, f"Tier {tier_num}")
+
         return f"{tier_name} {base_name}"
 
     # No tier suffix - just format the name
