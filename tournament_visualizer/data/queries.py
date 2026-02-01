@@ -9432,7 +9432,10 @@ class TournamentQueries:
         import json
         from pathlib import Path
 
-        alias_file = Path("data/player_name_aliases.json")
+        # Use path relative to this file's location
+        this_dir = Path(__file__).parent
+        project_root = this_dir.parent.parent
+        alias_file = project_root / "data" / "player_name_aliases.json"
         if not alias_file.exists():
             return {}
 
