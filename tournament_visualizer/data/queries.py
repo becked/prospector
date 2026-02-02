@@ -7473,12 +7473,7 @@ class TournamentQueries:
 
         -- 9. Religion founding events (RELIGION_FOUNDED)
         -- Deduplicate: both players get notified, but only one actually founded it.
-        -- Priority: 1) adopted same turn, 2) city matches civilization, 3) lowest player_id
-        religion_adopted_lookup AS (
-            SELECT turn_number, player_id, description
-            FROM events
-            WHERE match_id = ? AND event_type = 'RELIGION_ADOPTED'
-        ),
+        -- Priority: 1) player owns the city where religion was founded, 2) lowest player_id
         religion_events_raw AS (
             SELECT
                 e.turn_number as turn,
@@ -7490,63 +7485,21 @@ class TournamentQueries:
                     e.description
                 ) as title,
                 e.description as details,
-                -- Check if player adopted this religion on the same turn (strong signal)
-                CASE WHEN ra.player_id IS NOT NULL THEN 1 ELSE 0 END as adopted_same_turn,
-                -- Check if city in description matches player's civilization
-                CASE
-                    WHEN e.description LIKE '%Babylon%' AND p.civilization = 'Babylonia' THEN 1
-                    WHEN e.description LIKE '%Carthag%' AND p.civilization = 'Carthage' THEN 1
-                    WHEN e.description LIKE '%Eshnunna%' AND p.civilization = 'Babylonia' THEN 1
-                    WHEN e.description LIKE '%Akkad%' AND p.civilization = 'Babylonia' THEN 1
-                    WHEN e.description LIKE '%Ur %' AND p.civilization = 'Babylonia' THEN 1
-                    WHEN e.description LIKE '%Leptis%' AND p.civilization = 'Carthage' THEN 1
-                    WHEN e.description LIKE '%Gadir%' AND p.civilization = 'Carthage' THEN 1
-                    WHEN e.description LIKE '%Thapsus%' AND p.civilization = 'Carthage' THEN 1
-                    WHEN e.description LIKE '%Rome%' AND p.civilization = 'Rome' THEN 1
-                    WHEN e.description LIKE '%Athens%' AND p.civilization = 'Greece' THEN 1
-                    WHEN e.description LIKE '%Sparta%' AND p.civilization = 'Greece' THEN 1
-                    WHEN e.description LIKE '%Thebes%' AND p.civilization = 'Greece' THEN 1
-                    WHEN e.description LIKE '%Memphis%' AND p.civilization = 'Egypt' THEN 1
-                    WHEN e.description LIKE '%Persepolis%' AND p.civilization = 'Persia' THEN 1
-                    WHEN e.description LIKE '%Susa%' AND p.civilization = 'Persia' THEN 1
-                    WHEN e.description LIKE '%Hattusa%' AND p.civilization = 'Hatti' THEN 1
-                    WHEN e.description LIKE '%Kush%' AND p.civilization = 'Kush' THEN 1
-                    WHEN e.description LIKE '%Meroe%' AND p.civilization = 'Kush' THEN 1
-                    ELSE 0
-                END as city_matches_civ,
+                -- Check if player owns the city where religion was founded (definitive signal)
+                CASE WHEN c.player_id = e.player_id THEN 1 ELSE 0 END as owns_city,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.turn_number, REGEXP_EXTRACT(e.description, '^(.+?) founded', 1)
                     ORDER BY
-                        CASE WHEN ra.player_id IS NOT NULL THEN 0 ELSE 1 END,  -- adopted same turn first
-                        CASE
-                            WHEN e.description LIKE '%Babylon%' AND p.civilization = 'Babylonia' THEN 0
-                            WHEN e.description LIKE '%Carthag%' AND p.civilization = 'Carthage' THEN 0
-                            WHEN e.description LIKE '%Eshnunna%' AND p.civilization = 'Babylonia' THEN 0
-                            WHEN e.description LIKE '%Akkad%' AND p.civilization = 'Babylonia' THEN 0
-                            WHEN e.description LIKE '%Ur %' AND p.civilization = 'Babylonia' THEN 0
-                            WHEN e.description LIKE '%Leptis%' AND p.civilization = 'Carthage' THEN 0
-                            WHEN e.description LIKE '%Gadir%' AND p.civilization = 'Carthage' THEN 0
-                            WHEN e.description LIKE '%Thapsus%' AND p.civilization = 'Carthage' THEN 0
-                            WHEN e.description LIKE '%Rome%' AND p.civilization = 'Rome' THEN 0
-                            WHEN e.description LIKE '%Athens%' AND p.civilization = 'Greece' THEN 0
-                            WHEN e.description LIKE '%Sparta%' AND p.civilization = 'Greece' THEN 0
-                            WHEN e.description LIKE '%Thebes%' AND p.civilization = 'Greece' THEN 0
-                            WHEN e.description LIKE '%Memphis%' AND p.civilization = 'Egypt' THEN 0
-                            WHEN e.description LIKE '%Persepolis%' AND p.civilization = 'Persia' THEN 0
-                            WHEN e.description LIKE '%Susa%' AND p.civilization = 'Persia' THEN 0
-                            WHEN e.description LIKE '%Hattusa%' AND p.civilization = 'Hatti' THEN 0
-                            WHEN e.description LIKE '%Kush%' AND p.civilization = 'Kush' THEN 0
-                            WHEN e.description LIKE '%Meroe%' AND p.civilization = 'Kush' THEN 0
-                            ELSE 1
-                        END,  -- city matches civ second
+                        -- Player who owns the city is the founder
+                        CASE WHEN c.player_id = e.player_id THEN 0 ELSE 1 END,
                         e.player_id  -- fallback to lowest player_id
                 ) as rn
             FROM events e
             JOIN players p ON e.player_id = p.player_id AND e.match_id = p.match_id
-            LEFT JOIN religion_adopted_lookup ra
-                ON e.turn_number = ra.turn_number
-                AND e.player_id = ra.player_id
-                AND ra.description LIKE '%' || SPLIT_PART(REGEXP_EXTRACT(e.description, '^(.+?) founded', 1), ' ', 1) || '%'
+            -- Join to cities table: extract city name from "founded in  CityName"
+            LEFT JOIN cities c
+                ON c.match_id = e.match_id
+                AND c.city_name = 'CITYNAME_' || UPPER(TRIM(REGEXP_EXTRACT(e.description, 'founded in\\s+(.+)$', 1)))
             WHERE e.match_id = ?
               AND e.event_type = 'RELIGION_FOUNDED'
         ),
@@ -7681,7 +7634,7 @@ class TournamentQueries:
 
         params = [
             match_id
-        ] * 17  # 17 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion_adopted_lookup, religion, theology, religion_adopted
+        ] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
@@ -9211,10 +9164,11 @@ class TournamentQueries:
         a single skill score (0-100). Players with fewer matches have their
         scores regressed toward the population mean.
 
-        Components:
-        - Win Component (40%): Win rate (70%) + Win margin percentile (30%)
-        - Economy Component (35%): Total productive yields per turn
-        - Governance Component (25%): Legitimacy (33%) + Expansion rate (33%) + Law rate (33%)
+        Components (equal weights, 25% each):
+        - Win Component: Win rate (70%) + Win margin percentile (30%)
+        - Economy Component: Total productive yields per turn
+        - Governance Component: Legitimacy (33%) + Expansion rate (33%) + Law rate (33%)
+        - Military Component: Military power (40%) + Army diversity (20%) + Power lead (40%)
 
         Args:
             min_matches: Minimum matches played to include (default 1)
@@ -9229,6 +9183,7 @@ class TournamentQueries:
                 - win_component: Win-based sub-score (0-100)
                 - economy_component: Economy sub-score (0-100)
                 - governance_component: Governance sub-score (0-100)
+                - military_component: Military sub-score (0-100)
         """
         # Get per-game metrics for all players
         per_game_df = self._get_per_game_skill_metrics()
@@ -9266,12 +9221,16 @@ class TournamentQueries:
             "win_component",
             "economy_component",
             "governance_component",
+            "military_component",
             "win_rate",
             "avg_win_margin",
             "avg_total_yields",
             "avg_expansion_rate",
             "avg_law_rate",
             "avg_legitimacy",
+            "avg_military_power",
+            "avg_army_diversity",
+            "avg_power_lead",
         ]
 
         # Only include columns that exist
@@ -9382,6 +9341,44 @@ class TournamentQueries:
                 MIN(lh.legitimacy) as min_legitimacy
             FROM player_legitimacy_history lh
             GROUP BY lh.player_id, lh.match_id
+        ),
+        -- Military metrics for Military dimension
+        military_power_stats AS (
+            -- Average military power per player-match
+            SELECT
+                mh.player_id,
+                mh.match_id,
+                AVG(mh.military_power) as avg_military_power
+            FROM player_military_history mh
+            GROUP BY mh.player_id, mh.match_id
+        ),
+        army_diversity AS (
+            -- Count distinct military unit roles used (infantry, cavalry, ranged, siege, naval)
+            -- Normalized to 0-100: 5 roles = 100, 1 role = 20
+            SELECT
+                up.player_id,
+                up.match_id,
+                COUNT(DISTINCT uc.role) as distinct_roles,
+                (COUNT(DISTINCT uc.role) * 100.0 / 5.0) as diversity_score
+            FROM units_produced up
+            JOIN unit_classifications uc ON up.unit_type = uc.unit_type
+            WHERE uc.category = 'military'
+            GROUP BY up.player_id, up.match_id
+        ),
+        power_lead AS (
+            -- Percentage of turns where player has strictly higher military power than opponent
+            SELECT
+                p1.player_id,
+                p1.match_id,
+                COUNT(CASE WHEN m1.military_power > m2.military_power THEN 1 END) * 100.0
+                    / NULLIF(COUNT(*), 0) as power_lead_pct
+            FROM players p1
+            JOIN players p2 ON p1.match_id = p2.match_id AND p1.player_id != p2.player_id
+            JOIN player_military_history m1 ON p1.player_id = m1.player_id
+                AND p1.match_id = m1.match_id
+            JOIN player_military_history m2 ON p2.player_id = m2.player_id
+                AND p2.match_id = m2.match_id AND m1.turn_number = m2.turn_number
+            GROUP BY p1.player_id, p1.match_id
         )
         SELECT
             p.player_id,
@@ -9399,7 +9396,11 @@ class TournamentQueries:
             COALESCE(er.expansion_rate, 0) as expansion_rate,
             COALESCE(lr.law_rate, 0) as law_rate,
             COALESCE(ls.avg_legitimacy, 50) as avg_legitimacy,
-            COALESCE(ls.min_legitimacy, 0) as min_legitimacy
+            COALESCE(ls.min_legitimacy, 0) as min_legitimacy,
+            -- Military metrics
+            COALESCE(mps.avg_military_power, 0) as avg_military_power,
+            COALESCE(ad.diversity_score, 0) as army_diversity_score,
+            COALESCE(pl.power_lead_pct, 0) as power_lead_pct
         FROM players p
         JOIN match_game_lengths mgl ON p.match_id = mgl.match_id
         LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
@@ -9414,6 +9415,12 @@ class TournamentQueries:
             AND p.match_id = lr.match_id
         LEFT JOIN legitimacy_stats ls ON p.player_id = ls.player_id
             AND p.match_id = ls.match_id
+        LEFT JOIN military_power_stats mps ON p.player_id = mps.player_id
+            AND p.match_id = mps.match_id
+        LEFT JOIN army_diversity ad ON p.player_id = ad.player_id
+            AND p.match_id = ad.match_id
+        LEFT JOIN power_lead pl ON p.player_id = pl.player_id
+            AND p.match_id = pl.match_id
         ORDER BY p.player_id, p.match_id
         """
 
@@ -9527,6 +9534,10 @@ class TournamentQueries:
                 "avg_expansion_rate": weighted_avg(g, "expansion_rate"),
                 "avg_law_rate": weighted_avg(g, "law_rate"),
                 "avg_legitimacy": weighted_avg(g, "avg_legitimacy"),
+                # Military metrics
+                "avg_military_power": weighted_avg(g, "avg_military_power"),
+                "avg_army_diversity": weighted_avg(g, "army_diversity_score"),
+                "avg_power_lead": weighted_avg(g, "power_lead_pct"),
             }),
             include_groups=False
         ).reset_index()
@@ -9561,15 +9572,20 @@ class TournamentQueries:
         player_df["law_rate_pct"] = to_percentile(player_df["avg_law_rate"])
         player_df["legitimacy_pct"] = to_percentile(player_df["avg_legitimacy"])
 
+        # Military metrics - military_power uses percentile, others are already 0-100
+        player_df["military_power_pct"] = to_percentile(player_df["avg_military_power"])
+        # army_diversity and power_lead are already on 0-100 scale, no percentile needed
+
         return player_df
 
     def _calculate_composite_score(self, player_df: pd.DataFrame) -> pd.DataFrame:
         """Calculate final composite skill score with confidence adjustment.
 
-        Formula:
-        - Win Component (40%): win_rate_pct * 0.7 + win_margin_pct * 0.3
-        - Economy Component (35%): total_yields_pct (all productive yields combined)
+        Formula (equal weights):
+        - Win Component (25%): win_rate_pct * 0.7 + win_margin_pct * 0.3
+        - Economy Component (25%): total_yields_pct (all productive yields combined)
         - Governance Component (25%): legitimacy (33%) + expansion (33%) + law rate (33%)
+        - Military Component (25%): military_power (40%) + army_diversity (20%) + power_lead (40%)
 
         Low-sample players are regressed toward population mean (50).
 
@@ -9595,11 +9611,21 @@ class TournamentQueries:
             player_df["law_rate_pct"] / 3.0
         )
 
-        # Calculate raw composite score
+        # Military component: military_power (40%) + army_diversity (20%) + power_lead (40%)
+        # military_power_pct is percentile-normalized (0-100)
+        # avg_army_diversity and avg_power_lead are already 0-100 scale
+        player_df["military_component"] = (
+            player_df["military_power_pct"] * 0.40 +
+            player_df["avg_army_diversity"] * 0.20 +
+            player_df["avg_power_lead"] * 0.40
+        )
+
+        # Calculate raw composite score (equal weights for all 4 components)
         raw_score = (
-            player_df["win_component"] * 0.40 +
-            player_df["economy_component"] * 0.35 +
-            player_df["governance_component"] * 0.25
+            player_df["win_component"] * 0.25 +
+            player_df["economy_component"] * 0.25 +
+            player_df["governance_component"] * 0.25 +
+            player_df["military_component"] * 0.25
         )
 
         # Apply confidence adjustment (regress toward 50 for low sample sizes)
@@ -9621,6 +9647,7 @@ class TournamentQueries:
         player_df["win_component"] = player_df["win_component"].round(1)
         player_df["economy_component"] = player_df["economy_component"].round(1)
         player_df["governance_component"] = player_df["governance_component"].round(1)
+        player_df["military_component"] = player_df["military_component"].round(1)
 
         return player_df
 
