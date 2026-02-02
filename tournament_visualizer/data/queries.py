@@ -7372,18 +7372,17 @@ class TournamentQueries:
         ),
 
         -- 4b. City breach/capture events (deduplicated)
-        -- Join against cities table to find the actual owner of the captured city
+        -- Description format: "CityName breached by Nation (PlayerName)"
+        -- The player in parentheses is the ATTACKER, so the OTHER player lost
         city_breach_events AS (
             SELECT
                 e.turn_number as turn,
-                -- Use city owner from cities table, fallback to description-based logic
-                COALESCE(
-                    c.player_id,
-                    CASE
-                        WHEN e.description LIKE '%' || p1.player_name || '%' THEN p2.player_id
-                        ELSE p1.player_id
-                    END
-                ) as player_id,
+                -- Identify attacker from "(player_name)" in description, assign loss to other player
+                CASE
+                    WHEN e.description LIKE '%(' || p1.player_name || ')%' THEN p2.player_id
+                    WHEN e.description LIKE '%(' || p2.player_name || ')%' THEN p1.player_id
+                    ELSE NULL
+                END as player_id,
                 'city_lost' as event_type,
                 'Lost ' || TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (breached|captured)', 1)) as title,
                 e.description as details,
@@ -7395,8 +7394,6 @@ class TournamentQueries:
             FROM events e
             CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? LIMIT 1) p1
             CROSS JOIN (SELECT player_id, player_name FROM players WHERE match_id = ? ORDER BY player_id LIMIT 1 OFFSET 1) p2
-            LEFT JOIN cities c ON c.match_id = e.match_id
-                AND UPPER(REPLACE(c.city_name, 'CITYNAME_', '')) = UPPER(TRIM(REGEXP_EXTRACT(e.description, '^\\s*(.+?) (breached|captured)', 1)))
             WHERE e.match_id = ?
               AND e.event_type = 'CITY_BREACHED'
         ),
