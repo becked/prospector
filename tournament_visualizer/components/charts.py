@@ -8857,7 +8857,7 @@ def create_skill_radar_chart(
 ) -> go.Figure:
     """Create a radar chart showing skill dimension breakdown for players.
 
-    Displays 6 skill dimensions in a radar/spider chart format, allowing
+    Displays 7 skill dimensions in a radar/spider chart format, allowing
     comparison of multiple players simultaneously.
 
     Args:
@@ -8869,6 +8869,7 @@ def create_skill_radar_chart(
             - avg_expansion_rate: float
             - avg_legitimacy: float
             - avg_law_rate: float (laws adopted per 100 turns)
+            - military_component: float (0-100, composite military score)
         height: Chart height in pixels
 
     Returns:
@@ -8895,7 +8896,7 @@ def create_skill_radar_chart(
         )
         return fig
 
-    # Define the 6 skill dimensions
+    # Define the 7 skill dimensions
     categories = [
         "Win Rate",
         "Win Margin",
@@ -8903,6 +8904,7 @@ def create_skill_radar_chart(
         "Expansion",
         "Legitimacy",
         "Law Rate",
+        "Military",
     ]
 
     # Normalize values to 0-100 scale for radar chart
@@ -8920,6 +8922,7 @@ def create_skill_radar_chart(
         "avg_expansion_rate": [p.get("avg_expansion_rate", 0) for p in players_data],
         "avg_legitimacy": [p.get("avg_legitimacy", 50) for p in players_data],
         "avg_law_rate": [p.get("avg_law_rate", 0) for p in players_data],
+        "military_component": [p.get("military_component", 0) for p in players_data],
     }
 
     # For single player, use absolute scale; for multiple, use relative
@@ -8932,6 +8935,7 @@ def create_skill_radar_chart(
             "avg_expansion_rate": (0, 25),  # Typical range
             "avg_legitimacy": (0, 150),  # Can exceed 100 in Old World
             "avg_law_rate": (0, 20),  # Laws per 100 turns, typical range
+            "military_component": (0, 100),  # Already on 0-100 scale
         }
     else:
         # Relative scale based on players being compared
@@ -8983,6 +8987,11 @@ def create_skill_radar_chart(
                 ranges["avg_law_rate"][0],
                 ranges["avg_law_rate"][1],
             ),
+            normalize_to_100(
+                player.get("military_component", 0),
+                ranges["military_component"][0],
+                ranges["military_component"][1],
+            ),
         ]
 
         # Raw values for hover
@@ -8993,6 +9002,7 @@ def create_skill_radar_chart(
             f"{player.get('avg_expansion_rate', 0):.1f} cities/100t",
             f"{player.get('avg_legitimacy', 50):.1f}",
             f"{player.get('avg_law_rate', 0):.1f} laws/100t",
+            f"{player.get('military_component', 0):.1f}",
         ]
 
         # Close the radar by repeating first value

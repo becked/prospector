@@ -101,6 +101,12 @@ layout = html.Div(
                                                     "type": "numeric",
                                                     "format": {"specifier": ".0f"},
                                                 },
+                                                {
+                                                    "name": "Mil",
+                                                    "id": "military_component",
+                                                    "type": "numeric",
+                                                    "format": {"specifier": ".0f"},
+                                                },
                                             ],
                                         ),
                                     ],
@@ -111,15 +117,15 @@ layout = html.Div(
                         # Methodology reference
                         dbc.Card(
                             [
-                                dbc.CardHeader("How Skill Ratings Work"),
+                                dbc.CardHeader("Reference"),
                                 dbc.CardBody(
                                     [
                                         html.P(
-                                            "The skill score combines three components into a single 0-100 rating:",
+                                            "The skill score combines four components into a single 0-100 rating:",
                                             className="mb-2",
                                         ),
                                         html.Pre(
-                                            "Score = (Win × 0.40) + (Economy × 0.35) + (Governance × 0.25)",
+                                            "Score = (Win + Economy + Governance + Military) × 0.25 each",
                                             className="bg-dark p-2 rounded small",
                                         ),
                                         html.H6("Components", className="mt-4 mb-3"),
@@ -127,7 +133,7 @@ layout = html.Div(
                                             [
                                                 html.Div(
                                                     [
-                                                        html.Strong("Win (40%): "),
+                                                        html.Strong("Win (25%): "),
                                                         html.Span(
                                                             "Win rate (70%) + Victory point margin (30%)"
                                                         ),
@@ -136,7 +142,7 @@ layout = html.Div(
                                                 ),
                                                 html.Div(
                                                     [
-                                                        html.Strong("Economy (35%): "),
+                                                        html.Strong("Economy (25%): "),
                                                         html.Span(
                                                             "Total productive yields per turn (science, civics, training, culture, money, growth, food, orders)"
                                                         ),
@@ -148,6 +154,15 @@ layout = html.Div(
                                                         html.Strong("Governance (25%): "),
                                                         html.Span(
                                                             "Legitimacy (33%) + Expansion rate (33%) + Law adoption rate (33%)"
+                                                        ),
+                                                    ],
+                                                    className="mb-2",
+                                                ),
+                                                html.Div(
+                                                    [
+                                                        html.Strong("Military (25%): "),
+                                                        html.Span(
+                                                            "Military power (40%) + Army diversity (20%) + Power lead (40%)"
                                                         ),
                                                     ],
                                                     className="mb-2",
@@ -240,6 +255,10 @@ layout = html.Div(
                                                                 html.Li([
                                                                     html.Strong("Law Rate: "),
                                                                     html.Span("Laws adopted per 100 turns"),
+                                                                ]),
+                                                                html.Li([
+                                                                    html.Strong("Military: "),
+                                                                    html.Span("Military power, army diversity, power lead"),
                                                                 ]),
                                                             ],
                                                             className="small mb-0",
@@ -471,6 +490,7 @@ def export_skill_rankings(n_clicks: int) -> dict:
             "win_component",
             "economy_component",
             "governance_component",
+            "military_component",
         ]
         export_df = df[[c for c in export_cols if c in df.columns]]
 
