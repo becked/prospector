@@ -729,6 +729,12 @@ def _build_event_icons(
         details = event.get("details", "")
         icon_emoji = event.get("icon", "")
 
+        # Guard against NaN from pandas (NULL DB values return NaN, not "")
+        if pd.isna(title):
+            title = ""
+        if pd.isna(details):
+            details = ""
+
         # Track city counts for city/capital events
         family_count = None
         total_count = None

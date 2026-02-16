@@ -2001,10 +2001,15 @@ class OldWorldSaveParser:
                     continue
 
                 # Extract ruler name
+                # FirstName is an attribute with NAME_ prefix (e.g., FirstName="NAME_CATO")
+                # CustomName is a child element with plain text (e.g., <CustomName>Alcara</CustomName>)
+                # used when players rename their rulers
                 first_name = char_elem.get("FirstName")
-                ruler_name = (
-                    self._format_context_value(first_name) if first_name else None
-                )
+                if first_name:
+                    ruler_name = self._format_context_value(first_name)
+                else:
+                    custom_name_elem = char_elem.find("CustomName")
+                    ruler_name = custom_name_elem.text if custom_name_elem is not None and custom_name_elem.text else None
 
                 # Extract cognomen (e.g., COGNOMEN_LION -> "Lion")
                 cognomen_elem = char_elem.find("Cognomen")

@@ -7405,10 +7405,10 @@ class TournamentQueries:
                 r.player_id,
                 'ruler' as event_type,
                 CASE WHEN r.succession_order = 0
-                    THEN 'Starting Ruler: ' || r.ruler_name
-                    ELSE 'Crowned ' || r.ruler_name
+                    THEN 'Starting Ruler: ' || COALESCE(r.ruler_name, 'Unknown')
+                    ELSE 'Crowned ' || COALESCE(r.ruler_name, 'Unknown')
                 END as title,
-                r.archetype || COALESCE(' - ' || r.starting_trait, '') as details,
+                COALESCE(r.archetype, 'Unknown') || COALESCE(' - ' || r.starting_trait, '') as details,
                 r.succession_order
             FROM rulers r
             WHERE r.match_id = ?
@@ -7420,7 +7420,7 @@ class TournamentQueries:
                 r2.succession_turn as turn,
                 r1.player_id,
                 'death' as event_type,
-                r1.ruler_name || ' Died' as title,
+                COALESCE(r1.ruler_name, 'Ruler') || ' Died' as title,
                 'Ruler died' as details,
                 r1.succession_order
             FROM rulers r1

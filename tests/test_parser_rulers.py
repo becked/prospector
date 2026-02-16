@@ -208,6 +208,29 @@ class TestExtractRulers:
                 pytest.fail(f"Failed to process {save_file.name}: {e}")
 
 
+    def test_extract_rulers_custom_name_fallback(self) -> None:
+        """Test that CustomName is used when FirstName is absent.
+
+        Match 52 (match_426504775_save.zip) has a ruler with <CustomName>Alcara</CustomName>
+        instead of a FirstName attribute. The parser should fall back to CustomName.
+        """
+        parser = OldWorldSaveParser("saves/match_426504775_save.zip")
+        parser.extract_and_parse()
+
+        rulers = parser.extract_rulers()
+
+        # Player 1 (XML ID 0), succession_order 0 has CustomName="Alcara"
+        starting_ruler = next(
+            (r for r in rulers if r["character_id"] == 3 and r["succession_order"] == 0),
+            None,
+        )
+
+        assert starting_ruler is not None, "Should find starting ruler with character_id=3"
+        assert starting_ruler["ruler_name"] == "Alcara", (
+            f"Expected 'Alcara' from CustomName, got {starting_ruler['ruler_name']!r}"
+        )
+
+
 class TestFindSuccessionTurn:
     """Tests for the _find_succession_turn() helper method."""
 
