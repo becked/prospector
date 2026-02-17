@@ -548,7 +548,7 @@ def health_check():
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 503
+        return jsonify({"status": "unhealthy", "error": "Health check failed"}), 503
 
 
 if __name__ == "__main__":

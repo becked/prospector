@@ -109,7 +109,7 @@ def api_turn_range(match_id: int) -> tuple[Any, int]:
         }), 200
     except Exception as e:
         logger.error(f"Error getting turn range for match {match_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @map_api.route("/api/map/territories/<int:match_id>/<int:turn_number>")
@@ -222,4 +222,4 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
 
     except Exception as e:
         logger.error(f"Error getting territories for match {match_id} turn {turn_number}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
