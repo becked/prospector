@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Generate AI-powered narrative summaries for tournament matches.
 
-This script generates narrative summaries using Claude API and stores them
-in the matches.narrative_summary column.
+Uses the match card analysis engine to produce structured data, then
+generates three narratives per match via single-pass LLM calls:
+1. Match summary (stored in matches.narrative_summary)
+2. Player 1 narrative (stored in matches.p1_narrative)
+3. Player 2 narrative (stored in matches.p2_narrative)
 
 Usage:
-    # Generate for matches without narratives
+    # Generate for matches missing any narrative
     uv run python scripts/generate_match_narratives.py
 
     # Force regenerate all narratives
@@ -13,6 +16,9 @@ Usage:
 
     # Generate for specific match
     uv run python scripts/generate_match_narratives.py --match-id 19
+
+    # Dry run - print serialized analysis without calling LLM
+    uv run python scripts/generate_match_narratives.py --match-id 19 --dry-run
 
     # Verbose logging
     uv run python scripts/generate_match_narratives.py --verbose
@@ -22,16 +28,17 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import duckdb
 
+from tournament_visualizer.components.match_card import analyze_match, fetch_match_card_data
 from tournament_visualizer.config import Config
-from tournament_visualizer.data.event_formatter import EventFormatter
-from tournament_visualizer.data.narrative_generator import NarrativeGenerator
+from tournament_visualizer.data.database import TournamentDatabase
+from tournament_visualizer.data.narrative_generator import NarrativeGenerator, serialize_analysis
+from tournament_visualizer.data.queries import TournamentQueries
 
 # Configure logging
 logging.basicConfig(
@@ -46,7 +53,7 @@ def get_matches_to_process(
     force: bool = False,
     match_id: int | None = None,
 ) -> list[int]:
-    """Get list of match IDs to process.
+    """Get list of match IDs that need narrative generation.
 
     Args:
         conn: Database connection
@@ -57,7 +64,6 @@ def get_matches_to_process(
         List of match IDs to process
     """
     if match_id:
-        # Verify match exists
         result = conn.execute(
             "SELECT match_id FROM matches WHERE match_id = ?", [match_id]
         ).fetchone()
@@ -67,14 +73,15 @@ def get_matches_to_process(
         return [match_id]
 
     if force:
-        # All matches
         query = "SELECT match_id FROM matches ORDER BY match_id"
     else:
-        # Only matches without narratives
+        # Process matches missing any of the three narratives
         query = """
             SELECT match_id
             FROM matches
             WHERE narrative_summary IS NULL
+               OR p1_narrative IS NULL
+               OR p2_narrative IS NULL
             ORDER BY match_id
         """
 
@@ -82,123 +89,50 @@ def get_matches_to_process(
     return [row[0] for row in results]
 
 
-def get_match_metadata(
-    conn: duckdb.DuckDBPyConnection, match_id: int
-) -> dict[str, Any] | None:
-    """Get metadata for a match.
-
-    Args:
-        conn: Database connection
-        match_id: Match ID to fetch
-
-    Returns:
-        Match metadata dict or None if not found
-    """
-    query = """
-        SELECT
-            m.match_id,
-            p1.player_name as player1_name,
-            p1.civilization as player1_civ,
-            p2.player_name as player2_name,
-            p2.civilization as player2_civ,
-            pw.player_name as winner_name,
-            m.total_turns
-        FROM matches m
-        LEFT JOIN players p1 ON m.match_id = p1.match_id
-            AND m.player1_participant_id = p1.participant_id
-        LEFT JOIN players p2 ON m.match_id = p2.match_id
-            AND m.player2_participant_id = p2.participant_id
-        LEFT JOIN players pw ON m.match_id = pw.match_id
-            AND m.winner_participant_id = pw.participant_id
-        WHERE m.match_id = ?
-    """
-
-    result = conn.execute(query, [match_id]).fetchone()
-    if not result:
-        return None
-
-    return {
-        "match_id": result[0],
-        "player1_name": result[1],
-        "player1_civ": result[2],
-        "player2_name": result[3],
-        "player2_civ": result[4],
-        "winner_name": result[5],
-        "total_turns": result[6],
-    }
-
-
-def get_match_events(
-    conn: duckdb.DuckDBPyConnection, match_id: int
-) -> list[dict[str, Any]]:
-    """Get all events for a match.
-
-    Args:
-        conn: Database connection
-        match_id: Match ID to fetch events for
-
-    Returns:
-        List of event dicts
-    """
-    query = """
-        SELECT
-            e.turn_number,
-            e.event_type,
-            p.player_name,
-            p.civilization,
-            e.description,
-            e.event_data
-        FROM events e
-        JOIN players p ON e.player_id = p.player_id
-        WHERE e.match_id = ?
-        ORDER BY e.turn_number, e.event_id
-    """
-
-    results = conn.execute(query, [match_id]).fetchall()
-
-    return [
-        {
-            "turn_number": row[0],
-            "event_type": row[1],
-            "player_name": row[2],
-            "civilization": row[3],
-            "description": row[4],
-            "event_data": row[5],
-        }
-        for row in results
-    ]
-
-
-def save_narrative(
-    conn: duckdb.DuckDBPyConnection, match_id: int, narrative: str
+def save_narratives(
+    conn: duckdb.DuckDBPyConnection,
+    match_id: int,
+    match_summary: str,
+    p1_narrative: str,
+    p2_narrative: str,
 ) -> None:
-    """Save narrative to database.
+    """Save all three narratives to database.
 
     Args:
         conn: Database connection
         match_id: Match ID to update
-        narrative: Narrative text to save
+        match_summary: Overall match narrative
+        p1_narrative: Player 1 empire narrative
+        p2_narrative: Player 2 empire narrative
     """
     conn.execute(
-        "UPDATE matches SET narrative_summary = ? WHERE match_id = ?",
-        [narrative, match_id],
+        """UPDATE matches
+        SET narrative_summary = ?,
+            p1_narrative = ?,
+            p2_narrative = ?
+        WHERE match_id = ?""",
+        [match_summary, p1_narrative, p2_narrative, match_id],
     )
     conn.commit()
 
 
 def process_match(
-    conn: duckdb.DuckDBPyConnection,
     match_id: int,
-    generator: NarrativeGenerator,
-    formatter: EventFormatter,
+    queries: TournamentQueries,
+    write_conn: duckdb.DuckDBPyConnection,
+    generator: NarrativeGenerator | None,
+    dry_run: bool = False,
+    preview: bool = False,
 ) -> bool:
-    """Process a single match to generate narrative.
+    """Process a single match to generate narratives.
 
     Args:
-        conn: Database connection
         match_id: Match ID to process
-        generator: Narrative generator instance
-        formatter: Event formatter instance
+        queries: TournamentQueries instance for data fetching
+        write_conn: Writable database connection for saving results
+        generator: Narrative generator instance (None if dry_run)
+        dry_run: If True, print analysis without calling LLM
+        preview: If True, generate and print narratives without saving
 
     Returns:
         True if successful, False if error occurred
@@ -206,37 +140,57 @@ def process_match(
     try:
         logger.info(f"Processing match {match_id}")
 
-        # Get match metadata
-        metadata = get_match_metadata(conn, match_id)
-        if not metadata:
-            logger.error(f"Match {match_id} metadata not found")
+        # Fetch data and run analysis
+        data = fetch_match_card_data(match_id, queries)
+        if data is None:
+            logger.error(f"Match {match_id}: no data found")
             return False
 
-        # Get events
-        events = get_match_events(conn, match_id)
-        if not events:
-            logger.warning(f"Match {match_id} has no events, skipping")
-            return False
+        analysis = analyze_match(**data)
 
+        p1_name = analysis.get("player_names", ("?", "?"))[0]
+        p2_name = analysis.get("player_names", ("?", "?"))[1]
+        p1_civ = analysis.get("civilizations", ("?", "?"))[0]
+        p2_civ = analysis.get("civilizations", ("?", "?"))[1]
         logger.info(
-            f"Match {match_id}: {metadata['player1_name']} ({metadata['player1_civ']}) "
-            f"vs {metadata['player2_name']} ({metadata['player2_civ']}) - "
-            f"{len(events)} events"
+            f"Match {match_id}: {p1_name} ({p1_civ}) vs {p2_name} ({p2_civ})"
         )
 
-        # Format events
-        formatted_events = formatter.format_events(events)
+        if dry_run:
+            serialized = serialize_analysis(analysis)
+            print(f"\n{'='*60}")
+            print(f"Match {match_id}: {p1_name} ({p1_civ}) vs {p2_name} ({p2_civ})")
+            print(f"{'='*60}")
+            print(serialized)
+            print()
+            return True
 
-        # Generate narrative
-        narrative = generator.generate_narrative(
-            formatted_events=formatted_events,
-            match_metadata=metadata,
-        )
+        assert generator is not None
+
+        # Generate all three narratives
+        match_summary = generator.generate_match_summary(analysis)
+        p1_narrative = generator.generate_player_narrative(analysis, "p1")
+        p2_narrative = generator.generate_player_narrative(analysis, "p2")
+
+        if preview:
+            print(f"\n{'='*60}")
+            print(f"Match {match_id}: {p1_name} ({p1_civ}) vs {p2_name} ({p2_civ})")
+            print(f"{'='*60}")
+            print(f"\n--- Match Summary ---\n{match_summary}")
+            print(f"\n--- {p1_name} ({p1_civ}) ---\n{p1_narrative}")
+            print(f"\n--- {p2_name} ({p2_civ}) ---\n{p2_narrative}")
+            print()
+            return True
 
         # Save to database
-        save_narrative(conn, match_id, narrative)
+        save_narratives(write_conn, match_id, match_summary, p1_narrative, p2_narrative)
 
-        logger.info(f"Match {match_id}: Generated narrative ({len(narrative)} chars)")
+        logger.info(
+            f"Match {match_id}: Saved narratives "
+            f"(summary: {len(match_summary)} chars, "
+            f"p1: {len(p1_narrative)} chars, "
+            f"p2: {len(p2_narrative)} chars)"
+        )
         return True
 
     except Exception as e:
@@ -264,6 +218,16 @@ def main() -> int:
         help="Generate narrative for specific match ID only",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print serialized analysis without calling LLM",
+    )
+    parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Generate and print narratives without saving to database",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -275,24 +239,33 @@ def main() -> int:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Check API key
-    if not Config.ANTHROPIC_API_KEY:
+    # Check API key (unless dry-run)
+    if not args.dry_run and not Config.ANTHROPIC_API_KEY:
         logger.error("ANTHROPIC_API_KEY not found in environment")
         logger.error("Set it in .env file or environment variables")
         return 1
 
-    # Initialize generator and formatter
-    generator = NarrativeGenerator(api_key=Config.ANTHROPIC_API_KEY)
-    formatter = EventFormatter()
+    # Initialize generator (unless dry-run)
+    generator: NarrativeGenerator | None = None
+    if not args.dry_run:
+        generator = NarrativeGenerator(api_key=Config.ANTHROPIC_API_KEY)
 
     # Connect to database
     logger.info(f"Connecting to database: {Config.DATABASE_PATH}")
-    conn = duckdb.connect(Config.DATABASE_PATH)
+    needs_write = not args.dry_run and not args.preview
+    db = TournamentDatabase(Config.DATABASE_PATH, read_only=not needs_write)
+    queries = TournamentQueries(db)
+
+    # Separate writable connection for UPDATE/SELECT statements
+    write_conn: duckdb.DuckDBPyConnection | None = None
+    if needs_write:
+        write_conn = duckdb.connect(Config.DATABASE_PATH)
 
     try:
-        # Get matches to process
+        # Get matches to process - use write_conn if available, otherwise read-only
+        query_conn = write_conn if write_conn else db.connect()
         match_ids = get_matches_to_process(
-            conn, force=args.force, match_id=args.match_id
+            query_conn, force=args.force, match_id=args.match_id
         )
 
         if not match_ids:
@@ -309,8 +282,8 @@ def main() -> int:
         success_count = 0
         error_count = 0
 
-        for match_id in match_ids:
-            if process_match(conn, match_id, generator, formatter):
+        for mid in match_ids:
+            if process_match(mid, queries, write_conn, generator, args.dry_run, args.preview):
                 success_count += 1
             else:
                 error_count += 1
@@ -324,7 +297,8 @@ def main() -> int:
         return 0 if error_count == 0 else 1
 
     finally:
-        conn.close()
+        if write_conn:
+            write_conn.close()
 
 
 if __name__ == "__main__":

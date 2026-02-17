@@ -36,6 +36,7 @@ class TournamentDatabase:
             self.connect()  # Ensure connection exists
             self.migrate_to_participant_tracking()
             self.migrate_to_pick_order_tracking()
+            self.migrate_to_player_narratives()
 
     @contextmanager
     def get_connection(self):
@@ -222,6 +223,8 @@ class TournamentDatabase:
             first_picker_participant_id BIGINT,
             second_picker_participant_id BIGINT,
             narrative_summary TEXT,
+            p1_narrative TEXT,
+            p2_narrative TEXT,
 
             CONSTRAINT unique_file UNIQUE(file_name, file_hash),
             CONSTRAINT check_total_turns CHECK(total_turns >= 0)
@@ -1312,6 +1315,85 @@ class TournamentDatabase:
 
         except Exception as e:
             logger.error(f"Error during pick order tracking migration: {e}")
+            raise
+
+    def migrate_to_player_narratives(self) -> None:
+        """Migrate existing database to add per-player narrative columns.
+
+        Adds p1_narrative and p2_narrative columns to matches table.
+
+        This migration is idempotent - safe to run multiple times.
+        """
+        logger.info("Checking for player narratives migration...")
+
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        version VARCHAR(20) PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        description TEXT
+                    )
+                """
+                )
+
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM schema_migrations
+                    WHERE version = '6'
+                """
+                ).fetchone()
+
+                if result[0] > 0:
+                    logger.info("Player narratives migration already applied")
+                    return
+
+                logger.info("Applying player narratives migration...")
+
+                matches_table_exists = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_name = 'matches'
+                """
+                ).fetchone()
+
+                if matches_table_exists[0] == 0:
+                    logger.info(
+                        "Matches table does not exist yet - skipping player narratives "
+                        "migration (will be applied after initial import)"
+                    )
+                    return
+
+                for column_name in ("p1_narrative", "p2_narrative"):
+                    existing = conn.execute(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_name = 'matches'
+                        AND column_name = '{column_name}'
+                    """
+                    ).fetchone()
+
+                    if existing[0] == 0:
+                        conn.execute(
+                            f"ALTER TABLE matches ADD COLUMN {column_name} TEXT"
+                        )
+                        logger.info(f"Added column {column_name} to matches table")
+
+                conn.execute(
+                    """
+                    INSERT INTO schema_migrations (version, description, applied_at)
+                    VALUES ('6', 'Add per-player narrative columns', CURRENT_TIMESTAMP)
+                """
+                )
+
+                logger.info("Player narratives migration completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during player narratives migration: {e}")
             raise
 
     def get_processed_files(self) -> List[Tuple[str, str]]:

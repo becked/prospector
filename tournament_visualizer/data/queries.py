@@ -235,6 +235,37 @@ class TournamentQueries:
         """
         self._match_summary_cache = None
 
+    def get_match_narratives(self, match_id: int) -> dict[str, str | None]:
+        """Get narrative texts for a match.
+
+        Args:
+            match_id: Match database ID
+
+        Returns:
+            Dict with keys: match_narrative, p1_narrative, p2_narrative.
+            Values are None if not yet generated.
+        """
+        query = """
+            SELECT narrative_summary, p1_narrative, p2_narrative
+            FROM matches
+            WHERE match_id = ?
+        """
+        with self.db.get_connection() as conn:
+            result = conn.execute(query, [match_id]).fetchone()
+
+        if not result:
+            return {
+                "match_narrative": None,
+                "p1_narrative": None,
+                "p2_narrative": None,
+            }
+
+        return {
+            "match_narrative": result[0],
+            "p1_narrative": result[1],
+            "p2_narrative": result[2],
+        }
+
     def get_player_performance(self) -> pd.DataFrame:
         """Get player performance statistics.
 

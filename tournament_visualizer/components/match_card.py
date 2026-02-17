@@ -16,6 +16,8 @@ from tournament_visualizer.data.transformations import (
     forward_fill_history_by_category,
 )
 
+from tournament_visualizer.data.queries import TournamentQueries
+
 logger = logging.getLogger(__name__)
 
 
@@ -321,6 +323,8 @@ def _extract_city_captures(events_df: pd.DataFrame) -> list[dict[str, Any]]:
     events = []
 
     for _, event in city_lost_events.iterrows():
+        if pd.isna(event["player_id"]):
+            continue
         events.append(
             {
                 "turn": int(event["turn"]),
@@ -1350,6 +1354,12 @@ def analyze_yield_comparison(
         ("Science", "YIELD_SCIENCE"),
         ("Civics", "YIELD_CIVICS"),
         ("Orders", "YIELD_ORDERS"),
+        ("Food", "YIELD_FOOD"),
+        ("Culture", "YIELD_CULTURE"),
+        ("Money", "YIELD_MONEY"),
+        ("Iron", "YIELD_IRON"),
+        ("Stone", "YIELD_STONE"),
+        ("Wood", "YIELD_WOOD"),
     ]
 
     result = {}
@@ -1417,6 +1427,128 @@ def analyze_yield_comparison(
 
 
 # =============================================================================
+# Data Fetching
+# =============================================================================
+
+
+def fetch_match_card_data(
+    match_id: int,
+    queries: TournamentQueries,
+) -> dict[str, Any] | None:
+    """Fetch all data needed for match card analysis.
+
+    Encapsulates the data fetching and player info extraction that both the
+    matches.py callback and the narrative generation script need.
+
+    Args:
+        match_id: Match database ID
+        queries: TournamentQueries instance
+
+    Returns:
+        Dict with all parameters needed by analyze_match(), or None if
+        match not found. Keys: match_id, points_df, military_df, events_df,
+        yield_df, cities_df, expansion_df, units_df, law_df, yield_total_df,
+        total_turns, winner_player_id, winner_name, player_ids, player_names,
+        civilizations.
+    """
+    points_df = queries.get_points_history_by_match(match_id)
+    military_df = queries.get_military_history_by_match(match_id)
+    events_df = queries.get_match_timeline_events(match_id)
+    yield_df = queries.get_yield_history_by_match(match_id)
+    cities_df = queries.get_match_cities(match_id)
+    expansion_df = queries.get_player_expansion_stats(match_id)
+    units_df = queries.get_match_units_produced(match_id)
+    law_df = queries.get_law_timeline(match_id)
+
+    yield_total_df = None
+    if queries.has_yield_total_history(match_id):
+        yield_total_df = queries.get_yield_total_history_by_match(match_id)
+
+    match_summary_df = queries.get_match_summary()
+    match_info = match_summary_df[match_summary_df["match_id"] == match_id]
+
+    if match_info.empty:
+        return None
+
+    match_row = match_info.iloc[0]
+    total_turns = int(match_row.get("total_turns", 0))
+    winner_name_from_summary = str(match_row.get("winner_name", "Unknown"))
+    victory_conditions = str(match_row.get("victory_conditions", "Unknown"))
+    avg_turns = round(match_summary_df["total_turns"].mean())
+
+    # Extract player info
+    player1_id = 0
+    player2_id = 0
+    player1_name = "Player 1"
+    player2_name = "Player 2"
+    player1_civ = "Unknown"
+    player2_civ = "Unknown"
+
+    if not yield_df.empty and "player_id" in yield_df.columns:
+        player_info = (
+            yield_df[["player_id", "player_name", "civilization"]]
+            .drop_duplicates()
+            .sort_values("player_id")
+        )
+        if len(player_info) >= 1:
+            p1 = player_info.iloc[0]
+            player1_id = int(p1["player_id"])
+            player1_name = str(p1["player_name"] or "Player 1")
+            player1_civ = str(p1["civilization"] or "Unknown")
+        if len(player_info) >= 2:
+            p2 = player_info.iloc[1]
+            player2_id = int(p2["player_id"])
+            player2_name = str(p2["player_name"] or "Player 2")
+            player2_civ = str(p2["civilization"] or "Unknown")
+    elif not events_df.empty and "player_id" in events_df.columns:
+        player_ids_list = sorted(events_df["player_id"].dropna().unique())
+        if len(player_ids_list) >= 1:
+            player1_id = int(player_ids_list[0])
+        if len(player_ids_list) >= 2:
+            player2_id = int(player_ids_list[1])
+
+        if "player_name" in events_df.columns:
+            for _, row in (
+                events_df[["player_id", "player_name"]].drop_duplicates().iterrows()
+            ):
+                if row["player_id"] == player1_id:
+                    player1_name = str(row["player_name"] or "Player 1")
+                elif row["player_id"] == player2_id:
+                    player2_name = str(row["player_name"] or "Player 2")
+
+    # Determine winner
+    winner_player_id = None
+    winner_name = winner_name_from_summary
+
+    if winner_name_from_summary and winner_name_from_summary != "Unknown":
+        if winner_name_from_summary == player1_name:
+            winner_player_id = player1_id
+        elif winner_name_from_summary == player2_name:
+            winner_player_id = player2_id
+
+    return {
+        "match_id": match_id,
+        "points_df": points_df,
+        "military_df": military_df,
+        "events_df": events_df,
+        "yield_df": yield_df,
+        "cities_df": cities_df,
+        "expansion_df": expansion_df,
+        "units_df": units_df,
+        "law_df": law_df,
+        "total_turns": total_turns,
+        "winner_player_id": winner_player_id,
+        "winner_name": winner_name,
+        "player_ids": (player1_id, player2_id),
+        "player_names": (player1_name, player2_name),
+        "civilizations": (player1_civ, player2_civ),
+        "yield_total_df": yield_total_df,
+        "victory_conditions": victory_conditions,
+        "avg_turns": avg_turns,
+    }
+
+
+# =============================================================================
 # Main Analysis Orchestrator
 # =============================================================================
 
@@ -1438,6 +1570,8 @@ def analyze_match(
     player_names: tuple[str, str],
     civilizations: tuple[str, str],
     yield_total_df: Optional[pd.DataFrame] = None,
+    victory_conditions: str = "Unknown",
+    avg_turns: int = 0,
 ) -> dict[str, Any]:
     """Run all match analyses and return combined results.
 
@@ -1461,6 +1595,8 @@ def analyze_match(
         civilizations: Tuple of (player1_civ, player2_civ)
         yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
             (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
+        victory_conditions: Enabled victory conditions for this match
+        avg_turns: Average turn count across all matches
 
     Returns:
         Dict with all analysis results
@@ -1575,4 +1711,6 @@ def analyze_match(
         "highlights": highlights,
         "archetype_info": archetype_info,
         "yield_comparison": yield_comparison,
+        "victory_conditions": victory_conditions,
+        "avg_turns": avg_turns,
     }

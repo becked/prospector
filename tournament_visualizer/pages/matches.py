@@ -74,7 +74,7 @@ from tournament_visualizer.components.tech_tree import (
     TECH_TREE_STYLESHEET,
 )
 from tournament_visualizer.components.game_state import create_game_state_component
-from tournament_visualizer.components.match_card import analyze_match
+from tournament_visualizer.components.match_card import analyze_match, fetch_match_card_data
 from tournament_visualizer.components.match_card_layouts import create_match_card_layout
 from tournament_visualizer.tech_tree import TECHS
 
@@ -4127,109 +4127,27 @@ def update_overview_beta(
         queries = get_queries()
 
         # Fetch all required data
-        points_df = queries.get_points_history_by_match(match_id)
-        military_df = queries.get_military_history_by_match(match_id)
-        events_df = queries.get_match_timeline_events(match_id)
-        yield_df = queries.get_yield_history_by_match(match_id)
-        cities_df = queries.get_match_cities(match_id)
-        expansion_df = queries.get_player_expansion_stats(match_id)
-        units_df = queries.get_match_units_produced(match_id)
-        law_df = queries.get_law_timeline(match_id)
-
-        # Get actual cumulative totals if available (v1.0.81366+ saves)
-        # These are ~30% more accurate because they include events, bonuses, etc.
-        yield_total_df = None
-        if queries.has_yield_total_history(match_id):
-            yield_total_df = queries.get_yield_total_history_by_match(match_id)
-
-        # Get match summary for metadata
-        match_summary_df = queries.get_match_summary()
-        match_info = match_summary_df[match_summary_df["match_id"] == match_id]
-
-        if match_info.empty:
+        data = fetch_match_card_data(match_id, queries)
+        if data is None:
             return create_empty_state(
                 title="Match Not Found",
-                message="Unable to load match metadata.",
+                message="Unable to load match data.",
                 icon="bi-exclamation-circle",
             )
 
-        match_row = match_info.iloc[0]
-        total_turns = int(match_row.get("total_turns", 0))
-        winner_name_from_summary = str(match_row.get("winner_name", "Unknown"))
-
-        # Get player info from yield_df which has player_id, player_name, civilization
-        player1_id = 0
-        player2_id = 0
-        player1_name = "Player 1"
-        player2_name = "Player 2"
-        player1_civ = "Unknown"
-        player2_civ = "Unknown"
-
-        if not yield_df.empty and "player_id" in yield_df.columns:
-            player_info = (
-                yield_df[["player_id", "player_name", "civilization"]]
-                .drop_duplicates()
-                .sort_values("player_id")
-            )
-            if len(player_info) >= 1:
-                p1 = player_info.iloc[0]
-                player1_id = int(p1["player_id"])
-                player1_name = str(p1["player_name"] or "Player 1")
-                player1_civ = str(p1["civilization"] or "Unknown")
-            if len(player_info) >= 2:
-                p2 = player_info.iloc[1]
-                player2_id = int(p2["player_id"])
-                player2_name = str(p2["player_name"] or "Player 2")
-                player2_civ = str(p2["civilization"] or "Unknown")
-        elif not events_df.empty and "player_id" in events_df.columns:
-            # Fall back to events_df
-            player_ids = sorted(events_df["player_id"].dropna().unique())
-            if len(player_ids) >= 1:
-                player1_id = int(player_ids[0])
-            if len(player_ids) >= 2:
-                player2_id = int(player_ids[1])
-
-            # Try to get names from events
-            if "player_name" in events_df.columns:
-                for _, row in events_df[["player_id", "player_name"]].drop_duplicates().iterrows():
-                    if row["player_id"] == player1_id:
-                        player1_name = str(row["player_name"] or "Player 1")
-                    elif row["player_id"] == player2_id:
-                        player2_name = str(row["player_name"] or "Player 2")
-
-        # Determine winner
-        winner_player_id = None
-        winner_name = winner_name_from_summary
-
-        # Match winner name to player ID
-        if winner_name_from_summary and winner_name_from_summary != "Unknown":
-            if winner_name_from_summary == player1_name:
-                winner_player_id = player1_id
-            elif winner_name_from_summary == player2_name:
-                winner_player_id = player2_id
-
         # Run the analysis
-        analysis = analyze_match(
-            match_id=match_id,
-            points_df=points_df,
-            military_df=military_df,
-            events_df=events_df,
-            yield_df=yield_df,
-            cities_df=cities_df,
-            expansion_df=expansion_df,
-            units_df=units_df,
-            law_df=law_df,
-            total_turns=total_turns,
-            winner_player_id=winner_player_id,
-            winner_name=winner_name,
-            player_ids=(player1_id, player2_id),
-            player_names=(player1_name, player2_name),
-            civilizations=(player1_civ, player2_civ),
-            yield_total_df=yield_total_df,
-        )
+        analysis = analyze_match(**data)
+
+        # Fetch pre-generated narratives
+        narratives = queries.get_match_narratives(match_id)
 
         # Create and return the layout
-        return create_match_card_layout(analysis)
+        return create_match_card_layout(
+            analysis,
+            match_narrative=narratives["match_narrative"],
+            p1_narrative=narratives["p1_narrative"],
+            p2_narrative=narratives["p2_narrative"],
+        )
 
     except Exception as e:
         logger.error(f"Error creating match card: {e}")

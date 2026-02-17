@@ -22,6 +22,7 @@
 - [player_points_history](#player_points_history)
 - [player_statistics](#player_statistics)
 - [player_yield_history](#player_yield_history)
+- [player_yield_total_history](#player_yield_total_history)
 - [players](#players)
 - [religion_opinion_history](#religion_opinion_history)
 - [rulers](#rulers)
@@ -38,7 +39,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 778
 
 ### Columns
 
@@ -55,6 +56,8 @@
 | `population` | INTEGER | ✓ |  | *TODO* |
 | `first_player_id` | BIGINT | ✓ |  | *TODO* |
 | `governor_id` | INTEGER | ✓ |  | *TODO* |
+| `culture_level` | INTEGER | ✓ |  | *TODO* |
+| `religion_count` | INTEGER | ✓ |  | *TODO* |
 
 ### Constraints
 
@@ -69,6 +72,8 @@
 - PRIMARY KEY: `cities_match_id_city_id_pkey`
 - CHECK: `cities_founded_turn_check`
 - CHECK: `cities_population_population_check`
+- CHECK: `cities_culture_level_culture_level_culture_level_check`
+- CHECK: `cities_religion_count_religion_count_check`
 
 ### Relationships
 
@@ -84,7 +89,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 1,100
 
 ### Columns
 
@@ -122,7 +127,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 1,105
 
 ### Columns
 
@@ -160,7 +165,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 16,371
 
 ### Columns
 
@@ -203,7 +208,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 262,484
 
 ### Columns
 
@@ -244,7 +249,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 49
 
 ### Columns
 
@@ -288,7 +293,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 49
 
 ### Columns
 
@@ -318,7 +323,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 49
 
 ### Columns
 
@@ -351,7 +356,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 49
 
 ### Columns
 
@@ -380,6 +385,8 @@
 | `first_picker_participant_id` | BIGINT | ✓ |  | *TODO* |
 | `second_picker_participant_id` | BIGINT | ✓ |  | *TODO* |
 | `narrative_summary` | VARCHAR | ✓ |  | *TODO* |
+| `p1_narrative` | VARCHAR | ✓ |  | *TODO* |
+| `p2_narrative` | VARCHAR | ✓ |  | *TODO* |
 
 ### Constraints
 
@@ -492,7 +499,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 6,877
 
 ### Columns
 
@@ -532,7 +539,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 6,899
 
 ### Columns
 
@@ -572,7 +579,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 98
 
 ### Columns
 
@@ -600,7 +607,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 6,729
 
 ### Columns
 
@@ -640,7 +647,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 18,357
 
 ### Columns
 
@@ -680,7 +687,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 98,803
 
 ### Columns
 
@@ -717,11 +724,52 @@
 
 ---
 
+## player_yield_total_history
+
+**Purpose:** *TODO: Add description*
+
+**Current rows:** 7,074
+
+### Columns
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `total_id` | BIGINT |  |  | *TODO* |
+| `match_id` | BIGINT |  |  | *TODO* |
+| `player_id` | BIGINT |  |  | *TODO* |
+| `turn_number` | INTEGER |  |  | *TODO* |
+| `resource_type` | VARCHAR |  |  | *TODO* |
+| `amount` | INTEGER |  |  | *TODO* |
+
+### Constraints
+
+- PRIMARY KEY: `player_yield_total_history_total_id_pkey`
+- CHECK: `player_yield_total_history_match_id_not_null`
+- FOREIGN KEY: `player_yield_total_history_match_id_match_id_fkey`
+- CHECK: `player_yield_total_history_player_id_not_null`
+- FOREIGN KEY: `player_yield_total_history_player_id_player_id_fkey`
+- CHECK: `player_yield_total_history_turn_number_not_null`
+- CHECK: `player_yield_total_history_resource_type_not_null`
+- CHECK: `player_yield_total_history_amount_not_null`
+- CHECK: `player_yield_total_history_turn_number_check`
+- UNIQUE: `player_yield_total_history_match_id_player_id_turn_number_resource_type_key`
+- CHECK: `player_yield_total_history_total_id_not_null`
+
+### Relationships
+
+*TODO: Document foreign keys and relationships*
+
+### Related Code
+
+*TODO: Link to parser/query code*
+
+---
+
 ## players
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 98
 
 ### Columns
 
@@ -764,7 +812,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 99,148
 
 ### Columns
 
@@ -805,7 +853,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 299
 
 ### Columns
 
@@ -818,6 +866,9 @@
 | `ruler_name` | VARCHAR | ✓ |  | *TODO* |
 | `archetype` | VARCHAR | ✓ |  | *TODO* |
 | `starting_trait` | VARCHAR | ✓ |  | *TODO* |
+| `cognomen` | VARCHAR | ✓ |  | *TODO* |
+| `birth_turn` | INTEGER | ✓ |  | *TODO* |
+| `death_turn` | INTEGER | ✓ |  | *TODO* |
 | `succession_order` | INTEGER |  |  | *TODO* |
 | `succession_turn` | INTEGER |  |  | *TODO* |
 
@@ -849,7 +900,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 1
+**Current rows:** 4
 
 ### Columns
 
@@ -878,7 +929,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 2,259
 
 ### Columns
 
@@ -917,7 +968,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 8,856,922
 
 ### Columns
 
@@ -934,6 +985,7 @@
 | `resource_type` | VARCHAR | ✓ |  | *TODO* |
 | `has_road` | BOOLEAN | ✓ | CAST('f' AS BOOLEAN) | *TODO* |
 | `owner_player_id` | BIGINT | ✓ |  | *TODO* |
+| `city_id` | INTEGER | ✓ |  | *TODO* |
 
 ### Constraints
 
@@ -1001,7 +1053,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 42
+**Current rows:** 47
 
 ### Columns
 
@@ -1033,7 +1085,7 @@
 
 **Purpose:** *TODO: Add description*
 
-**Current rows:** 0
+**Current rows:** 927
 
 ### Columns
 

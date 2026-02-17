@@ -1194,15 +1194,132 @@ def _create_highlight_item(
 
 
 # =============================================================================
+# Narratives Section
+# =============================================================================
+
+
+def _format_narrative_paragraphs(text: str, style: dict[str, str]) -> list:
+    """Split narrative text on blank lines and return a list of html.P elements."""
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    elements = []
+    for i, para in enumerate(paragraphs):
+        para_style = dict(style)
+        # No bottom margin on the last paragraph
+        if i == len(paragraphs) - 1:
+            para_style["marginBottom"] = "0"
+        elements.append(html.P(para, style=para_style))
+    return elements
+
+
+def create_narratives_section(
+    match_narrative: str | None,
+    p1_narrative: str | None,
+    p2_narrative: str | None,
+    p1_name: str,
+    p2_name: str,
+    p1_civ: str,
+    p2_civ: str,
+) -> html.Div:
+    """Create the narratives section with match summary and player narratives.
+
+    Layout: match summary on the left, player narratives stacked on the right.
+    Placed between Key Events/Metrics and Reference Panel.
+
+    Returns:
+        dbc.Card with narratives, or empty html.Div if no narratives exist
+    """
+    if not match_narrative and not p1_narrative and not p2_narrative:
+        return html.Div()
+
+    text_color = "#eef2f7"
+    muted_color = "#a0aec0"
+    text_style: dict[str, str] = {
+        "color": text_color,
+        "fontSize": "14px",
+        "lineHeight": "1.6",
+        "marginBottom": "0.75rem",
+    }
+    player_text_style: dict[str, str] = {
+        "color": text_color,
+        "fontSize": "14px",
+        "lineHeight": "1.6",
+        "marginBottom": "0.5rem",
+    }
+
+    # Left column: match summary with title
+    left_children: list = []
+    if match_narrative:
+        left_children = [
+            html.H6(
+                "Match Narrative",
+                style={"color": text_color, "marginBottom": "0.75rem"},
+            ),
+            *_format_narrative_paragraphs(match_narrative, text_style),
+        ]
+
+    # Right column: player narratives stacked
+    right_children: list = []
+    for narrative, name, civ in [
+        (p1_narrative, p1_name, p1_civ),
+        (p2_narrative, p2_name, p2_civ),
+    ]:
+        if not narrative:
+            continue
+        if right_children:
+            right_children.append(html.Hr(className="my-2"))
+        right_children.extend(
+            [
+                html.Div(
+                    [
+                        html.Span(
+                            name,
+                            className="fw-bold",
+                            style={"color": text_color, "fontSize": "14px"},
+                        ),
+                        html.Span(
+                            f" ({civ})",
+                            className="text-muted",
+                            style={"fontSize": "14px"},
+                        ),
+                    ],
+                    className="mb-2",
+                ),
+                *_format_narrative_paragraphs(narrative, player_text_style),
+            ]
+        )
+
+    return dbc.Card(
+        dbc.CardBody(
+            dbc.Row(
+                [
+                    dbc.Col(left_children, width=6),
+                    dbc.Col(right_children, width=6),
+                ],
+                className="g-4",
+            )
+        ),
+        className="mb-3",
+    )
+
+
+# =============================================================================
 # Main Layout Assembly
 # =============================================================================
 
 
-def create_match_card_layout(analysis: dict[str, Any]) -> html.Div:
+def create_match_card_layout(
+    analysis: dict[str, Any],
+    match_narrative: str | None = None,
+    p1_narrative: str | None = None,
+    p2_narrative: str | None = None,
+) -> html.Div:
     """Assemble the complete match card layout from analysis results.
 
     Args:
         analysis: Complete analysis result from analyze_match()
+        match_narrative: LLM-generated match summary, or None
+        p1_narrative: LLM-generated player 1 narrative, or None
+        p2_narrative: LLM-generated player 2 narrative, or None
 
     Returns:
         html.Div with full layout
@@ -1294,6 +1411,16 @@ def create_match_card_layout(analysis: dict[str, Any]) -> html.Div:
                     ),
                 ],
                 className="mb-3 g-3",
+            ),
+            # Narratives Section
+            create_narratives_section(
+                match_narrative,
+                p1_narrative,
+                p2_narrative,
+                p1_name,
+                p2_name,
+                p1_civ,
+                p2_civ,
             ),
             # Reference Panel (collapsible)
             create_reference_panel(),

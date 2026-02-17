@@ -14,7 +14,9 @@ CREATE TABLE cities (
     is_capital BOOLEAN DEFAULT CAST('f' AS BOOLEAN),
     population INTEGER,
     first_player_id BIGINT,
-    governor_id INTEGER
+    governor_id INTEGER,
+    culture_level INTEGER,
+    religion_count INTEGER
 );
 
 -- Table: city_projects
@@ -123,7 +125,9 @@ CREATE TABLE matches (
     winner_participant_id BIGINT,
     first_picker_participant_id BIGINT,
     second_picker_participant_id BIGINT,
-    narrative_summary VARCHAR
+    narrative_summary VARCHAR,
+    p1_narrative VARCHAR,
+    p2_narrative VARCHAR
 );
 
 -- Table: participant_name_overrides
@@ -214,6 +218,16 @@ CREATE TABLE player_yield_history (
     amount INTEGER NOT NULL
 );
 
+-- Table: player_yield_total_history
+CREATE TABLE player_yield_total_history (
+    total_id BIGINT NOT NULL,
+    match_id BIGINT NOT NULL,
+    player_id BIGINT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    resource_type VARCHAR NOT NULL,
+    amount INTEGER NOT NULL
+);
+
 -- Table: players
 CREATE TABLE players (
     player_id BIGINT NOT NULL,
@@ -249,6 +263,8 @@ CREATE TABLE rulers (
     archetype VARCHAR,
     starting_trait VARCHAR,
     cognomen VARCHAR,
+    birth_turn INTEGER,
+    death_turn INTEGER,
     succession_order INTEGER NOT NULL,
     succession_turn INTEGER NOT NULL
 );
@@ -281,7 +297,8 @@ CREATE TABLE territories (
     specialist_type VARCHAR,
     resource_type VARCHAR,
     has_road BOOLEAN DEFAULT CAST('f' AS BOOLEAN),
-    owner_player_id BIGINT
+    owner_player_id BIGINT,
+    city_id INTEGER
 );
 
 -- Table: tournament_participants
