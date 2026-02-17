@@ -2,7 +2,7 @@
 """Generate AI-powered narrative summaries for tournament matches.
 
 Uses the match card analysis engine to produce structured data, then
-generates three narratives per match via single-pass LLM calls:
+generates three narratives per match via parallel LLM calls:
 1. Match summary (stored in matches.narrative_summary)
 2. Player 1 narrative (stored in matches.p1_narrative)
 3. Player 2 narrative (stored in matches.p2_narrative)
@@ -25,6 +25,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -32,12 +33,17 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import anthropic
 import duckdb
 
 from tournament_visualizer.components.match_card import analyze_match, fetch_match_card_data
 from tournament_visualizer.config import Config
 from tournament_visualizer.data.database import TournamentDatabase
-from tournament_visualizer.data.narrative_generator import NarrativeGenerator, serialize_analysis
+from tournament_visualizer.data.narrative_generator import (
+    build_match_summary_prompt,
+    build_player_narrative_prompt,
+    serialize_analysis,
+)
 from tournament_visualizer.data.queries import TournamentQueries
 
 # Configure logging
@@ -46,6 +52,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+DEFAULT_MODEL = "claude-opus-4-20250514"
 
 
 def get_matches_to_process(
@@ -116,21 +124,46 @@ def save_narratives(
     conn.commit()
 
 
-def process_match(
+async def async_generate(
+    client: anthropic.AsyncAnthropic,
+    model: str,
+    prompt: str,
+) -> str:
+    """Make a single async LLM API call.
+
+    Args:
+        client: AsyncAnthropic client
+        model: Model name
+        prompt: User prompt
+
+    Returns:
+        Generated text response
+    """
+    response = await client.messages.create(
+        model=model,
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()
+
+
+async def process_match(
     match_id: int,
     queries: TournamentQueries,
-    write_conn: duckdb.DuckDBPyConnection,
-    generator: NarrativeGenerator | None,
+    write_conn: duckdb.DuckDBPyConnection | None,
+    client: anthropic.AsyncAnthropic | None,
     dry_run: bool = False,
     preview: bool = False,
 ) -> bool:
     """Process a single match to generate narratives.
 
+    The 3 LLM calls per match run concurrently via asyncio.gather().
+
     Args:
         match_id: Match ID to process
         queries: TournamentQueries instance for data fetching
         write_conn: Writable database connection for saving results
-        generator: Narrative generator instance (None if dry_run)
+        client: AsyncAnthropic client (None if dry_run)
         dry_run: If True, print analysis without calling LLM
         preview: If True, generate and print narratives without saving
 
@@ -165,12 +198,19 @@ def process_match(
             print()
             return True
 
-        assert generator is not None
+        assert client is not None
 
-        # Generate all three narratives
-        match_summary = generator.generate_match_summary(analysis)
-        p1_narrative = generator.generate_player_narrative(analysis, "p1")
-        p2_narrative = generator.generate_player_narrative(analysis, "p2")
+        # Build prompts
+        summary_prompt = build_match_summary_prompt(analysis)
+        p1_prompt = build_player_narrative_prompt(analysis, "p1")
+        p2_prompt = build_player_narrative_prompt(analysis, "p2")
+
+        # Generate all three narratives in parallel
+        match_summary, p1_narrative, p2_narrative = await asyncio.gather(
+            async_generate(client, DEFAULT_MODEL, summary_prompt),
+            async_generate(client, DEFAULT_MODEL, p1_prompt),
+            async_generate(client, DEFAULT_MODEL, p2_prompt),
+        )
 
         if preview:
             print(f"\n{'='*60}")
@@ -196,6 +236,77 @@ def process_match(
     except Exception as e:
         logger.error(f"Match {match_id}: Error - {e}", exc_info=True)
         return False
+
+
+async def async_main(args: argparse.Namespace) -> int:
+    """Async main entry point.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    # Check API key (unless dry-run)
+    if not args.dry_run and not Config.ANTHROPIC_API_KEY:
+        logger.error("ANTHROPIC_API_KEY not found in environment")
+        logger.error("Set it in .env file or environment variables")
+        return 1
+
+    # Initialize async client (unless dry-run)
+    client: anthropic.AsyncAnthropic | None = None
+    if not args.dry_run:
+        client = anthropic.AsyncAnthropic(api_key=Config.ANTHROPIC_API_KEY)
+
+    # Connect to database
+    logger.info(f"Connecting to database: {Config.DATABASE_PATH}")
+    needs_write = not args.dry_run and not args.preview
+    db = TournamentDatabase(Config.DATABASE_PATH, read_only=not needs_write)
+    queries = TournamentQueries(db)
+
+    # Separate writable connection for UPDATE/SELECT statements
+    write_conn: duckdb.DuckDBPyConnection | None = None
+    if needs_write:
+        write_conn = duckdb.connect(Config.DATABASE_PATH)
+
+    try:
+        # Get matches to process - use write_conn if available, otherwise read-only
+        query_conn = write_conn if write_conn else db.connect()
+        match_ids = get_matches_to_process(
+            query_conn, force=args.force, match_id=args.match_id
+        )
+
+        if not match_ids:
+            if args.force or args.match_id:
+                logger.error("No matches found to process")
+                return 1
+            else:
+                logger.info("No matches need narratives (all up to date)")
+                return 0
+
+        logger.info(f"Processing {len(match_ids)} matches")
+
+        # Process each match sequentially (3 LLM calls per match run in parallel)
+        success_count = 0
+        error_count = 0
+
+        for mid in match_ids:
+            if await process_match(mid, queries, write_conn, client, args.dry_run, args.preview):
+                success_count += 1
+            else:
+                error_count += 1
+
+        # Summary
+        logger.info("=" * 60)
+        logger.info(f"Processed {len(match_ids)} matches")
+        logger.info(f"  Success: {success_count}")
+        logger.info(f"  Errors:  {error_count}")
+
+        return 0 if error_count == 0 else 1
+
+    finally:
+        if write_conn:
+            write_conn.close()
 
 
 def main() -> int:
@@ -239,66 +350,7 @@ def main() -> int:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Check API key (unless dry-run)
-    if not args.dry_run and not Config.ANTHROPIC_API_KEY:
-        logger.error("ANTHROPIC_API_KEY not found in environment")
-        logger.error("Set it in .env file or environment variables")
-        return 1
-
-    # Initialize generator (unless dry-run)
-    generator: NarrativeGenerator | None = None
-    if not args.dry_run:
-        generator = NarrativeGenerator(api_key=Config.ANTHROPIC_API_KEY)
-
-    # Connect to database
-    logger.info(f"Connecting to database: {Config.DATABASE_PATH}")
-    needs_write = not args.dry_run and not args.preview
-    db = TournamentDatabase(Config.DATABASE_PATH, read_only=not needs_write)
-    queries = TournamentQueries(db)
-
-    # Separate writable connection for UPDATE/SELECT statements
-    write_conn: duckdb.DuckDBPyConnection | None = None
-    if needs_write:
-        write_conn = duckdb.connect(Config.DATABASE_PATH)
-
-    try:
-        # Get matches to process - use write_conn if available, otherwise read-only
-        query_conn = write_conn if write_conn else db.connect()
-        match_ids = get_matches_to_process(
-            query_conn, force=args.force, match_id=args.match_id
-        )
-
-        if not match_ids:
-            if args.force or args.match_id:
-                logger.error("No matches found to process")
-                return 1
-            else:
-                logger.info("No matches need narratives (all up to date)")
-                return 0
-
-        logger.info(f"Processing {len(match_ids)} matches")
-
-        # Process each match
-        success_count = 0
-        error_count = 0
-
-        for mid in match_ids:
-            if process_match(mid, queries, write_conn, generator, args.dry_run, args.preview):
-                success_count += 1
-            else:
-                error_count += 1
-
-        # Summary
-        logger.info("=" * 60)
-        logger.info(f"Processed {len(match_ids)} matches")
-        logger.info(f"  Success: {success_count}")
-        logger.info(f"  Errors:  {error_count}")
-
-        return 0 if error_count == 0 else 1
-
-    finally:
-        if write_conn:
-            write_conn.close()
+    return asyncio.run(async_main(args))
 
 
 if __name__ == "__main__":

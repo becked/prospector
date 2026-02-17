@@ -720,6 +720,26 @@ def generate_empire_profile(
         ]
         wonders_built = len(player_wonders)
 
+    # Military power (peak and final)
+    peak_military_power = 0
+    final_military_power = 0
+    if not military_df.empty:
+        player_mil = military_df[military_df["player_id"] == player_id]
+        if not player_mil.empty:
+            peak_military_power = int(player_mil["military_power"].max())
+            max_turn = player_mil["turn_number"].max()
+            final_military_power = int(
+                player_mil[player_mil["turn_number"] == max_turn]["military_power"].iloc[0]
+            )
+
+    # Military unit count (excluding support/civilian/religious)
+    military_unit_count = 0
+    if not units_df.empty:
+        player_units = units_df[units_df["player_id"] == player_id]
+        if not player_units.empty and "category" in player_units.columns:
+            mil_units = player_units[player_units["category"] == "military"]
+            military_unit_count = int(mil_units["count"].sum())
+
     return {
         "player_id": player_id,
         "player_name": player_name,
@@ -727,6 +747,9 @@ def generate_empire_profile(
         "playstyle_tags": playstyle_tags,
         "army_composition": army_composition,
         "wonders_built": wonders_built,
+        "peak_military_power": peak_military_power,
+        "final_military_power": final_military_power,
+        "military_unit_count": military_unit_count,
     }
 
 

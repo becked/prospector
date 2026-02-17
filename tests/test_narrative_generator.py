@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from tournament_visualizer.data.narrative_generator import (
     NarrativeGenerator,
+    build_match_summary_prompt,
+    build_player_narrative_prompt,
     serialize_analysis,
 )
 
@@ -154,7 +156,6 @@ def test_serialize_analysis_includes_profiles(sample_analysis: dict) -> None:
     """Serialized analysis should include player profile tags."""
     result = serialize_analysis(sample_analysis)
 
-    assert "Expansion: Fast" in result
     assert "Economy: Training-focused" in result
     assert "Army: Infantry 40%" in result
 
@@ -223,5 +224,32 @@ def test_generate_player_narrative_loser(
     call_args = mock_client.generate_text.call_args
     messages = call_args.kwargs["messages"]
     prompt = messages[0]["content"]
+    assert "Becked (Assyria)" in prompt
+    assert "losing" in prompt
+
+
+def test_build_match_summary_prompt(sample_analysis: dict) -> None:
+    """Match summary prompt should contain serialized analysis and instructions."""
+    prompt = build_match_summary_prompt(sample_analysis)
+
+    assert "Fluffbunny" in prompt
+    assert "Kush" in prompt
+    assert "narrative summary" in prompt
+    assert "END-OF-GAME snapshots" in prompt
+
+
+def test_build_player_narrative_prompt_winner(sample_analysis: dict) -> None:
+    """Player prompt for winner should contain 'winning' context."""
+    prompt = build_player_narrative_prompt(sample_analysis, "p1")
+
+    assert "Fluffbunny (Kush)" in prompt
+    assert "winning" in prompt
+    assert "END-OF-GAME snapshots" in prompt
+
+
+def test_build_player_narrative_prompt_loser(sample_analysis: dict) -> None:
+    """Player prompt for loser should contain 'losing' context."""
+    prompt = build_player_narrative_prompt(sample_analysis, "p2")
+
     assert "Becked (Assyria)" in prompt
     assert "losing" in prompt

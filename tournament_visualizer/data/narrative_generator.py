@@ -69,29 +69,7 @@ class NarrativeGenerator:
         match_id = analysis.get("match_id")
         logger.info(f"Generating match summary for match {match_id}")
 
-        serialized = serialize_analysis(analysis)
-
-        prompt = f"""You are writing a narrative summary for a competitive Old World tournament match. Old World is a historical 4X strategy game set in the ancient world.
-
-Here is the structured analysis data for this match:
-
-{serialized}
-
-IMPORTANT context for interpreting the data:
-- Player profile stats (cities, army, yields) are END-OF-GAME snapshots. A low city count may reflect cities lost to the opponent, not a deliberate strategy. Cross-reference Key Events (city_lost entries) to understand what actually happened.
-- In Army composition, "Support" means civilian workers who build improvements, NOT military support units. A high Support % means the player built many workers, not that they had a support-heavy army. Treat army composition as showing military breakdown (Infantry, Ranged, Cavalry, Siege) plus worker count (Support) separately.
-
-Write a concise 2-3 paragraph narrative summary of this match. Focus on:
-- The overall story arc: how did the match unfold from opening to conclusion?
-- The key turning point(s) that decided the outcome
-- What made this match distinctive (the archetype and decisive factors)
-
-Each paragraph should be just a couple sentences.
-
-Write in past tense. Be specific about turn numbers when referencing events. Make it engaging but factual -- this is for a tournament stats dashboard, not a novel. Avoid cliches and hyperbole. Be fairly succinct.
-
-DO NOT include section headers, bullet points, or labels. Just write the narrative prose. Do not start with the players' names -- start with something that establishes the character of the match."""
-
+        prompt = build_match_summary_prompt(analysis)
         messages: list[MessageParam] = [{"role": "user", "content": prompt}]
         narrative = self.client.generate_text(messages=messages, model=self.model)
         narrative = narrative.strip()
@@ -112,26 +90,86 @@ DO NOT include section headers, bullet points, or labels. Just write the narrati
             Single paragraph player narrative
         """
         match_id = analysis.get("match_id")
-        profile = analysis.get(f"{player_key}_profile", {})
-        player_name = profile.get("player_name", "Unknown")
-        civilization = profile.get("civilization", "Unknown")
-
-        winner_name = analysis.get("winner_name", "")
-        won_or_lost = "winning" if player_name == winner_name else "losing"
-
         logger.info(
-            f"Generating {player_key} narrative for match {match_id} ({player_name})"
+            f"Generating {player_key} narrative for match {match_id}"
         )
 
-        serialized = serialize_analysis(analysis)
+        prompt = build_player_narrative_prompt(analysis, player_key)
+        messages: list[MessageParam] = [{"role": "user", "content": prompt}]
+        narrative = self.client.generate_text(messages=messages, model=self.model)
+        narrative = narrative.strip()
 
-        prompt = f"""You are writing a brief empire profile narrative for {player_name} ({civilization}) in a competitive Old World tournament match.
+        logger.info(
+            f"Match {match_id}: Generated {player_key} narrative ({len(narrative)} chars)"
+        )
+        return narrative
+
+
+def build_match_summary_prompt(analysis: dict[str, Any]) -> str:
+    """Build the LLM prompt for a match summary narrative.
+
+    Args:
+        analysis: Full analysis dict from analyze_match()
+
+    Returns:
+        Complete prompt string ready for LLM
+    """
+    serialized = serialize_analysis(analysis)
+
+    return f"""You are writing a narrative summary for a competitive Old World tournament match. Old World is a historical 4X strategy game set in the ancient world.
 
 Here is the structured analysis data for this match:
 
 {serialized}
 
 IMPORTANT context for interpreting the data:
+- Tournament games almost always end by surrender after one player suffers decisive military losses or falls too far behind militarily. Victory points are a secondary indicator -- a small VP lead does NOT mean the game was one-sided. Focus on military events (battles, city captures, military power changes) as the primary indicators of how the game actually played out.
+- Player profile stats (cities, army, yields) are END-OF-GAME snapshots. A low city count may reflect cities lost to the opponent, not a deliberate strategy. Cross-reference Key Events (city_lost entries) to understand what actually happened.
+- In Army composition, "Support" means civilian workers who build improvements, NOT military support units. A high Support % means the player built many workers, not that they had a support-heavy army. Treat army composition as showing military breakdown (Infantry, Ranged, Cavalry, Siege) plus worker count (Support) separately.
+
+Write a concise 2-3 paragraph narrative summary of this match. Focus on:
+- The overall story arc: how did the match unfold from opening to conclusion?
+- The key turning point(s) that decided the outcome, especially military events and city captures
+- What made this match distinctive
+
+Each paragraph should be just a couple sentences.
+
+Write in past tense. Be specific about turn numbers when referencing events. This is for a tournament stats dashboard, not a novel. Be fairly succinct.
+
+ONLY describe what the data directly shows. Do not invent causal links between stats that aren't explicitly connected in the data. Do not add flavor, metaphor, or thematic interpretation. If the data says a player adopted 7 laws with 1 swap, just say that -- do not editorialize about what it means for stability, politics, or strategy beyond what is stated.
+
+DO NOT include section headers, bullet points, or labels. Just write the narrative prose. Do not start with the players' names -- start with something that establishes the character of the match."""
+
+
+def build_player_narrative_prompt(
+    analysis: dict[str, Any], player_key: str
+) -> str:
+    """Build the LLM prompt for a player narrative.
+
+    Args:
+        analysis: Full analysis dict from analyze_match()
+        player_key: "p1" or "p2"
+
+    Returns:
+        Complete prompt string ready for LLM
+    """
+    profile = analysis.get(f"{player_key}_profile", {})
+    player_name = profile.get("player_name", "Unknown")
+    civilization = profile.get("civilization", "Unknown")
+
+    winner_name = analysis.get("winner_name", "")
+    won_or_lost = "winning" if player_name == winner_name else "losing"
+
+    serialized = serialize_analysis(analysis)
+
+    return f"""You are writing a brief empire profile narrative for {player_name} ({civilization}) in a competitive Old World tournament match.
+
+Here is the structured analysis data for this match:
+
+{serialized}
+
+IMPORTANT context for interpreting the data:
+- Tournament games almost always end by surrender after one player suffers decisive military losses or falls too far behind militarily. Victory points are a secondary indicator -- a small VP lead does NOT mean the game was one-sided. Focus on military events (battles, city captures, military power changes) as the primary indicators of how the game actually played out.
 - Player profile stats (cities, army, yields) are END-OF-GAME snapshots. A low city count may reflect cities lost to the opponent, not a deliberate strategy. Cross-reference Key Events (city_lost entries) to understand what actually happened.
 - In Army composition, "Support" means civilian workers who build improvements, NOT military support units. A high Support % means the player built many workers, not that they had a support-heavy army. Treat army composition as showing military breakdown (Infantry, Ranged, Cavalry, Siege) plus worker count (Support) separately.
 
@@ -144,18 +182,11 @@ Focus on what mattered for the result, not just listing achievements.
 
 Make sure to put newlines between paragraphs.
 
-Write in past tense. Be concise and factual. This text appears inside an empire profile card on a dashboard, so brevity is important.
+Write in past tense. Be concise. This text appears inside an empire profile card on a dashboard, so brevity is important.
+
+ONLY describe what the data directly shows. Do not invent causal links between stats that aren't explicitly connected in the data. Do not add flavor, metaphor, or thematic interpretation. Just report what happened.
 
 DO NOT include section headers or labels. Just write the narrative prose."""
-
-        messages: list[MessageParam] = [{"role": "user", "content": prompt}]
-        narrative = self.client.generate_text(messages=messages, model=self.model)
-        narrative = narrative.strip()
-
-        logger.info(
-            f"Match {match_id}: Generated {player_key} narrative ({len(narrative)} chars)"
-        )
-        return narrative
 
 
 def serialize_analysis(analysis: dict[str, Any]) -> str:
@@ -223,6 +254,9 @@ def serialize_analysis(analysis: dict[str, Any]) -> str:
         if army_parts:
             lines.append(f"  Army: {', '.join(army_parts)}")
 
+        lines.append(f"  Military units produced: {profile.get('military_unit_count', 0)}")
+        lines.append(f"  Peak military power: {profile.get('peak_military_power', 0)}")
+        lines.append(f"  Final military power: {profile.get('final_military_power', 0)}")
         lines.append(f"  Economy: {tags.get('economy', '?')}")
         lines.append(f"  Wonders built: {profile.get('wonders_built', 0)}")
         lines.append(f"  Cities (end of game): {territory.get(f'{exp_key}_final_cities', 0)}")

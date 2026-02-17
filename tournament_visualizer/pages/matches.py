@@ -4098,16 +4098,19 @@ def update_tech_trees_for_turn(
     Output("match-overview-content", "children"),
     Input("match-details-tabs", "active_tab"),
     Input("match-selector", "value"),
+    State("match-url", "search"),
 )
 def update_overview_beta(
     active_tab: Optional[str],
     match_id: Optional[int],
+    url_search: Optional[str] = None,
 ) -> html.Div:
     """Update the Overview (Beta) Match Card content.
 
     Args:
         active_tab: Currently active tab ID
         match_id: Selected match ID
+        url_search: URL query string (e.g., "?beta=true")
 
     Returns:
         Match Card layout component
@@ -4138,16 +4141,18 @@ def update_overview_beta(
         # Run the analysis
         analysis = analyze_match(**data)
 
-        # Fetch pre-generated narratives
-        narratives = queries.get_match_narratives(match_id)
+        # Fetch pre-generated narratives (beta feature)
+        show_beta = url_search and "beta=true" in url_search
+        if show_beta:
+            narratives = queries.get_match_narratives(match_id)
+            return create_match_card_layout(
+                analysis,
+                match_narrative=narratives["match_narrative"],
+                p1_narrative=narratives["p1_narrative"],
+                p2_narrative=narratives["p2_narrative"],
+            )
 
-        # Create and return the layout
-        return create_match_card_layout(
-            analysis,
-            match_narrative=narratives["match_narrative"],
-            p1_narrative=narratives["p1_narrative"],
-            p2_narrative=narratives["p2_narrative"],
-        )
+        return create_match_card_layout(analysis)
 
     except Exception as e:
         logger.error(f"Error creating match card: {e}")
