@@ -729,6 +729,10 @@ uv run pytest --cov=tournament_visualizer
 uv run pytest tests/test_parser_logdata.py -v
 ```
 
+### NL Query Eval Suite
+
+The chat page's natural language SQL system has an eval suite (`scripts/eval_nl_query.py`) that tests the system prompt and SQL extraction logic against Groq's API. **Do NOT run this suite unless the user explicitly asks for it** — each full run costs 17 API calls to Groq.
+
 ### Code Formatting & Linting
 
 **Before committing, always run:**
