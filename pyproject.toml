@@ -30,6 +30,7 @@ dependencies = [
     "google-api-python-client>=2.185.0",
     # AI/LLM integration
     "anthropic>=0.39.0",
+    "groq>=0.11.0",
     "scipy>=1.13.1",
     "dash-cytoscape>=1.0.2",
     "pillow>=12.1.1",
@@ -70,6 +71,8 @@ strict_equality = true
 [tool.ruff]
 target-version = "py39"
 line-length = 88
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -80,6 +83,10 @@ select = [
     "UP", # pyupgrade
 ]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# System prompt string has long lines by necessity
+"tournament_visualizer/data/nl_query.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

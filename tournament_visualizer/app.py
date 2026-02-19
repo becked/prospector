@@ -213,6 +213,13 @@ app.layout = dbc.Container(
                                 active="exact",
                             )
                         ),
+                        dbc.NavItem(
+                            dbc.NavLink(
+                                [html.I(className="bi bi-chat-dots me-2"), "Chat"],
+                                href="/chat",
+                                active="exact",
+                            )
+                        ),
                     ],
                     className="me-auto",
                     navbar=True,
