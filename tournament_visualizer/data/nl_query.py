@@ -471,8 +471,7 @@ def _validate_sql(sql: str) -> Optional[str]:
 
     for pattern in _FORBIDDEN_PATTERNS:
         if re.search(pattern, sql_upper):
-            keyword = pattern.replace(r"\b", "")
-            return f"Query contains forbidden keyword: {keyword}"
+            return "Only SELECT queries are allowed."
 
     # Reject multiple statements
     if re.search(r";\s*\S", sql):
@@ -559,7 +558,7 @@ class NLQueryService:
             logger.error(f"Chat failed: Groq API error: {e}")
             return QueryResult(
                 success=False,
-                error_message=f"Error calling Groq API: {type(e).__name__}",
+                error_message="Something went wrong generating the query. Please try again.",
             )
 
         # Step 2: Extract SQL
@@ -581,35 +580,38 @@ class NLQueryService:
             return QueryResult(
                 success=False,
                 sql=sql,
-                error_message=f"Safety check failed: {validation_error}",
+                error_message=validation_error,
             )
 
-        # Step 4: Execute
+        # Step 4: Execute with engine-level row cap
+        row_limit = Config.NL_QUERY_ROW_LIMIT
+        # Fetch one extra row so we can detect truncation
+        limited_sql = f"SELECT * FROM ({sql}\n) AS _q LIMIT {row_limit + 1}"
+
         try:
             with self.db.get_connection() as conn:
-                df = conn.execute(sql).df()
+                df = conn.execute(limited_sql).df()
 
             logger.info(f"Query returned {len(df)} rows, {len(df.columns)} columns")
 
-            row_limit = Config.NL_QUERY_ROW_LIMIT
-            if len(df) > row_limit:
+            truncated = len(df) > row_limit
+            if truncated:
                 df = df.head(row_limit)
                 logger.info(f"Results truncated to {row_limit} rows")
-                return QueryResult(
-                    success=True,
-                    df=df,
-                    sql=sql,
-                    error_message=f"Results truncated to {row_limit} rows.",
-                )
 
-            return QueryResult(success=True, df=df, sql=sql)
+            return QueryResult(
+                success=True,
+                df=df,
+                sql=sql,
+                error_message=f"Results truncated to {row_limit} rows." if truncated else "",
+            )
 
         except Exception as e:
             logger.warning(f"Chat failed: SQL execution error: {e}\nSQL: {sql}")
             return QueryResult(
                 success=False,
                 sql=sql,
-                error_message=f"SQL execution error: {e}",
+                error_message="Query failed to execute. Try rephrasing your question.",
             )
 
 
