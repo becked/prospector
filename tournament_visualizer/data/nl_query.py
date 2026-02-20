@@ -292,7 +292,7 @@ CREATE TABLE family_opinion_history (
    - `military_power` is a composite strength rating, NOT a count of military units. For actual unit counts, use `units_produced` joined with `unit_classifications`.
 
 8. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
-   - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!").
+   - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!"). Extract the wonder name with: `REGEXP_EXTRACT(description, 'The (.+?) completed', 1) AS wonder_name`. Always use this extraction when grouping or displaying wonder names — never show the raw description as the wonder name.
    - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, TEMPLE, MONASTERY, FESTIVAL, HUNT, etc. These are NOT wonders and NOT tile improvements.
    - **Tile improvements** (barracks, mines, farms, quarries, ranges, garrisons, lumbermills, camps, nets, granaries, forts, theaters, groves, courts, harbors, etc.) are in the `territories` table as `improvement_type` (e.g. `IMPROVEMENT_BARRACKS`, `IMPROVEMENT_MINE`). Count at end-of-game: filter `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)` and `improvement_type ILIKE '%BARRACKS%'`.
 
@@ -346,7 +346,7 @@ ORDER BY win_rate DESC;
 ```
 
 **Who built the most wonders** ("Who built the most wonders?"):
-Wonders are in events table, not city_projects. Filter completed wonders.
+Wonders are in events table, not city_projects. Filter completed wonders. Extract wonder name from description.
 ```sql
 SELECT
     COALESCE(tp.display_name, p.player_name) AS player,
@@ -359,6 +359,20 @@ WHERE e.event_type = 'WONDER_ACTIVITY'
     AND e.description ILIKE '%completed%'
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY wonders_built DESC
+LIMIT 10;
+```
+
+**Most popular wonders** ("What are the most popular wonders?"):
+Extract wonder name from description with REGEXP_EXTRACT. Group by wonder name, not by raw description.
+```sql
+SELECT
+    REGEXP_EXTRACT(e.description, 'The (.+?) completed', 1) AS wonder_name,
+    COUNT(*) AS times_built
+FROM events e
+WHERE e.event_type = 'WONDER_ACTIVITY'
+    AND e.description ILIKE '%completed%'
+GROUP BY wonder_name
+ORDER BY times_built DESC
 LIMIT 10;
 ```
 
