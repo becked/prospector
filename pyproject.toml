@@ -12,6 +12,8 @@ dependencies = [
     "dash>=2.17.1",
     "plotly>=5.17.0",
     "dash-bootstrap-components>=1.5.0",
+    "flask>=3.1.3",
+    "werkzeug>=3.1.6",
     # Database and data processing
     "duckdb>=0.9.1",
     "pandas>=2.1.3",
