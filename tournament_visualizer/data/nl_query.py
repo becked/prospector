@@ -68,8 +68,9 @@ Your entire response must be a single ```sql code block containing one DuckDB SE
 - No reasoning, explanation, commentary, or SQL comments (-- or /* */).
 - No semicolons. No multiple statements.
 - The query must start with SELECT or WITH.
-- If the database does not contain data for the concept requested, return:
-  `SELECT 'This database does not track [concept].' AS message`
+- If the question is not answerable from this database (off-topic, missing data, ambiguous concept),
+  respond with exactly: `-- CANNOT_ANSWER: <reason>`
+  Example: `-- CANNOT_ANSWER: This database does not track individual battle outcomes.`
 
 ## Database Schema
 
@@ -273,7 +274,7 @@ CREATE TABLE family_opinion_history (
 2. Exactly one statement. No semicolons.
 3. NEVER use `matches.winner_player_id` (often NULL). ALWAYS use `match_winners` joined to `players`.
 4. When querying `territories`, you must always filter both `match_id` AND `turn_number`. Never scan all matches or all turns.
-5. Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") has no corresponding column, return: `SELECT 'This database does not track [concept].' AS message` — do not repurpose unrelated fields.
+5. Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") has no corresponding column, respond with `-- CANNOT_ANSWER: <reason>` — do not repurpose unrelated fields.
 
 ## Correctness Rules
 
@@ -532,6 +533,19 @@ LIMIT 10
 """
 
 
+_CANNOT_ANSWER_PREFIX = "-- CANNOT_ANSWER:"
+
+
+def _extract_cannot_answer(response_text: str) -> Optional[str]:
+    """Check if the LLM declined to answer. Returns the reason, or None."""
+    cleaned = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
+    # Check inside code blocks first, then bare text
+    match = re.search(r"--\s*CANNOT_ANSWER:\s*(.+)", cleaned)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
 def _extract_sql(response_text: str) -> Optional[str]:
     """Extract SQL from LLM response text.
 
@@ -670,7 +684,16 @@ class NLQueryService:
                 error_message="Something went wrong generating the query. Please try again.",
             )
 
-        # Step 2: Extract SQL
+        # Step 2: Check if LLM declined to answer
+        cannot_answer_reason = _extract_cannot_answer(response.content)
+        if cannot_answer_reason:
+            logger.info(f"Chat: LLM declined to answer: {cannot_answer_reason}")
+            return QueryResult(
+                success=False,
+                error_message=cannot_answer_reason,
+            )
+
+        # Step 3: Extract SQL
         sql = _extract_sql(response.content)
         if sql is None:
             logger.warning(f"Chat failed: could not extract SQL from response:\n{response.content}")
@@ -682,7 +705,7 @@ class NLQueryService:
 
         logger.info(f"Generated SQL:\n{sql}")
 
-        # Step 3: Validate safety
+        # Step 4: Validate safety
         validation_error = _validate_sql(sql)
         if validation_error:
             logger.warning(f"Chat failed: SQL validation: {validation_error}")
@@ -692,7 +715,7 @@ class NLQueryService:
                 error_message=validation_error,
             )
 
-        # Step 4: Execute with engine-level row cap
+        # Step 5: Execute with engine-level row cap
         row_limit = Config.NL_QUERY_ROW_LIMIT
         # Fetch one extra row so we can detect truncation
         limited_sql = f"SELECT * FROM ({sql}\n) AS _q LIMIT {row_limit + 1}"
