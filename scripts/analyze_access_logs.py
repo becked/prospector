@@ -40,6 +40,7 @@ PAGE_NAMES: dict[str, str] = {
     "/matches": "Matches",
     "/players": "Players",
     "/maps": "Maps",
+    "/chat": "Chat",
 }
 
 # Reverse lookup: friendly name -> bare path (for detecting query-param-only URLs)
