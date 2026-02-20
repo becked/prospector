@@ -139,25 +139,27 @@ CREATE TABLE player_yield_total_history (
     amount INTEGER NOT NULL          -- Cumulative total at 10x scale. Divide by 10.0 for display.
 );
 
+-- Turn-by-turn SNAPSHOTS. Each row is the value AT that turn, not a delta.
+-- Query a specific turn with turn_number = N. NEVER SUM() across turns.
 CREATE TABLE player_military_history (
     match_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL,
     turn_number INTEGER NOT NULL,
-    military_power INTEGER NOT NULL
+    military_power INTEGER NOT NULL   -- Composite strength rating, NOT a count of units. Use units_produced for unit counts.
 );
 
 CREATE TABLE player_points_history (
     match_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL,
     turn_number INTEGER NOT NULL,
-    points INTEGER NOT NULL
+    points INTEGER NOT NULL           -- Victory points at this turn
 );
 
 CREATE TABLE player_legitimacy_history (
     match_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL,
     turn_number INTEGER NOT NULL,
-    legitimacy INTEGER NOT NULL
+    legitimacy INTEGER NOT NULL       -- Legitimacy score at this turn
 );
 
 CREATE TABLE player_statistics (
@@ -283,16 +285,22 @@ CREATE TABLE family_opinion_history (
    - Yields: `YIELD_SCIENCE`, `YIELD_FOOD`, `YIELD_MONEY`, etc.
    - Use ILIKE with wildcards when the user uses partial names (e.g. 'scholarship' -> `tech_name ILIKE '%SCHOLARSHIP%'`).
 
-7. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
+7. **Turn-history snapshot tables** (`player_military_history`, `player_points_history`, `player_legitimacy_history`): Each row is a snapshot of the value AT that turn, not a delta.
+   - To get a value at a specific turn: `WHERE turn_number = 65`
+   - To get the peak value up to a turn: `MAX(military_power) ... WHERE turn_number <= 65`
+   - NEVER use `SUM()` across turns — that adds up snapshots and produces meaningless numbers.
+   - `military_power` is a composite strength rating, NOT a count of military units. For actual unit counts, use `units_produced` joined with `unit_classifications`.
+
+8. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
    - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!").
    - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, TEMPLE, MONASTERY, FESTIVAL, HUNT, etc. These are NOT wonders and NOT tile improvements.
    - **Tile improvements** (barracks, mines, farms, quarries, ranges, garrisons, lumbermills, camps, nets, granaries, forts, theaters, groves, courts, harbors, etc.) are in the `territories` table as `improvement_type` (e.g. `IMPROVEMENT_BARRACKS`, `IMPROVEMENT_MINE`). Count at end-of-game: filter `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)` and `improvement_type ILIKE '%BARRACKS%'`.
 
-8. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
+9. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
 
-9. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
+10. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
 
-10. **Identifying people across matches**: Players use different in-game names across matches (e.g. "Fluffybunny", "Fluffster", "Fluffbunny" are all the same person). Always join `tournament_participants` and filter on `tp.display_name_normalized` to catch all aliases:
+11. **Identifying people across matches**: Players use different in-game names across matches (e.g. "Fluffybunny", "Fluffster", "Fluffbunny" are all the same person). Always join `tournament_participants` and filter on `tp.display_name_normalized` to catch all aliases:
    ```sql
    JOIN players p ON ...
    LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
@@ -302,22 +310,22 @@ CREATE TABLE family_opinion_history (
    - Only fall back to `p.player_name_normalized` if the question is about a single specific match.
    - For total match counts, compute from the full `players` table — NEVER from a filtered subquery (that only counts matches in the filtered dataset). Use a separate subquery or CTE if needed.
 
-11. Always add `ORDER BY` for deterministic results. Use `LIMIT 10` by default for ranked/aggregation queries. Max 200 rows unless the user requests more.
+12. Always add `ORDER BY` for deterministic results. Use `LIMIT 10` by default for ranked/aggregation queries. Max 200 rows unless the user requests more.
 
-12. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
+13. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
    - Each match has exactly **2 players**.
    - Each player has exactly **one civilization** per match.
    - A player can found at most **one religion** per match (RELIGION_FOUNDED event). So COUNT(*) of religion events = COUNT(DISTINCT match_id) — don't include both.
    - Each **wonder can only be built once** per match (e.g. only one Pyramids). So counting wonder completions = counting distinct matches with that wonder.
    - Each player has at most **one ruler alive** at a time (succession_order tracks the sequence).
 
-13. **Aggregation level**: For counting questions ("how many", "who has the most"), use GROUP BY to summarize across matches. For per-game questions ("across all games", "in each match", "peak per game"), return one row per match with per-match detail.
+14. **Aggregation level**: For counting questions ("how many", "who has the most"), use GROUP BY to summarize across matches. For per-game questions ("across all games", "in each match", "peak per game"), return one row per match with per-match detail.
 
-14. **Game/match labels**: Never use `matches.game_name` — it is inconsistent. Always construct from players table: `(SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = m.match_id) AS game_label`.
+15. **Game/match labels**: Never use `matches.game_name` — it is inconsistent. Always construct from players table: `(SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = m.match_id) AS game_label`.
 
-15. **Avoid duplicate rows from ties**: When finding peak/max values per group, use ROW_NUMBER() instead of `WHERE amount = (SELECT MAX(...))`.
+16. **Avoid duplicate rows from ties**: When finding peak/max values per group, use ROW_NUMBER() instead of `WHERE amount = (SELECT MAX(...))`.
 
-16. **Don't fabricate data mappings**: Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") doesn't have a clear corresponding column, say so — don't guess by repurposing unrelated fields (e.g., YIELD_DISCONTENT is not "killed units"). It is better to say "this data isn't available" than to return misleading results.
+17. **Don't fabricate data mappings**: Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") doesn't have a clear corresponding column, say so — don't guess by repurposing unrelated fields (e.g., YIELD_DISCONTENT is not "killed units"). It is better to say "this data isn't available" than to return misleading results.
 
 ## Example Queries
 
@@ -472,6 +480,40 @@ LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE rl.law_num = 4
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY avg_turn_to_4th_law ASC
+LIMIT 10;
+```
+
+**Military power at a specific turn** ("Who had the highest military power by turn 65?"):
+`military_power` is a snapshot value per turn — use the value AT the turn, never SUM across turns.
+For unit counts, use `units_produced` instead.
+```sql
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    p.civilization,
+    pmh.military_power,
+    (SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = p.match_id) AS game_label
+FROM player_military_history pmh
+JOIN players p ON pmh.match_id = p.match_id AND pmh.player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE pmh.turn_number = 65
+ORDER BY pmh.military_power DESC
+LIMIT 10;
+```
+
+**Total military units produced** ("Who produced the most military units?"):
+Use `units_produced` joined with `unit_classifications` to filter by category.
+```sql
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    SUM(u.count) AS total_military_units,
+    COUNT(DISTINCT p.match_id) AS matches_played
+FROM units_produced u
+JOIN unit_classifications uc ON u.unit_type = uc.unit_type
+JOIN players p ON u.match_id = p.match_id AND u.player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE uc.category = 'military'
+GROUP BY COALESCE(tp.display_name, p.player_name)
+ORDER BY total_military_units DESC
 LIMIT 10;
 ```
 """
