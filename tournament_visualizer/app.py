@@ -6,6 +6,7 @@ support for tournament data visualization.
 
 import atexit
 import logging
+import os
 import signal
 import sys
 
@@ -192,38 +193,35 @@ app.layout = dbc.Container(
                     [
                         dbc.NavItem(
                             dbc.NavLink(
-                                [
-                                    html.I(className="bi bi-bar-chart-fill me-2"),
-                                    "Overview",
-                                ],
+                                "Overview",
                                 href="/",
                                 active="exact",
                             )
                         ),
                         dbc.NavItem(
                             dbc.NavLink(
-                                [html.I(className="bi bi-target me-2"), "Matches"],
+                                "Matches",
                                 href="/matches",
                                 active="exact",
                             )
                         ),
                         dbc.NavItem(
                             dbc.NavLink(
-                                [html.I(className="bi bi-people-fill me-2"), "Players"],
+                                "Players",
                                 href="/players",
                                 active="exact",
                             )
                         ),
                         dbc.NavItem(
                             dbc.NavLink(
-                                [html.I(className="bi bi-map-fill me-2"), "Maps"],
+                                "Maps",
                                 href="/maps",
                                 active="exact",
                             )
                         ),
                         dbc.NavItem(
                             dbc.NavLink(
-                                [html.I(className="bi bi-chat-dots me-2"), "Chat"],
+                                ["Chat", html.Sup("beta", className="ms-1", style={"fontSize": "0.6em"})],
                                 href="/chat",
                                 active="exact",
                             )
@@ -238,84 +236,15 @@ app.layout = dbc.Container(
                     color="secondary",
                     className="me-2 align-self-center",
                 ),
-                # Settings dropdown
-                dbc.DropdownMenu(
-                    children=[
-                        dbc.DropdownMenuItem("Import Data", href="/import"),
-                        dbc.DropdownMenuItem("Export Data", id="export-data"),
-                        dbc.DropdownMenuItem(divider=True),
-                        dbc.DropdownMenuItem("About", id="about-modal-open"),
-                    ],
-                    nav=True,
-                    in_navbar=True,
-                    label=[html.I(className="bi bi-gear-fill")],
-                    toggle_style={"color": "white", "border": "none"},
-                ),
             ],
-            brand=[html.I(className="bi bi-trophy-fill me-2"), config.APP_TITLE],
+            brand=config.APP_TITLE,
             brand_href="/",
             dark=True,  # Sets light text color
             style={"backgroundColor": "#3b4c69"},  # Custom dark blue background
             className="mb-4",
         ),
-        # Alert area for messages
-        html.Div(id="alert-area"),
         # Main content area - no Loading wrapper to avoid visual "reload" on tab switches
         html.Div([dash.page_container]),
-        # About modal
-        dbc.Modal(
-            [
-                dbc.ModalHeader(dbc.ModalTitle("About Tournament Visualizer")),
-                dbc.ModalBody(
-                    [
-                        html.H5("Old World Tournament Visualizer"),
-                        html.P(
-                            [
-                                "This application visualizes tournament data from "
-                                "Old World game saves. It provides comprehensive "
-                                "analytics including player performance, match "
-                                "analysis, and territorial control patterns.",
-                            ]
-                        ),
-                        html.Hr(),
-                        html.H6("Features:"),
-                        html.Ul(
-                            [
-                                html.Li("Tournament overview with key statistics"),
-                                html.Li("Detailed match analysis and progression"),
-                                html.Li("Player performance metrics and comparisons"),
-                                html.Li("Territory control and map visualizations"),
-                                html.Li("Resource progression tracking"),
-                                html.Li("Event timeline analysis"),
-                            ]
-                        ),
-                        html.Hr(),
-                        html.P(
-                            [
-                                html.Strong("Data Source: "),
-                                "Old World game save files (.zip format)",
-                            ]
-                        ),
-                        html.P(
-                            [
-                                html.Strong("Database: "),
-                                "DuckDB for high-performance analytics",
-                            ]
-                        ),
-                    ]
-                ),
-                dbc.ModalFooter(
-                    dbc.Button(
-                        "Close",
-                        id="about-modal-close",
-                        className="ms-auto",
-                        n_clicks=0,
-                    )
-                ),
-            ],
-            id="about-modal",
-            is_open=False,
-        ),
         # Hidden div to store app state
         dcc.Store(id="app-state", data={}),
     ],
@@ -356,58 +285,6 @@ def update_database_status(pathname: str) -> tuple[str, str]:
         return "DB Error", "danger"
 
 
-@callback(
-    Output("about-modal", "is_open"),
-    Input("about-modal-open", "n_clicks"),
-    Input("about-modal-close", "n_clicks"),
-    prevent_initial_call=True,
-)
-def toggle_about_modal(open_clicks: int, close_clicks: int) -> bool:
-    """Toggle the about modal.
-
-    Args:
-        open_clicks: Number of open button clicks
-        close_clicks: Number of close button clicks
-
-    Returns:
-        Whether modal should be open
-    """
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return False
-
-    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-    if button_id == "about-modal-open":
-        return True
-    else:
-        return False
-
-
-@callback(
-    Output("alert-area", "children"),
-    Input("export-data", "n_clicks"),
-    prevent_initial_call=True,
-)
-def handle_export_data(n_clicks: int) -> dbc.Alert:
-    """Handle data export request.
-
-    Args:
-        n_clicks: Number of export button clicks
-
-    Returns:
-        Alert component with export status
-    """
-    if n_clicks:
-        # This would implement actual export functionality
-        return dbc.Alert(
-            "Export functionality not yet implemented.",
-            color="info",
-            dismissable=True,
-            duration=3000,
-        )
-
-    return dash.no_update
 
 
 def create_error_page(error_message: str) -> html.Div:
@@ -488,17 +365,15 @@ def run_development_server() -> None:
         if not check_database_connection():
             logger.warning("Database connection failed - some features may not work")
 
-        # Run the server without debug mode to completely avoid multiprocessing semaphore issues
-        # Debug mode in Dash creates multiprocessing semaphores even with use_reloader=False
-        logger.info(
-            "Running in production mode to avoid multiprocessing semaphore leaks"
-        )
+        use_reloader = os.getenv("FLASK_DEBUG") == "1"
+        if use_reloader:
+            logger.info("Running with auto-reloader enabled")
         app.run(
             host=config.APP_HOST,
             port=config.APP_PORT,
-            debug=False,  # Disable debug to prevent multiprocessing semaphore creation
+            debug=False,
             threaded=True,
-            use_reloader=False,
+            use_reloader=use_reloader,
         )
     except KeyboardInterrupt:
         logger.info("Server interrupted by user")
