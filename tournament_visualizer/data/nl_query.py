@@ -282,10 +282,13 @@ CREATE TABLE family_opinion_history (
 
 8. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
 
-9. **Family classes** (family_name -> class): Champions (SARGONID,ARGEAD,FABIUS,AKSUM_AGAW), Riders (BARCID,RAMESSIDE,ARSACID,KUSSARAN), Hunters (TUDIYA,KASSITE,MIHRANID,YAM), Artisans (MAGONID,CHALDEAN,CYPSELID,IRTJET), Traders (HANNONID,ISIN,HATTUSAN,AKSUM_AGAZI,WAWAT), Sages (AMORITE,THUTMOSID,ALCMAEONID), Statesmen (DIDONIAN,ACHAEMENID,JULIUS), Patrons (ADASI,SELEUCID,VALERIUS,ZALPUWAN,AKSUM_BARYA), Clerics (ERISHUM,AMARNA,SASANID,AKSUM_TIGRAYAN), Landowners (CLAUDIUS,SAITE,NENASSAN,SETJU).
+9. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
 
-10. **Identifying people across matches**: Players use different in-game names across matches. Use `COALESCE(tp.display_name, p.player_name)` with `LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id` to get canonical names.
-   - Group by `COALESCE(tp.display_name, p.player_name)` for cross-match aggregation.
+10. **Identifying people across matches**: Players use different in-game names across matches. For single-player filtering, use `p.player_name_normalized ILIKE 'name'`. For cross-match aggregation or display, join tournament_participants to get canonical names:
+   ```sql
+   LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+   ```
+   Then use `COALESCE(tp.display_name, p.player_name)` as the display name and GROUP BY key. **Always include the LEFT JOIN when referencing `tp`.**
    - For total match counts, compute from the full `players` table — NEVER from a filtered subquery (that only counts matches in the filtered dataset). Use a separate subquery or CTE if needed.
 
 11. Always add `ORDER BY` for deterministic results. Limit to 200 rows unless the user requests more.
@@ -296,7 +299,14 @@ CREATE TABLE family_opinion_history (
    - A player can found at most **one religion** per match (RELIGION_FOUNDED event). So COUNT(*) of religion events = COUNT(DISTINCT match_id) — don't include both.
    - Each **wonder can only be built once** per match (e.g. only one Pyramids). So counting wonder completions = counting distinct matches with that wonder.
    - Each player has at most **one ruler alive** at a time (succession_order tracks the sequence).
-   - When results span multiple matches, use GROUP BY to summarize (e.g., player_name, COUNT(*)) rather than returning one row per match. Keep result sets concise — only show per-match detail if the user explicitly asks for it.
+
+13. **Aggregation level**: For counting questions ("how many", "who has the most"), use GROUP BY to summarize across matches. For per-game questions ("across all games", "in each match", "peak per game"), return one row per match with per-match detail.
+
+14. **Game/match labels**: Never use `matches.game_name` — it is inconsistent. Always construct from players table: `(SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = m.match_id) AS game_label`.
+
+15. **Avoid duplicate rows from ties**: When finding peak/max values per group, use ROW_NUMBER() instead of `WHERE amount = (SELECT MAX(...))`.
+
+16. **Don't fabricate data mappings**: Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") doesn't have a clear corresponding column, say so — don't guess by repurposing unrelated fields (e.g., YIELD_DISCONTENT is not "killed units"). It is better to say "this data isn't available" than to return misleading results.
 
 ## Example Queries
 
@@ -379,13 +389,36 @@ When the user says "across all matches", group ONLY by player name — do NOT in
 SELECT
     COALESCE(tp.display_name, p.player_name) AS player,
     p.civilization,
-    m.game_name
+    (SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = p.match_id) AS game_label
 FROM technology_progress tech
 JOIN players p ON tech.match_id = p.match_id AND tech.player_id = p.player_id
-JOIN matches m ON p.match_id = m.match_id
 LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE tech.tech_name ILIKE '%SCHOLARSHIP%'
 ORDER BY player;
+```
+
+**Per-game peak values** ("What was player X's peak science rate in each game?"):
+Use ROW_NUMBER() to pick one row per match (avoids duplicates from ties). Construct game labels from players table, never use matches.game_name.
+```sql
+WITH ranked AS (
+    SELECT
+        yh.match_id,
+        yh.turn_number,
+        yh.amount / 10.0 AS peak_science_rate,
+        ROW_NUMBER() OVER (PARTITION BY yh.match_id ORDER BY yh.amount DESC, yh.turn_number ASC) AS rn
+    FROM player_yield_history yh
+    JOIN players p ON yh.match_id = p.match_id AND yh.player_id = p.player_id
+    WHERE p.player_name_normalized ILIKE 'alcaras'
+        AND yh.resource_type = 'YIELD_SCIENCE'
+)
+SELECT
+    r.match_id,
+    (SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = r.match_id) AS game_label,
+    r.turn_number,
+    r.peak_science_rate
+FROM ranked r
+WHERE r.rn = 1
+ORDER BY r.peak_science_rate DESC;
 ```
 """
 
