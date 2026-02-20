@@ -533,13 +533,9 @@ LIMIT 10
 """
 
 
-_CANNOT_ANSWER_PREFIX = "-- CANNOT_ANSWER:"
-
-
 def _extract_cannot_answer(response_text: str) -> Optional[str]:
     """Check if the LLM declined to answer. Returns the reason, or None."""
     cleaned = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
-    # Check inside code blocks first, then bare text
     match = re.search(r"--\s*CANNOT_ANSWER:\s*(.+)", cleaned)
     if match:
         return match.group(1).strip()
@@ -550,9 +546,8 @@ def _extract_sql(response_text: str) -> Optional[str]:
     """Extract SQL from LLM response text.
 
     Handles ```sql blocks, generic code blocks, bare SQL,
-    and Qwen3's <think>...</think> preamble.
+    and <think>...</think> preambles.
     """
-    # Strip Qwen3 thinking blocks
     cleaned = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
 
     # Try markdown SQL block (preferred — most reliable)
