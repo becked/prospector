@@ -18,8 +18,8 @@ backlog = 2048
 # Each worker loads the full Dash app (Pandas, DuckDB, Plotly) into memory
 # Rule of thumb: 2 * num_cpus for memory-intensive Dash apps
 workers = int(os.getenv("WEB_CONCURRENCY", "4"))  # Default to 4, can override via env var
-worker_class = "sync"
-worker_connections = 1000
+worker_class = "gthread"
+threads = 4  # 4 workers x 4 threads = 16 concurrent requests
 timeout = 120  # 2 minutes - important for slow analytics queries
 keepalive = 5
 

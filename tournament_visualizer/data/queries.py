@@ -4,12 +4,20 @@ This module contains predefined SQL queries for common data analysis tasks
 in the tournament visualization application.
 """
 
+import copy
+import hashlib
+import json
+import logging
+import threading
+import time
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import pandas as pd
 
-from ..config import FAMILY_CLASS_MAP, get_family_class
+from ..config import Config, FAMILY_CLASS_MAP, get_family_class
 from .database import TournamentDatabase, get_database
+
+logger = logging.getLogger(__name__)
 
 # Type alias for result filtering (winners/losers)
 ResultFilter = Literal["all", "winners", "losers"] | None
@@ -159,9 +167,54 @@ class TournamentQueries:
             database: Database instance to use (defaults to global instance)
         """
         self.db = database or get_database()
-        # Cache for get_match_summary() - stores (timestamp, dataframe)
-        self._match_summary_cache: Optional[tuple[float, pd.DataFrame]] = None
-        self._match_summary_cache_ttl: float = 60.0  # seconds
+        # Generic query cache: key -> (timestamp, result)
+        self._cache: dict[str, tuple[float, Any]] = {}
+        self._cache_lock = threading.Lock()
+        self._cache_ttl: float = float(Config.CACHE_TIMEOUT)
+        # Landing page data refreshes more frequently
+        self._match_summary_ttl: float = 60.0
+
+    def _make_cache_key(self, method_name: str, *args: Any, **kwargs: Any) -> str:
+        """Build a deterministic cache key from method name and arguments."""
+        raw = json.dumps(
+            {"m": method_name, "a": args, "k": kwargs},
+            sort_keys=True,
+            default=str,
+        )
+        return f"{method_name}:{hashlib.md5(raw.encode()).hexdigest()}"
+
+    def _cache_get(self, key: str, ttl: Optional[float] = None) -> Any:
+        """Return a cached result copy if within TTL, else None."""
+        if self._cache_ttl == 0:
+            return None
+        ttl = ttl if ttl is not None else self._cache_ttl
+        with self._cache_lock:
+            entry = self._cache.get(key)
+            if entry is not None:
+                cached_time, cached_value = entry
+                if time.time() - cached_time < ttl:
+                    # Deep copy to prevent callers from mutating cached data
+                    if isinstance(cached_value, pd.DataFrame):
+                        return cached_value.copy()
+                    return copy.deepcopy(cached_value)
+                del self._cache[key]
+        return None
+
+    def _cache_set(self, key: str, value: Any) -> None:
+        """Store a result in the cache."""
+        if self._cache_ttl == 0:
+            return
+        with self._cache_lock:
+            self._cache[key] = (time.time(), value)
+
+    def invalidate_caches(self) -> None:
+        """Clear all cached query results.
+
+        Call this after data imports or database changes to ensure fresh data.
+        """
+        with self._cache_lock:
+            self._cache.clear()
+        logger.info("All query caches invalidated")
 
     def get_match_summary(self) -> pd.DataFrame:
         """Get comprehensive match summary data.
@@ -171,15 +224,10 @@ class TournamentQueries:
         Returns:
             DataFrame with match summary information including player nations
         """
-        import time
-
-        now = time.time()
-
-        # Return cached result if valid
-        if self._match_summary_cache is not None:
-            cached_time, cached_df = self._match_summary_cache
-            if now - cached_time < self._match_summary_cache_ttl:
-                return cached_df.copy()
+        cache_key = self._make_cache_key("get_match_summary")
+        cached = self._cache_get(cache_key, ttl=self._match_summary_ttl)
+        if cached is not None:
+            return cached
 
         query = """
         WITH player_info AS (
@@ -225,15 +273,15 @@ class TournamentQueries:
         with self.db.get_connection() as conn:
             result = conn.execute(query).df()
 
-        self._match_summary_cache = (now, result)
+        self._cache_set(cache_key, result)
         return result.copy()
 
     def invalidate_match_summary_cache(self) -> None:
         """Invalidate the match summary cache.
 
-        Call this after data imports or database changes to ensure fresh data.
+        Deprecated: Use invalidate_caches() instead. Kept for backwards compatibility.
         """
-        self._match_summary_cache = None
+        self.invalidate_caches()
 
     def get_match_narratives(self, match_id: int) -> dict[str, str | None]:
         """Get narrative texts for a match.
@@ -286,6 +334,11 @@ class TournamentQueries:
                 - civilizations_played: Comma-separated list of civs used
                 - favorite_civilization: Most-played civ
         """
+        cache_key = self._make_cache_key("get_player_performance")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         WITH player_grouping AS (
             -- Create smart grouping key: participant_id if linked, else normalized name
@@ -352,7 +405,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            result = conn.execute(query).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_civilization_performance(self) -> pd.DataFrame:
         """Get performance statistics by civilization.
@@ -964,6 +1020,11 @@ class TournamentQueries:
         Returns:
             Dictionary with database statistics
         """
+        cache_key = self._make_cache_key("get_database_statistics")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         stats = {}
 
         # Table counts
@@ -1004,6 +1065,7 @@ class TournamentQueries:
         if result and result[0]:
             stats["turn_stats"] = {"avg": result[0], "min": result[1], "max": result[2]}
 
+        self._cache_set(cache_key, stats)
         return stats
 
     def get_technology_comparison(self, match_id: int) -> pd.DataFrame:
@@ -1420,6 +1482,17 @@ class TournamentQueries:
         Returns:
             DataFrame with nation, wins, total_matches, win_percentage from filtered matches
         """
+        cache_key = self._make_cache_key(
+            "get_nation_win_stats",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         # Get filtered match IDs (or player tuples if result_filter set)
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
@@ -1458,7 +1531,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_nation_loss_stats(
         self,
@@ -1490,6 +1566,17 @@ class TournamentQueries:
         Returns:
             DataFrame with nation, losses, total_matches, loss_percentage from filtered matches
         """
+        cache_key = self._make_cache_key(
+            "get_nation_loss_stats",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -1526,7 +1613,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_nation_popularity(
         self,
@@ -1558,6 +1648,17 @@ class TournamentQueries:
         Returns:
             DataFrame with nation, total_matches from filtered matches
         """
+        cache_key = self._make_cache_key(
+            "get_nation_popularity",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -1588,7 +1689,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_map_breakdown(
         self,
@@ -1620,6 +1724,17 @@ class TournamentQueries:
         Returns:
             DataFrame with map_class, map_aspect_ratio, map_size, count
         """
+        cache_key = self._make_cache_key(
+            "get_map_breakdown",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -1653,7 +1768,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, {"match_ids": match_ids}).df()
+            result = conn.execute(query, {"match_ids": match_ids}).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_unit_popularity(
         self,
@@ -1685,6 +1803,17 @@ class TournamentQueries:
         Returns:
             DataFrame with category, role, unit_type, total_count
         """
+        cache_key = self._make_cache_key(
+            "get_unit_popularity",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -1720,7 +1849,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_law_progression_by_match(
         self,
@@ -3793,6 +3925,18 @@ class TournamentQueries:
             If "Assyria vs Egypt" has 70% second_picker_win_rate, Egypt is a strong
             counter to Assyria when picked second.
         """
+        cache_key = self._make_cache_key(
+            "get_nation_counter_pick_matrix",
+            min_games=min_games,
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -3856,7 +4000,10 @@ class TournamentQueries:
         params = {"match_ids": match_ids, "min_games": min_games}
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_pick_order_win_rates(
         self,
@@ -3898,6 +4045,17 @@ class TournamentQueries:
             - ci_upper: Upper bound of 95% confidence interval (0-100)
             - standard_error: Standard error of the proportion
         """
+        cache_key = self._make_cache_key(
+            "get_pick_order_win_rates",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -3981,7 +4139,10 @@ class TournamentQueries:
         params = {"match_ids": match_ids}
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, params).df()
+            result = conn.execute(query, params).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_metric_progression_stats(
         self,
@@ -6857,6 +7018,17 @@ class TournamentQueries:
                 - winner_name: Winner player name
                 - map_info: Map information
         """
+        cache_key = self._make_cache_key(
+            "get_matches_by_round",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players, result_filter=result_filter,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         filtered = self._get_filtered_match_ids(
             tournament_round=tournament_round,
             bracket=bracket,
@@ -6913,7 +7085,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query, {"match_ids": match_ids}).df()
+            result = conn.execute(query, {"match_ids": match_ids}).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_available_rounds(self) -> pd.DataFrame:
         """Get list of tournament rounds that have matches.
@@ -6924,6 +7099,11 @@ class TournamentQueries:
                 - bracket: Bracket name (Winners/Losers/Unknown)
                 - match_count: Number of matches in this round
         """
+        cache_key = self._make_cache_key("get_available_rounds")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT
             tournament_round,
@@ -6939,7 +7119,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            result = conn.execute(query).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_available_map_sizes(self) -> list[str]:
         """Get list of unique map sizes from matches.
@@ -6947,6 +7130,11 @@ class TournamentQueries:
         Returns:
             List of map size strings
         """
+        cache_key = self._make_cache_key("get_available_map_sizes")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT DISTINCT map_size
         FROM matches
@@ -6955,7 +7143,10 @@ class TournamentQueries:
         """
         with self.db.get_connection() as conn:
             df = conn.execute(query).df()
-            return df["map_size"].tolist() if not df.empty else []
+            result = df["map_size"].tolist() if not df.empty else []
+
+        self._cache_set(cache_key, result)
+        return result
 
     def get_available_map_classes(self) -> list[str]:
         """Get list of unique map classes from matches.
@@ -6963,6 +7154,11 @@ class TournamentQueries:
         Returns:
             List of map class strings
         """
+        cache_key = self._make_cache_key("get_available_map_classes")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT DISTINCT map_class
         FROM matches
@@ -6971,7 +7167,10 @@ class TournamentQueries:
         """
         with self.db.get_connection() as conn:
             df = conn.execute(query).df()
-            return df["map_class"].tolist() if not df.empty else []
+            result = df["map_class"].tolist() if not df.empty else []
+
+        self._cache_set(cache_key, result)
+        return result
 
     def get_available_map_aspects(self) -> list[str]:
         """Get list of unique map aspect ratios from matches.
@@ -6979,6 +7178,11 @@ class TournamentQueries:
         Returns:
             List of map aspect ratio strings
         """
+        cache_key = self._make_cache_key("get_available_map_aspects")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT DISTINCT map_aspect_ratio
         FROM matches
@@ -6987,7 +7191,10 @@ class TournamentQueries:
         """
         with self.db.get_connection() as conn:
             df = conn.execute(query).df()
-            return df["map_aspect_ratio"].tolist() if not df.empty else []
+            result = df["map_aspect_ratio"].tolist() if not df.empty else []
+
+        self._cache_set(cache_key, result)
+        return result
 
     def get_available_nations(self) -> list[str]:
         """Get list of unique civilizations from players.
@@ -6995,6 +7202,11 @@ class TournamentQueries:
         Returns:
             List of civilization names
         """
+        cache_key = self._make_cache_key("get_available_nations")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT DISTINCT civilization
         FROM players
@@ -7003,7 +7215,10 @@ class TournamentQueries:
         """
         with self.db.get_connection() as conn:
             df = conn.execute(query).df()
-            return df["civilization"].tolist() if not df.empty else []
+            result = df["civilization"].tolist() if not df.empty else []
+
+        self._cache_set(cache_key, result)
+        return result
 
     def get_available_players(self) -> list[str]:
         """Get list of unique player names.
@@ -7011,6 +7226,11 @@ class TournamentQueries:
         Returns:
             List of player names
         """
+        cache_key = self._make_cache_key("get_available_players")
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         query = """
         SELECT DISTINCT player_name
         FROM players
@@ -7019,7 +7239,10 @@ class TournamentQueries:
         """
         with self.db.get_connection() as conn:
             df = conn.execute(query).df()
-            return df["player_name"].tolist() if not df.empty else []
+            result = df["player_name"].tolist() if not df.empty else []
+
+        self._cache_set(cache_key, result)
+        return result
 
     def get_turn_range(self) -> tuple[int, int]:
         """Get the minimum and maximum turn counts across all matches.
@@ -7082,6 +7305,17 @@ class TournamentQueries:
         Returns:
             DataFrame with turn-by-turn science progression for winners vs losers
         """
+        cache_key = self._make_cache_key(
+            "get_science_win_correlation",
+            tournament_round=tournament_round, bracket=bracket,
+            min_turns=min_turns, max_turns=max_turns,
+            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
+            nations=nations, players=players,
+        )
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         # Build filter conditions
         filters = ["yh.resource_type = 'YIELD_SCIENCE'"]
 
@@ -7155,7 +7389,10 @@ class TournamentQueries:
         """
 
         with self.db.get_connection() as conn:
-            return conn.execute(query).df()
+            result = conn.execute(query).df()
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def get_match_timeline_events(self, match_id: int) -> pd.DataFrame:
         """Get unified timeline of key game events for a match.
@@ -9127,6 +9364,11 @@ class TournamentQueries:
                 - governance_component: Governance sub-score (0-100)
                 - military_component: Military sub-score (0-100)
         """
+        cache_key = self._make_cache_key("get_player_skill_ratings", min_matches=min_matches)
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         # Get per-game metrics for all players
         per_game_df = self._get_per_game_skill_metrics()
 
@@ -9178,9 +9420,12 @@ class TournamentQueries:
         # Only include columns that exist
         result_columns = [c for c in result_columns if c in player_df.columns]
 
-        return player_df[result_columns].sort_values(
+        result = player_df[result_columns].sort_values(
             "skill_score", ascending=False
         ).reset_index(drop=True)
+
+        self._cache_set(cache_key, result)
+        return result.copy()
 
     def _get_per_game_skill_metrics(self) -> pd.DataFrame:
         """Calculate skill metrics for each player in each match.

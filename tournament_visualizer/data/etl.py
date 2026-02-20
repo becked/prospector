@@ -781,7 +781,7 @@ class TournamentETL:
 
         # Invalidate query caches after data import
         if successful_count > 0:
-            get_queries().invalidate_match_summary_cache()
+            get_queries().invalidate_caches()
 
         return successful_count, total_files, skipped_duplicates
 
