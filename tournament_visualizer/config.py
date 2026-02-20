@@ -55,6 +55,11 @@ class Config:
     # Anthropic API configuration (for match narrative generation)
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+    # Groq API configuration (for natural language SQL queries)
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    NL_QUERY_ROW_LIMIT = 200
+
     # UI Configuration
     DEFAULT_PAGE_SIZE = 25
     MAX_CHART_POINTS = 1000

@@ -39,7 +39,9 @@ def test_extract_territories_basic_structure(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=2)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=2, player_id_mapping={}
+    )
 
     # Should have 3 tiles × 2 turns = 6 records
     assert len(territories) == 6
@@ -60,7 +62,9 @@ def test_extract_territories_coordinates(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     # Map width is 3, so:
     # Tile 0: x=0, y=0
@@ -83,13 +87,16 @@ def test_extract_territories_ownership(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=2)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=2, player_id_mapping={}
+    )
 
-    # Tile 0, turn 1: owned by player 0 (XML) -> player_id 1 (DB)
+    # With empty mapping, slot IDs are stored as-is (1-based from XML 0-based)
+    # Tile 0, turn 1: owned by player 0 (XML) -> slot 1
     tile0_turn1 = [
         t for t in territories if t["tile_id"] == 0 and t["turn_number"] == 1
     ][0]
-    assert tile0_turn1["owner_player_id"] == 1  # XML 0 -> DB 1
+    assert tile0_turn1["owner_player_id"] == 1  # XML 0 -> slot 1
 
     # Tile 1, turn 1: no owner -> NULL
     tile1_turn1 = [
@@ -97,11 +104,41 @@ def test_extract_territories_ownership(minimal_xml_tree):
     ][0]
     assert tile1_turn1["owner_player_id"] is None
 
-    # Tile 2, turn 1: owned by player 1 (XML) -> player_id 2 (DB)
+    # Tile 2, turn 1: owned by player 1 (XML) -> slot 2
     tile2_turn1 = [
         t for t in territories if t["tile_id"] == 2 and t["turn_number"] == 1
     ][0]
-    assert tile2_turn1["owner_player_id"] == 2  # XML 1 -> DB 2
+    assert tile2_turn1["owner_player_id"] == 2  # XML 1 -> slot 2
+
+
+def test_extract_territories_ownership_with_mapping(minimal_xml_tree):
+    """Test that player_id_mapping converts slot IDs to global player IDs."""
+    parser = OldWorldSaveParser("")
+    parser.root = minimal_xml_tree.getroot()
+
+    # Simulate match 5 where slot 1 -> player_id 9, slot 2 -> player_id 10
+    mapping = {1: 9, 2: 10}
+    territories = parser.extract_territories(
+        match_id=5, final_turn=2, player_id_mapping=mapping
+    )
+
+    # Tile 0, turn 1: XML player 0 -> slot 1 -> global player_id 9
+    tile0_turn1 = [
+        t for t in territories if t["tile_id"] == 0 and t["turn_number"] == 1
+    ][0]
+    assert tile0_turn1["owner_player_id"] == 9
+
+    # Tile 1, turn 1: no owner -> still None
+    tile1_turn1 = [
+        t for t in territories if t["tile_id"] == 1 and t["turn_number"] == 1
+    ][0]
+    assert tile1_turn1["owner_player_id"] is None
+
+    # Tile 2, turn 1: XML player 1 -> slot 2 -> global player_id 10
+    tile2_turn1 = [
+        t for t in territories if t["tile_id"] == 2 and t["turn_number"] == 1
+    ][0]
+    assert tile2_turn1["owner_player_id"] == 10
 
 
 def test_extract_territories_terrain(minimal_xml_tree):
@@ -109,7 +146,9 @@ def test_extract_territories_terrain(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     # Check terrain for each tile (turn 1)
     terrains = {
@@ -128,7 +167,9 @@ def test_extract_territories_all_turns(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=2)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=2, player_id_mapping={}
+    )
 
     # Group by tile and turn
     tiles_by_turn = {}
@@ -153,7 +194,9 @@ def test_extract_territories_ownership_persistence(minimal_xml_tree):
     parser = OldWorldSaveParser("")
     parser.root = minimal_xml_tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=2)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=2, player_id_mapping={}
+    )
 
     # Tile 2: owned by player 1 at turn 1, no entry for turn 2
     # Should persist ownership to turn 2
@@ -179,7 +222,9 @@ def test_extract_territories_empty_xml():
     parser = OldWorldSaveParser("")
     parser.root = tree.getroot()
 
-    territories = parser.extract_territories(match_id=1, final_turn=10)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=10, player_id_mapping={}
+    )
 
     # Should return empty list, not error
     assert territories == []
@@ -200,7 +245,9 @@ def test_extract_territories_no_map_width():
     parser.root = tree.getroot()
 
     with pytest.raises(ValueError, match="MapWidth"):
-        parser.extract_territories(match_id=1, final_turn=1)
+        parser.extract_territories(
+            match_id=1, final_turn=1, player_id_mapping={}
+        )
 
 
 def test_extract_territories_includes_specialists() -> None:
@@ -220,7 +267,9 @@ def test_extract_territories_includes_specialists() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     # Find the tile record
     tile_record = next(t for t in territories if t["tile_id"] == 0)
@@ -246,7 +295,9 @@ def test_extract_territories_includes_improvements() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     tile_record = next(t for t in territories if t["tile_id"] == 5)
 
@@ -269,7 +320,9 @@ def test_extract_territories_includes_resources() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     tile_record = next(t for t in territories if t["tile_id"] == 7)
 
@@ -292,7 +345,9 @@ def test_extract_territories_includes_roads() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     tile_record = next(t for t in territories if t["tile_id"] == 3)
 
@@ -313,7 +368,9 @@ def test_extract_territories_defaults_to_none_when_missing() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     tile_record = next(t for t in territories if t["tile_id"] == 10)
 
@@ -342,7 +399,9 @@ def test_extract_territories_combines_all_attributes() -> None:
     parser = OldWorldSaveParser("")
     parser.root = ET.fromstring(xml_content)
 
-    territories = parser.extract_territories(match_id=1, final_turn=1)
+    territories = parser.extract_territories(
+        match_id=1, final_turn=1, player_id_mapping={}
+    )
 
     tile_record = next(t for t in territories if t["tile_id"] == 15)
 

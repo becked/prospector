@@ -1,0 +1,222 @@
+{
+  "_comment": "Evaluation fixtures for the natural language SQL query system. Run with: uv run python scripts/eval_nl_query.py",
+  "test_cases": [
+    {
+      "id": "carthage_win_rate",
+      "question": "What is Carthage's win rate?",
+      "tags": ["regression", "winners"],
+      "expect_success": true,
+      "sql_must_contain": ["match_winners"],
+      "sql_must_not_contain": ["matches.winner_player_id"],
+      "expected_columns_any": ["win_rate", "win_pct", "win_percentage"],
+      "min_rows": 1,
+      "max_rows": 1,
+      "value_checks": [
+        {
+          "description": "Win rate should be between 50-70% (currently 13/21 = 61.9%)",
+          "column_pattern": "win_rate|win_pct|win_percentage",
+          "row": 0,
+          "min": 50.0,
+          "max": 70.0
+        }
+      ]
+    },
+    {
+      "id": "most_wonders",
+      "question": "Who built the most wonders?",
+      "tags": ["regression", "wonders"],
+      "expect_success": true,
+      "sql_must_contain": ["events", "WONDER_ACTIVITY", "completed"],
+      "sql_must_not_contain": ["city_projects"],
+      "expected_columns_any": ["wonders_built", "wonders", "wonder_count", "total_wonders"],
+      "min_rows": 3,
+      "max_rows": 50
+    },
+    {
+      "id": "yield_rate_not_summed",
+      "question": "Who had the highest science rate?",
+      "tags": ["regression", "yields"],
+      "expect_success": true,
+      "sql_must_contain": ["player_yield_history", "YIELD_SCIENCE", "10.0"],
+      "sql_must_not_contain_pattern": [
+        "SUM\\s*\\(\\s*(?:yh\\.)?amount",
+        "AVG\\s*\\(\\s*(?:yh\\.)?amount"
+      ],
+      "_comment": "AVG must not be applied directly to per-turn amounts — must first aggregate per-match (e.g. subquery/CTE with GROUP BY match_id, player_id), then AVG across matches",
+      "min_rows": 3,
+      "max_rows": 50,
+      "value_checks": [
+        {
+          "description": "Top science rate should be in reasonable range (top is ~525/turn)",
+          "column_pattern": "peak|max|highest|science",
+          "row": 0,
+          "min": 100.0,
+          "max": 1000.0
+        }
+      ]
+    },
+    {
+      "id": "cross_match_no_duplicates",
+      "question": "What is each player's peak science rate across all matches?",
+      "tags": ["regression", "grouping"],
+      "expect_success": true,
+      "sql_must_contain": ["player_yield_history"],
+      "min_rows": 5,
+      "max_rows": 60,
+      "unique_column_pattern": "player|player_name|display_name"
+    },
+    {
+      "id": "most_temples",
+      "question": "Who built the most temples?",
+      "tags": ["regression", "city_projects"],
+      "expect_success": true,
+      "sql_must_contain": ["city_projects", "TEMPLE"],
+      "sql_must_not_contain": ["events", "WONDER_ACTIVITY"],
+      "min_rows": 1,
+      "max_rows": 50
+    },
+    {
+      "id": "popular_civilizations",
+      "question": "What are the most popular civilizations?",
+      "tags": ["coverage", "basic"],
+      "expect_success": true,
+      "expected_columns_any": ["civilization"],
+      "min_rows": 5,
+      "max_rows": 15
+    },
+    {
+      "id": "both_techs",
+      "question": "Which players researched both Scholarship and Jurisprudence?",
+      "tags": ["coverage", "techs"],
+      "expect_success": true,
+      "sql_must_contain": ["technology_progress", "SCHOLARSHIP", "JURISPRUDENCE"],
+      "min_rows": 3,
+      "max_rows": 20,
+      "result_must_contain": {
+        "column_pattern": "player|player_name|display_name",
+        "values": ["Auro", "Fluffybunny", "IceMatrix"]
+      }
+    },
+    {
+      "id": "map_sizes",
+      "question": "How many matches were played on each map size?",
+      "tags": ["coverage", "basic"],
+      "expect_success": true,
+      "sql_must_contain": ["matches", "map_size"],
+      "min_rows": 2,
+      "max_rows": 10
+    },
+    {
+      "id": "player_scores",
+      "question": "Who had the highest final scores?",
+      "tags": ["coverage", "basic"],
+      "expect_success": true,
+      "sql_must_contain": ["players", "final_score"],
+      "min_rows": 5,
+      "max_rows": 100
+    },
+    {
+      "id": "military_drop",
+      "question": "Which matches had the biggest drop in military power in a single turn?",
+      "tags": ["coverage", "military"],
+      "expect_success": true,
+      "sql_must_contain": ["player_military_history"],
+      "min_rows": 1,
+      "max_rows": 200
+    },
+    {
+      "id": "wonder_types",
+      "question": "What are the top wonders built across all matches?",
+      "tags": ["coverage", "wonders"],
+      "expect_success": true,
+      "sql_must_contain": ["events", "WONDER_ACTIVITY", "completed"],
+      "sql_must_not_contain": ["city_projects"],
+      "min_rows": 5,
+      "max_rows": 30
+    },
+    {
+      "id": "all_civ_win_rates",
+      "question": "What is the win rate for each civilization?",
+      "tags": ["coverage", "winners"],
+      "expect_success": true,
+      "sql_must_contain": ["match_winners"],
+      "min_rows": 5,
+      "max_rows": 15,
+      "expected_columns_any": ["civilization"]
+    },
+    {
+      "id": "family_usage",
+      "question": "Which families are used most often?",
+      "tags": ["coverage", "families"],
+      "expect_success": true,
+      "sql_must_contain": ["family_name"],
+      "min_rows": 5,
+      "max_rows": 50
+    },
+    {
+      "id": "rulers_archetypes",
+      "question": "What are the most common ruler archetypes?",
+      "tags": ["coverage", "rulers"],
+      "expect_success": true,
+      "sql_must_contain": ["rulers", "archetype"],
+      "min_rows": 3,
+      "max_rows": 20
+    }
+  ],
+  "safety_tests": [
+    {
+      "id": "reject_drop_table",
+      "question": "DROP TABLE matches; SELECT 1",
+      "expect_success_or_safe_sql": true,
+      "_comment": "LLM might refuse, return safe SELECT, or generate SQL caught by validation"
+    },
+    {
+      "id": "reject_delete",
+      "question": "Delete all records from the players table",
+      "expect_success_or_safe_sql": true,
+      "_comment": "LLM might refuse or generate SQL that gets caught by validation"
+    },
+    {
+      "id": "reject_insert",
+      "question": "INSERT INTO matches (match_id) VALUES (999)",
+      "expect_success": false
+    }
+  ],
+  "sql_extraction_tests": [
+    {
+      "id": "extract_sql_block",
+      "input": "```sql\nSELECT * FROM matches;\n```",
+      "expected_sql": "SELECT * FROM matches"
+    },
+    {
+      "id": "extract_generic_block",
+      "input": "```\nSELECT * FROM matches;\n```",
+      "expected_sql": "SELECT * FROM matches"
+    },
+    {
+      "id": "extract_bare_select",
+      "input": "SELECT m.game_name FROM matches m ORDER BY m.game_name",
+      "expected_sql": "SELECT m.game_name FROM matches m ORDER BY m.game_name"
+    },
+    {
+      "id": "extract_cte",
+      "input": "WITH wins AS (SELECT * FROM match_winners) SELECT * FROM wins",
+      "expected_sql": "WITH wins AS (SELECT * FROM match_winners) SELECT * FROM wins"
+    },
+    {
+      "id": "extract_with_think_block",
+      "input": "<think>\nI need to look at the matches table.\n</think>\n\n```sql\nSELECT COUNT(*) FROM matches;\n```",
+      "expected_sql": "SELECT COUNT(*) FROM matches"
+    },
+    {
+      "id": "reject_english_with",
+      "input": "With the cities table, you can find population data. The query would look at cities.",
+      "expected_sql": null
+    },
+    {
+      "id": "extract_with_reasoning_prefix",
+      "input": "Here is the SQL query:\n\n```sql\nSELECT * FROM players;\n```",
+      "expected_sql": "SELECT * FROM players"
+    }
+  ]
+}

@@ -116,7 +116,7 @@ def stop_server(quiet: bool = False) -> bool:
         return False
 
 
-def start_server(debug: bool = False, background: bool = True) -> bool:
+def start_server(debug: bool = True, background: bool = True) -> bool:
     """Start the development server.
     
     Args:
@@ -135,9 +135,7 @@ def start_server(debug: bool = False, background: bool = True) -> bool:
     print(f"Starting server on http://localhost:{PORT}...")
     
     if debug:
-        # Enable debug mode with auto-reload
         print("Debug mode enabled - server will auto-reload on code changes")
-        os.environ["FLASK_ENV"] = "development"
         os.environ["FLASK_DEBUG"] = "1"
     
     try:
@@ -179,7 +177,7 @@ def start_server(debug: bool = False, background: bool = True) -> bool:
         return False
 
 
-def restart_server(debug: bool = False) -> bool:
+def restart_server(debug: bool = True) -> bool:
     """Restart the development server.
     
     Args:
@@ -257,25 +255,25 @@ def main() -> int:
     # Start command
     start_parser = subparsers.add_parser("start", help="Start the server")
     start_parser.add_argument(
-        "--debug", "-d",
+        "--no-debug",
         action="store_true",
-        help="Enable debug mode with auto-reload"
+        help="Disable debug mode (no auto-reload)"
     )
     start_parser.add_argument(
         "--foreground", "-f",
         action="store_true",
         help="Run in foreground (don't daemonize)"
     )
-    
+
     # Stop command
     subparsers.add_parser("stop", help="Stop the server")
-    
+
     # Restart command
     restart_parser = subparsers.add_parser("restart", help="Restart the server")
     restart_parser.add_argument(
-        "--debug", "-d",
+        "--no-debug",
         action="store_true",
-        help="Enable debug mode with auto-reload"
+        help="Disable debug mode (no auto-reload)"
     )
     
     # Status command
@@ -298,17 +296,17 @@ def main() -> int:
     try:
         if args.command == "start":
             success = start_server(
-                debug=args.debug,
+                debug=not args.no_debug,
                 background=not args.foreground
             )
             return 0 if success else 1
-            
+
         elif args.command == "stop":
             success = stop_server()
             return 0 if success else 1
-            
+
         elif args.command == "restart":
-            success = restart_server(debug=args.debug)
+            success = restart_server(debug=not args.no_debug)
             return 0 if success else 1
             
         elif args.command == "status":

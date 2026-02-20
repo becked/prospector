@@ -814,7 +814,10 @@ class OldWorldSaveParser:
         return formatted
 
     def extract_territories(
-        self, match_id: int, final_turn: int
+        self,
+        match_id: int,
+        final_turn: int,
+        player_id_mapping: Dict[int, int],
     ) -> List[Dict[str, Any]]:
         """Extract territory control information for all tiles across all turns.
 
@@ -825,6 +828,9 @@ class OldWorldSaveParser:
         Args:
             match_id: Database match ID for foreign key reference
             final_turn: Last turn of the game (from game state data)
+            player_id_mapping: Maps 1-based slot IDs to global player_ids.
+                e.g. {1: 5, 2: 6} means slot 1 -> player_id 5.
+                Pass empty dict {} if slot IDs should be stored as-is.
 
         Returns:
             List of territory records, each containing:
@@ -838,7 +844,7 @@ class OldWorldSaveParser:
             - specialist_type: Specialist constant or None
             - resource_type: Resource constant or None
             - has_road: Boolean, True if tile has road
-            - owner_player_id: Database player ID (1-based), or None if unowned
+            - owner_player_id: Global player_id from players table, or None if unowned
 
         Raises:
             ValueError: If XML not parsed or MapWidth attribute missing
@@ -909,13 +915,13 @@ class OldWorldSaveParser:
                     turn_num = int(turn_elem.tag[1:])  # Strip 'T' prefix
                     owner_xml_id = int(turn_elem.text)
 
-                    # Convert XML player ID to database player ID
-                    # XML uses 0-based, DB uses 1-based
-                    # XML -1 = unowned/neutral -> None in DB
+                    # Convert XML player ID to global database player_id
+                    # XML uses 0-based IDs, -1 = unowned/neutral
                     if owner_xml_id == -1:
                         owner_db_id = None
                     else:
-                        owner_db_id = owner_xml_id + 1
+                        slot_id = owner_xml_id + 1
+                        owner_db_id = player_id_mapping.get(slot_id, slot_id)
 
                     ownership_by_turn[turn_num] = owner_db_id
 

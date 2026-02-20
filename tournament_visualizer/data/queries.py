@@ -861,22 +861,14 @@ class TournamentQueries:
             DataFrame with territory control data
         """
         query = """
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
-            FROM players
-        ),
-        territory_counts AS (
+        WITH territory_counts AS (
             SELECT
                 t.turn_number,
                 p.player_name,
                 COUNT(*) as controlled_territories
             FROM territories t
-            LEFT JOIN player_order p ON t.match_id = p.match_id
-                                     AND t.owner_player_id = p.match_player_order
+            LEFT JOIN players p ON t.match_id = p.match_id
+                                AND t.owner_player_id = p.player_id
             WHERE t.match_id = ?
             GROUP BY t.turn_number, p.player_name
         )
@@ -4300,15 +4292,6 @@ class TournamentQueries:
             - civilization: Player civilization (NULL if unowned)
         """
         query = """
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                civilization,
-                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
-            FROM players
-        )
         SELECT
             t.x_coordinate,
             t.y_coordinate,
@@ -4317,8 +4300,8 @@ class TournamentQueries:
             p.player_name,
             p.civilization
         FROM territories t
-        LEFT JOIN player_order p ON t.match_id = p.match_id
-                                 AND t.owner_player_id = p.match_player_order
+        LEFT JOIN players p ON t.match_id = p.match_id
+                            AND t.owner_player_id = p.player_id
         WHERE t.match_id = ?
           AND t.turn_number = ?
         ORDER BY t.y_coordinate, t.x_coordinate
@@ -4379,15 +4362,6 @@ class TournamentQueries:
             WHERE match_id = ? AND turn_number = ?
             GROUP BY match_id
         ),
-        player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                civilization,
-                ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY player_id) as match_player_order
-            FROM players
-        ),
         family_seats AS (
             -- Determine family seat as the first city founded for each family
             SELECT
@@ -4431,8 +4405,8 @@ class TournamentQueries:
             ct.is_family_seat
         FROM territories t
         CROSS JOIN map_dimensions md
-        LEFT JOIN player_order p ON t.match_id = p.match_id
-                                 AND t.owner_player_id = p.match_player_order
+        LEFT JOIN players p ON t.match_id = p.match_id
+                            AND t.owner_player_id = p.player_id
         LEFT JOIN city_tiles ct ON t.match_id = ct.match_id
                                 AND ct.tile_id = (t.y_coordinate * md.map_width + t.x_coordinate)
         WHERE t.match_id = ?
@@ -4524,27 +4498,15 @@ class TournamentQueries:
             _, max_turn = self.get_territory_turn_range(match_id)
             turn_number = max_turn
 
-        # territories.owner_player_id stores local slot numbers (1, 2), not global
-        # player_ids. Use player_order CTE to map slots to actual players.
         query = """
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        )
         SELECT
             p.player_id,
             p.player_name,
             t.improvement_type,
             COUNT(*) as count
         FROM territories t
-        JOIN player_order p ON t.match_id = p.match_id
-                            AND t.owner_player_id = p.match_player_order
+        JOIN players p ON t.match_id = p.match_id
+                       AND t.owner_player_id = p.player_id
         WHERE t.match_id = ?
           AND t.turn_number = ?
           AND t.improvement_type IS NOT NULL
@@ -4579,27 +4541,15 @@ class TournamentQueries:
             _, max_turn = self.get_territory_turn_range(match_id)
             turn_number = max_turn
 
-        # territories.owner_player_id stores local slot numbers (1, 2), not global
-        # player_ids. Use player_order CTE to map slots to actual players.
         query = """
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        )
         SELECT
             p.player_id,
             p.player_name,
             t.specialist_type,
             COUNT(*) as count
         FROM territories t
-        JOIN player_order p ON t.match_id = p.match_id
-                            AND t.owner_player_id = p.match_player_order
+        JOIN players p ON t.match_id = p.match_id
+                       AND t.owner_player_id = p.player_id
         WHERE t.match_id = ?
           AND t.turn_number = ?
           AND t.specialist_type IS NOT NULL
@@ -4642,17 +4592,7 @@ class TournamentQueries:
         # All specialists produce science (rural=10, apprentice=20, master=30, elder=40)
         # Plus Philosophers and Doctors get additional bonuses
         query = f"""
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        ),
-        specialist_counts AS (
+        WITH specialist_counts AS (
             SELECT
                 t.turn_number,
                 p.player_id,
@@ -4661,8 +4601,8 @@ class TournamentQueries:
                 t.specialist_type as asset_type,
                 COUNT(*) as count
             FROM territories t
-            JOIN player_order p ON t.match_id = p.match_id
-                                AND t.owner_player_id = p.match_player_order
+            JOIN players p ON t.match_id = p.match_id
+                           AND t.owner_player_id = p.player_id
             WHERE t.match_id = ?
               AND t.specialist_type IS NOT NULL
             GROUP BY t.turn_number, p.player_id, p.player_name, t.specialist_type
@@ -4676,8 +4616,8 @@ class TournamentQueries:
                 t.improvement_type as asset_type,
                 COUNT(*) as count
             FROM territories t
-            JOIN player_order p ON t.match_id = p.match_id
-                                AND t.owner_player_id = p.match_player_order
+            JOIN players p ON t.match_id = p.match_id
+                           AND t.owner_player_id = p.player_id
             WHERE t.match_id = ?
               AND t.improvement_type IN ({science_improvements})
             GROUP BY t.turn_number, p.player_id, p.player_name, t.improvement_type
@@ -4729,17 +4669,7 @@ class TournamentQueries:
 
         # All specialists produce science based on tier
         query = f"""
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        ),
-        specialist_counts AS (
+        WITH specialist_counts AS (
             SELECT
                 p.player_id,
                 p.player_name,
@@ -4747,8 +4677,8 @@ class TournamentQueries:
                 t.specialist_type as asset_type,
                 COUNT(*) as count
             FROM territories t
-            JOIN player_order p ON t.match_id = p.match_id
-                                AND t.owner_player_id = p.match_player_order
+            JOIN players p ON t.match_id = p.match_id
+                           AND t.owner_player_id = p.player_id
             WHERE t.match_id = ?
               AND t.turn_number = ?
               AND t.specialist_type IS NOT NULL
@@ -4762,8 +4692,8 @@ class TournamentQueries:
                 t.improvement_type as asset_type,
                 COUNT(*) as count
             FROM territories t
-            JOIN player_order p ON t.match_id = p.match_id
-                                AND t.owner_player_id = p.match_player_order
+            JOIN players p ON t.match_id = p.match_id
+                           AND t.owner_player_id = p.player_id
             WHERE t.match_id = ?
               AND t.turn_number = ?
               AND t.improvement_type IN ({science_improvements})
@@ -4809,24 +4739,14 @@ class TournamentQueries:
         )
 
         query = f"""
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        )
         SELECT
             p.player_id,
             p.player_name,
             t.improvement_type as modifier_type,
             COUNT(*) as count
         FROM territories t
-        JOIN player_order p ON t.match_id = p.match_id
-                            AND t.owner_player_id = p.match_player_order
+        JOIN players p ON t.match_id = p.match_id
+                       AND t.owner_player_id = p.player_id
         WHERE t.match_id = ?
           AND t.turn_number = ?
           AND t.improvement_type IN ({modifier_improvements})
@@ -5895,16 +5815,7 @@ class TournamentQueries:
         clerics_list = ", ".join(f"'{f}'" for f in CLERICS_FAMILIES)
 
         query = f"""
-        WITH player_order AS (
-            SELECT
-                match_id,
-                player_id,
-                player_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY match_id ORDER BY player_id
-                ) as match_player_order
-            FROM players
-        ),
+        WITH
         -- Get specialists by city
         city_specialists AS (
             SELECT
@@ -6129,7 +6040,7 @@ class TournamentQueries:
                 ELSE 0
             END as clerics_stele_modifier
         FROM cities c
-        JOIN player_order p ON c.match_id = p.match_id AND c.player_id = p.player_id
+        JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
         LEFT JOIN city_libraries cl ON c.city_id = cl.city_id
         LEFT JOIN city_musaeum cm ON c.city_id = cm.city_id
         LEFT JOIN city_scientific_method csm ON c.city_id = csm.city_id
