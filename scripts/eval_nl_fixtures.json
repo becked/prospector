@@ -66,11 +66,11 @@
       "unique_column_pattern": "player|player_name|display_name"
     },
     {
-      "id": "most_temples",
-      "question": "Who built the most temples?",
+      "id": "most_forums",
+      "question": "Who built the most forums?",
       "tags": ["regression", "city_projects"],
       "expect_success": true,
-      "sql_must_contain": ["city_projects", "TEMPLE"],
+      "sql_must_contain": ["city_projects", "FORUM"],
       "sql_must_not_contain": ["events", "WONDER_ACTIVITY"],
       "min_rows": 1,
       "max_rows": 50

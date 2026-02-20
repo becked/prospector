@@ -385,19 +385,19 @@ ORDER BY times_built DESC
 LIMIT 10
 ```
 
-**Who built the most city projects** ("Who built the most temples?"):
+**Who built the most city projects** ("Who built the most forums?"):
 ```sql
 SELECT
     COALESCE(tp.display_name, p.player_name) AS player,
-    SUM(cp.count) AS total_temples,
+    SUM(cp.count) AS total_forums,
     COUNT(DISTINCT p.match_id) AS matches_played
 FROM city_projects cp
 JOIN cities c ON cp.match_id = c.match_id AND cp.city_id = c.city_id
 JOIN players p ON c.match_id = p.match_id AND c.player_id = p.player_id
 LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
-WHERE cp.project_type ILIKE '%TEMPLE%'
+WHERE cp.project_type ILIKE '%FORUM%'
 GROUP BY COALESCE(tp.display_name, p.player_name)
-ORDER BY total_temples DESC
+ORDER BY total_forums DESC
 LIMIT 10
 ```
 
