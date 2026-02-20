@@ -135,6 +135,14 @@ app.index_string = """<!DOCTYPE html>
             .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.dash-filter input::placeholder {
                 color: #c8d4e3 !important;
             }
+            /* Chat input - remove focus glow and placeholder on focus */
+            #chat-input:focus {
+                box-shadow: none !important;
+                outline: none !important;
+            }
+            #chat-input:focus::placeholder {
+                color: transparent !important;
+            }
             /* DataTable sort indicators - match header text color */
             .dash-table-container .column-header--sort {
                 color: #edf2f7 !important;
