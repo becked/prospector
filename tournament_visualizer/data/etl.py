@@ -280,11 +280,10 @@ class TournamentETL:
             parser = OldWorldSaveParser(file_path)
             parser.extract_and_parse()
             territories = parser.extract_territories(
-                match_id=match_id, final_turn=final_turn
+                match_id=match_id,
+                final_turn=final_turn,
+                player_id_mapping=player_id_mapping,
             )
-
-            # Note: owner_player_id is already in database format (1-based) from parser
-            # No need to remap player IDs as parser handles the conversion
 
             if territories:
                 self.db.bulk_insert_territories(territories)

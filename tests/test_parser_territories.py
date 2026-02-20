@@ -85,11 +85,12 @@ def test_extract_territories_ownership(minimal_xml_tree):
 
     territories = parser.extract_territories(match_id=1, final_turn=2)
 
-    # Tile 0, turn 1: owned by player 0 (XML) -> player_id 1 (DB)
+    # Without player_id_mapping, slot IDs are stored as-is (1-based from XML 0-based)
+    # Tile 0, turn 1: owned by player 0 (XML) -> slot 1
     tile0_turn1 = [
         t for t in territories if t["tile_id"] == 0 and t["turn_number"] == 1
     ][0]
-    assert tile0_turn1["owner_player_id"] == 1  # XML 0 -> DB 1
+    assert tile0_turn1["owner_player_id"] == 1  # XML 0 -> slot 1
 
     # Tile 1, turn 1: no owner -> NULL
     tile1_turn1 = [
@@ -97,11 +98,41 @@ def test_extract_territories_ownership(minimal_xml_tree):
     ][0]
     assert tile1_turn1["owner_player_id"] is None
 
-    # Tile 2, turn 1: owned by player 1 (XML) -> player_id 2 (DB)
+    # Tile 2, turn 1: owned by player 1 (XML) -> slot 2
     tile2_turn1 = [
         t for t in territories if t["tile_id"] == 2 and t["turn_number"] == 1
     ][0]
-    assert tile2_turn1["owner_player_id"] == 2  # XML 1 -> DB 2
+    assert tile2_turn1["owner_player_id"] == 2  # XML 1 -> slot 2
+
+
+def test_extract_territories_ownership_with_mapping(minimal_xml_tree):
+    """Test that player_id_mapping converts slot IDs to global player IDs."""
+    parser = OldWorldSaveParser("")
+    parser.root = minimal_xml_tree.getroot()
+
+    # Simulate match 5 where slot 1 -> player_id 9, slot 2 -> player_id 10
+    mapping = {1: 9, 2: 10}
+    territories = parser.extract_territories(
+        match_id=5, final_turn=2, player_id_mapping=mapping
+    )
+
+    # Tile 0, turn 1: XML player 0 -> slot 1 -> global player_id 9
+    tile0_turn1 = [
+        t for t in territories if t["tile_id"] == 0 and t["turn_number"] == 1
+    ][0]
+    assert tile0_turn1["owner_player_id"] == 9
+
+    # Tile 1, turn 1: no owner -> still None
+    tile1_turn1 = [
+        t for t in territories if t["tile_id"] == 1 and t["turn_number"] == 1
+    ][0]
+    assert tile1_turn1["owner_player_id"] is None
+
+    # Tile 2, turn 1: XML player 1 -> slot 2 -> global player_id 10
+    tile2_turn1 = [
+        t for t in territories if t["tile_id"] == 2 and t["turn_number"] == 1
+    ][0]
+    assert tile2_turn1["owner_player_id"] == 10
 
 
 def test_extract_territories_terrain(minimal_xml_tree):
