@@ -50,10 +50,10 @@ primary_region = "sjc"
     grace_period = "30s"
     restart_limit = 0
 
-  # HTTP health check
+  # HTTP health check — auto-restarts the app if all workers are stuck
   [[services.http_checks]]
-    interval = 30000        # 30 seconds
-    timeout = 10000         # 10 seconds
+    interval = 30000
+    timeout = 10000
     grace_period = "30s"
     method = "GET"
     path = "/health"
@@ -62,7 +62,7 @@ primary_region = "sjc"
 
 # VM resources - increase memory for data processing
 [vm]
-  memory = "1gb"
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 2
 
