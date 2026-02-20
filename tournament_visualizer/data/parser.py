@@ -817,7 +817,7 @@ class OldWorldSaveParser:
         self,
         match_id: int,
         final_turn: int,
-        player_id_mapping: Optional[Dict[int, int]] = None,
+        player_id_mapping: Dict[int, int],
     ) -> List[Dict[str, Any]]:
         """Extract territory control information for all tiles across all turns.
 
@@ -830,7 +830,7 @@ class OldWorldSaveParser:
             final_turn: Last turn of the game (from game state data)
             player_id_mapping: Maps 1-based slot IDs to global player_ids.
                 e.g. {1: 5, 2: 6} means slot 1 -> player_id 5.
-                If None, slot IDs are stored as-is (only correct for match 1).
+                Pass empty dict {} if slot IDs should be stored as-is.
 
         Returns:
             List of territory records, each containing:
@@ -921,10 +921,7 @@ class OldWorldSaveParser:
                         owner_db_id = None
                     else:
                         slot_id = owner_xml_id + 1
-                        if player_id_mapping:
-                            owner_db_id = player_id_mapping.get(slot_id, slot_id)
-                        else:
-                            owner_db_id = slot_id
+                        owner_db_id = player_id_mapping.get(slot_id, slot_id)
 
                     ownership_by_turn[turn_num] = owner_db_id
 

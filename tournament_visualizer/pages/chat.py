@@ -24,7 +24,7 @@ _EXAMPLE_QUESTIONS = [
     "Which players researched both Scholarship and Jurisprudence?",
     "What are the most popular civilizations?",
     "Who had the highest science yield at turn 50?",
-    "Which matches had the most units killed in a single turn?",
+    "Which matches had the biggest drop in military power?",
 ]
 
 layout = html.Div(
@@ -32,14 +32,7 @@ layout = html.Div(
         # Page header
         html.Div(
             [
-                html.H2(
-                    [html.I(className="bi bi-chat-dots me-2"), "Chat"],
-                    className="mb-1",
-                ),
-                html.P(
-                    "Ask questions about tournament data in plain English.",
-                    className="text-muted mb-3",
-                ),
+                html.H2("Chat", className="mb-3"),
             ],
             className="px-4 pt-4",
         ),
@@ -52,7 +45,6 @@ layout = html.Div(
                             id="chat-input",
                             type="text",
                             placeholder="e.g., What is Carthage's win rate?",
-                            debounce=True,
                             autoFocus=True,
                         ),
                         dbc.Button(
@@ -144,7 +136,13 @@ def handle_chat_query(
     service = get_nl_query_service()
     result = service.ask(question.strip())
 
-    children: list[Any] = []
+    children: list[Any] = [
+        html.Div(
+            [html.I(className="bi bi-chat-left-text me-2"), question.strip()],
+            className="text-muted mb-3",
+            style={"fontSize": "0.95em"},
+        ),
+    ]
 
     # Error or info message
     if result.error_message:
@@ -199,7 +197,7 @@ def handle_chat_query(
                 style_data_conditional=[
                     {
                         "if": {"row_index": "odd"},
-                        "backgroundColor": "#2d4460",
+                        "backgroundColor": DARK_THEME["bg_medium"],
                     },
                 ],
             )

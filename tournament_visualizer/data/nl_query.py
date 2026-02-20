@@ -49,6 +49,13 @@ _FORBIDDEN_PATTERNS: list[str] = [
     r"\bPRAGMA\b",
     r"\bVACUUM\b",
     r"\bCALL\b",
+    # DuckDB file-system access functions (defense-in-depth)
+    r"\bREAD_CSV\b",
+    r"\bREAD_PARQUET\b",
+    r"\bREAD_JSON\b",
+    r"\bREAD_JSON_AUTO\b",
+    r"\bHTTPFS\b",
+    r"\bHTTPGET\b",
 ]
 
 _SYSTEM_PROMPT = """\

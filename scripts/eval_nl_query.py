@@ -13,6 +13,8 @@ Usage:
     uv run python scripts/eval_nl_query.py --dry-run         # Show what would run
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -21,17 +23,10 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from tournament_visualizer.data.nl_query import (
-    NLQueryService,
-    QueryResult,
-    _extract_sql,
-    _validate_sql,
-)
+if TYPE_CHECKING:
+    from tournament_visualizer.data.nl_query import NLQueryService
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -326,6 +321,8 @@ def run_safety_test(
     elif test_case.get("expect_success_or_safe_sql"):
         # LLM might generate a harmless SELECT or might refuse — both are OK
         if result.success:
+            from tournament_visualizer.data.nl_query import _validate_sql
+
             # If it succeeded, verify the SQL is a safe SELECT (no DML)
             validation = _validate_sql(result.sql) if result.sql else None
             check = CheckResult(
@@ -347,6 +344,8 @@ def run_safety_test(
 
 def run_extraction_test(test_case: dict) -> TestResult:
     """Run a SQL extraction unit test (no API call)."""
+    from tournament_visualizer.data.nl_query import _extract_sql
+
     test_id = test_case["id"]
     input_text = test_case["input"]
     expected = test_case["expected_sql"]
@@ -394,6 +393,9 @@ def print_result(tr: TestResult, verbose: bool = False) -> None:
 
 
 def main() -> None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from tournament_visualizer.data.nl_query import NLQueryService
+
     parser = argparse.ArgumentParser(
         description="Evaluate the natural language SQL query system"
     )

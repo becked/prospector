@@ -186,12 +186,12 @@
     {
       "id": "extract_sql_block",
       "input": "```sql\nSELECT * FROM matches;\n```",
-      "expected_sql": "SELECT * FROM matches;"
+      "expected_sql": "SELECT * FROM matches"
     },
     {
       "id": "extract_generic_block",
       "input": "```\nSELECT * FROM matches;\n```",
-      "expected_sql": "SELECT * FROM matches;"
+      "expected_sql": "SELECT * FROM matches"
     },
     {
       "id": "extract_bare_select",
@@ -206,7 +206,7 @@
     {
       "id": "extract_with_think_block",
       "input": "<think>\nI need to look at the matches table.\n</think>\n\n```sql\nSELECT COUNT(*) FROM matches;\n```",
-      "expected_sql": "SELECT COUNT(*) FROM matches;"
+      "expected_sql": "SELECT COUNT(*) FROM matches"
     },
     {
       "id": "reject_english_with",
@@ -216,7 +216,7 @@
     {
       "id": "extract_with_reasoning_prefix",
       "input": "Here is the SQL query:\n\n```sql\nSELECT * FROM players;\n```",
-      "expected_sql": "SELECT * FROM players;"
+      "expected_sql": "SELECT * FROM players"
     }
   ]
 }

@@ -29,21 +29,21 @@ class GroqClient:
 
     Attributes:
         api_key: Groq API key
-        max_retries: Maximum retry attempts
+        max_attempts: Maximum number of attempts (including the initial call)
         initial_retry_delay: Initial backoff delay in seconds
     """
 
     def __init__(
         self,
         api_key: str,
-        max_retries: int = 2,
+        max_attempts: int = 2,
         initial_retry_delay: float = 2.0,
     ) -> None:
         """Initialize Groq client.
 
         Args:
             api_key: Groq API key
-            max_retries: Maximum retry attempts
+            max_attempts: Maximum number of attempts (including the initial call)
             initial_retry_delay: Initial backoff delay in seconds
 
         Raises:
@@ -53,7 +53,7 @@ class GroqClient:
             raise ValueError("Groq API key is required")
 
         self.api_key = api_key
-        self.max_retries = max_retries
+        self.max_attempts = max_attempts
         self.initial_retry_delay = initial_retry_delay
         self._client: Groq | None = None
 
@@ -87,10 +87,10 @@ class GroqClient:
             groq.AuthenticationError: Immediately on 401 (no retry)
             groq.APIError: On persistent server errors
         """
-        for attempt in range(self.max_retries):
+        for attempt in range(self.max_attempts):
             try:
                 logger.debug(
-                    f"Calling Groq API (attempt {attempt + 1}/{self.max_retries})"
+                    f"Calling Groq API (attempt {attempt + 1}/{self.max_attempts})"
                 )
                 response = self.client.chat.completions.create(
                     messages=messages,
@@ -111,24 +111,24 @@ class GroqClient:
                 )
 
             except groq.RateLimitError as e:
-                if attempt < self.max_retries - 1:
+                if attempt < self.max_attempts - 1:
                     delay = self.initial_retry_delay * (2**attempt)
                     logger.warning(f"Groq rate limit, retry in {delay}s: {e}")
                     time.sleep(delay)
                 else:
                     logger.error(
-                        f"Groq rate limit exceeded after {self.max_retries} retries"
+                        f"Groq rate limit exceeded after {self.max_attempts} retries"
                     )
                     raise
 
             except groq.APIConnectionError as e:
-                if attempt < self.max_retries - 1:
+                if attempt < self.max_attempts - 1:
                     delay = self.initial_retry_delay * (2**attempt)
                     logger.warning(f"Groq connection error, retry in {delay}s: {e}")
                     time.sleep(delay)
                 else:
                     logger.error(
-                        f"Groq connection failed after {self.max_retries} retries"
+                        f"Groq connection failed after {self.max_attempts} retries"
                     )
                     raise
 
@@ -146,12 +146,12 @@ class GroqClient:
                     logger.error(f"Groq client error (no retry): {e}")
                     raise
                 # Retry server errors (5xx)
-                if attempt < self.max_retries - 1:
+                if attempt < self.max_attempts - 1:
                     delay = self.initial_retry_delay * (2**attempt)
                     logger.warning(f"Groq server error, retry in {delay}s: {e}")
                     time.sleep(delay)
                 else:
-                    logger.error(f"Groq server error after {self.max_retries} retries")
+                    logger.error(f"Groq server error after {self.max_attempts} retries")
                     raise
 
         # Should never reach here due to raises above
