@@ -60,9 +60,9 @@ user = None
 group = None
 tmp_upload_dir = None
 
-# Preload application code before worker processes are forked
-# This can save RAM but we'll disable it for Dash apps (state issues)
-preload_app = False
+# Preload app so Dash component registry is fully initialized before
+# workers fork — prevents race conditions with gthread workers
+preload_app = True
 
 # Maximum number of requests a worker will process before restarting
 # Helps prevent memory leaks
