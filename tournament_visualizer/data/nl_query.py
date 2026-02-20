@@ -292,14 +292,17 @@ CREATE TABLE family_opinion_history (
 
 9. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
 
-10. **Identifying people across matches**: Players use different in-game names across matches. For single-player filtering, use `p.player_name_normalized ILIKE 'name'`. For cross-match aggregation or display, join tournament_participants to get canonical names:
+10. **Identifying people across matches**: Players use different in-game names across matches (e.g. "Fluffybunny", "Fluffster", "Fluffbunny" are all the same person). Always join `tournament_participants` and filter on `tp.display_name_normalized` to catch all aliases:
    ```sql
+   JOIN players p ON ...
    LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+   WHERE tp.display_name_normalized ILIKE '%searchterm%'
    ```
-   Then use `COALESCE(tp.display_name, p.player_name)` as the display name and GROUP BY key. **Always include the LEFT JOIN when referencing `tp`.**
+   Use `COALESCE(tp.display_name, p.player_name)` as the display name and GROUP BY key. **Always include the LEFT JOIN when referencing `tp`.**
+   - Only fall back to `p.player_name_normalized` if the question is about a single specific match.
    - For total match counts, compute from the full `players` table — NEVER from a filtered subquery (that only counts matches in the filtered dataset). Use a separate subquery or CTE if needed.
 
-11. Always add `ORDER BY` for deterministic results. Limit to 200 rows unless the user requests more.
+11. Always add `ORDER BY` for deterministic results. Use `LIMIT 10` by default for ranked/aggregation queries. Max 200 rows unless the user requests more.
 
 12. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
    - Each match has exactly **2 players**.
@@ -348,7 +351,7 @@ WHERE e.event_type = 'WONDER_ACTIVITY'
     AND e.description ILIKE '%completed%'
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY wonders_built DESC
-LIMIT 20;
+LIMIT 10;
 ```
 
 **Who built the most city projects** ("Who built the most temples?"):
@@ -365,7 +368,24 @@ LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE cp.project_type ILIKE '%TEMPLE%'
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY total_temples DESC
-LIMIT 20;
+LIMIT 10;
+```
+
+**Who built the most of a specific unit** ("Who built the most militia?"):
+Units are in units_produced table. Filter by unit_type directly, not by unit_classifications.role.
+Use unit_classifications only for broad category queries ("all infantry", "all military units").
+```sql
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    SUM(u.count) AS total_militia,
+    COUNT(DISTINCT p.match_id) AS matches_played
+FROM units_produced u
+JOIN players p ON u.match_id = p.match_id AND u.player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE u.unit_type ILIKE '%MILITIA%'
+GROUP BY COALESCE(tp.display_name, p.player_name)
+ORDER BY total_militia DESC
+LIMIT 10;
 ```
 
 **Highest yield rate across all matches** ("Who had the highest science rate?"):
@@ -388,7 +408,7 @@ JOIN players p ON match_peaks.match_id = p.match_id AND match_peaks.player_id = 
 LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY best_peak_science DESC
-LIMIT 20;
+LIMIT 10;
 ```
 When the user says "across all matches", group ONLY by player name — do NOT include civilization or game_name in GROUP BY.
 
@@ -416,7 +436,8 @@ WITH ranked AS (
         ROW_NUMBER() OVER (PARTITION BY yh.match_id ORDER BY yh.amount DESC, yh.turn_number ASC) AS rn
     FROM player_yield_history yh
     JOIN players p ON yh.match_id = p.match_id AND yh.player_id = p.player_id
-    WHERE p.player_name_normalized ILIKE 'alcaras'
+    LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+    WHERE tp.display_name_normalized ILIKE '%alcaras%'
         AND yh.resource_type = 'YIELD_SCIENCE'
 )
 SELECT
@@ -451,7 +472,7 @@ LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE rl.law_num = 4
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY avg_turn_to_4th_law ASC
-LIMIT 20;
+LIMIT 10;
 ```
 """
 

@@ -12,6 +12,7 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, callback, ctx, dash_table, dcc, html
 
 from tournament_visualizer.components.layouts import create_empty_state
+from tournament_visualizer.config import get_config
 from tournament_visualizer.theme import DARK_THEME
 
 logger = logging.getLogger(__name__)
@@ -211,8 +212,8 @@ def handle_chat_query(
             )
         )
 
-    # Collapsible SQL display
-    if result.sql:
+    # Collapsible SQL display (dev only)
+    if result.sql and get_config().DEBUG_MODE:
         children.append(
             html.Details(
                 [
