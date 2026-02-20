@@ -290,6 +290,14 @@ CREATE TABLE family_opinion_history (
 
 11. Always add `ORDER BY` for deterministic results. Limit to 200 rows unless the user requests more.
 
+12. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
+   - Each match has exactly **2 players**.
+   - Each player has exactly **one civilization** per match.
+   - A player can found at most **one religion** per match (RELIGION_FOUNDED event). So COUNT(*) of religion events = COUNT(DISTINCT match_id) — don't include both.
+   - Each **wonder can only be built once** per match (e.g. only one Pyramids). So counting wonder completions = counting distinct matches with that wonder.
+   - Each player has at most **one ruler alive** at a time (succession_order tracks the sequence).
+   - When results span multiple matches, use GROUP BY to summarize (e.g., player_name, COUNT(*)) rather than returning one row per match. Keep result sets concise — only show per-match detail if the user explicitly asks for it.
+
 ## Example Queries
 
 **Civilization win rate** ("What is Carthage's win rate?"):
