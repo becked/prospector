@@ -421,6 +421,31 @@ FROM ranked r
 WHERE r.rn = 1
 ORDER BY r.peak_science_rate DESC;
 ```
+
+**Nth event per player** ("Who got to 4 laws fastest on average?"):
+Use ROW_NUMBER() to number each event occurrence per player per match, then filter to the Nth.
+```sql
+WITH ranked_laws AS (
+    SELECT
+        e.match_id,
+        e.player_id,
+        e.turn_number,
+        ROW_NUMBER() OVER (PARTITION BY e.match_id, e.player_id ORDER BY e.turn_number) AS law_num
+    FROM events e
+    WHERE e.event_type = 'LAW_ADOPTED'
+)
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    COUNT(*) AS matches_reaching_4_laws,
+    ROUND(AVG(rl.turn_number), 1) AS avg_turn_to_4th_law
+FROM ranked_laws rl
+JOIN players p ON rl.match_id = p.match_id AND rl.player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE rl.law_num = 4
+GROUP BY COALESCE(tp.display_name, p.player_name)
+ORDER BY avg_turn_to_4th_law ASC
+LIMIT 20;
+```
 """
 
 
