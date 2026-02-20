@@ -275,9 +275,10 @@ CREATE TABLE family_opinion_history (
    - Yields: `YIELD_SCIENCE`, `YIELD_FOOD`, `YIELD_MONEY`, etc.
    - Use ILIKE with wildcards when the user uses partial names (e.g. 'scholarship' -> `tech_name ILIKE '%SCHOLARSHIP%'`).
 
-7. **Wonders vs city projects**: These are DIFFERENT things.
+7. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
    - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!").
-   - **City projects** (`city_projects` table) are city improvements like FORUM, ARCHIVE, TREASURY, WALLS, TEMPLE, MONASTERY, FESTIVAL, HUNT, etc. These are NOT wonders.
+   - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, TEMPLE, MONASTERY, FESTIVAL, HUNT, etc. These are NOT wonders and NOT tile improvements.
+   - **Tile improvements** (barracks, mines, farms, quarries, ranges, garrisons, lumbermills, camps, nets, granaries, forts, theaters, groves, courts, harbors, etc.) are in the `territories` table as `improvement_type` (e.g. `IMPROVEMENT_BARRACKS`, `IMPROVEMENT_MINE`). Count at end-of-game: filter `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)` and `improvement_type ILIKE '%BARRACKS%'`.
 
 8. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
 
