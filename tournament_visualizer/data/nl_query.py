@@ -263,6 +263,7 @@ CREATE TABLE family_opinion_history (
    - `player_yield_total_history` stores cumulative totals if needed.
 
 3. **territories table**: 8.8M rows. ALWAYS filter by `match_id` AND `turn_number`. For end-state: `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)`.
+   Join to players via `owner_player_id`: `JOIN players p ON t.match_id = p.match_id AND t.owner_player_id = p.player_id`.
 
 4. **player_id** is a global unique ID, NOT a per-match slot number. Always join on both `match_id` AND `player_id`.
 

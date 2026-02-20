@@ -67,7 +67,7 @@ class GroqClient:
     def generate(
         self,
         messages: list[dict[str, str]],
-        model: str = "qwen/qwen3-32b",
+        model: str = "llama-3.3-70b-versatile",
         max_tokens: int = 2048,
         temperature: float = 0.0,
     ) -> GroqResponse:
