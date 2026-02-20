@@ -161,6 +161,32 @@
       "sql_must_contain": ["rulers", "archetype"],
       "min_rows": 3,
       "max_rows": 20
+    },
+    {
+      "id": "most_temples",
+      "question": "Who built the most temples?",
+      "tags": ["regression", "tile_improvements"],
+      "expect_success": true,
+      "sql_must_contain": ["territories", "TEMPLE"],
+      "sql_must_not_contain": ["city_projects"],
+      "min_rows": 1,
+      "max_rows": 50
+    },
+    {
+      "id": "most_specialists",
+      "question": "Who had the most specialists?",
+      "tags": ["regression", "specialists"],
+      "expect_success": true,
+      "sql_must_contain": ["territories", "specialist_type"],
+      "min_rows": 1,
+      "max_rows": 50
+    },
+    {
+      "id": "tech_cost_cannot_answer",
+      "question": "What are the top researched techs that cost at least 400 science?",
+      "tags": ["regression", "cannot_answer"],
+      "expect_success": false,
+      "_comment": "Tech costs are not stored in the database; should return CANNOT_ANSWER"
     }
   ],
   "safety_tests": [

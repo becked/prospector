@@ -231,7 +231,7 @@ CREATE TABLE technology_progress (
     match_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL,
     tech_name VARCHAR NOT NULL,      -- e.g. 'TECH_SCHOLARSHIP','TECH_JURISPRUDENCE','TECH_POLIS'
-    count INTEGER NOT NULL
+    count INTEGER NOT NULL           -- Always 1 (binary: researched or not). Tech costs are NOT stored in this database.
 );
 
 CREATE TABLE rulers (
@@ -252,7 +252,7 @@ CREATE TABLE territories (
     turn_number INTEGER NOT NULL,
     terrain_type VARCHAR,
     improvement_type VARCHAR,        -- e.g. 'IMPROVEMENT_MINE','IMPROVEMENT_FARM','IMPROVEMENT_QUARRY'
-    specialist_type VARCHAR,         -- e.g. 'SPECIALIST_FARMER','SPECIALIST_PHILOSOPHER_2'
+    specialist_type VARCHAR,         -- e.g. 'SPECIALIST_FARMER','SPECIALIST_OFFICER_1'. Tiered specialists use _1=apprentice, _2=master, _3=elite (e.g. 'apprentice officer'='SPECIALIST_OFFICER_1'). Exception: acolytes/monks use _3=elder. For all tiers of a type use ILIKE '%OFFICER%'.
     resource_type VARCHAR,           -- e.g. 'RESOURCE_IRON','RESOURCE_HORSE','RESOURCE_MARBLE'
     has_road BOOLEAN DEFAULT FALSE,
     owner_player_id BIGINT,
@@ -274,7 +274,8 @@ CREATE TABLE family_opinion_history (
 2. Exactly one statement. No semicolons.
 3. NEVER use `matches.winner_player_id` (often NULL). ALWAYS use `match_winners` joined to `players`.
 4. When querying `territories`, you must always filter both `match_id` AND `turn_number`. Never scan all matches or all turns.
-5. Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought") has no corresponding column, respond with `-- CANNOT_ANSWER: <reason>` — do not repurpose unrelated fields.
+5. Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought", "tech cost") has no corresponding column, respond with `-- CANNOT_ANSWER: <reason>` — do not repurpose unrelated fields.
+   - Example: "techs that cost at least 400 science" → `-- CANNOT_ANSWER: Tech costs are not stored in this database. Only which techs were researched (yes/no) is tracked.`
 
 ## Correctness Rules
 
@@ -294,7 +295,7 @@ CREATE TABLE family_opinion_history (
 
 9. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
    - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!"). Extract the wonder name with: `REGEXP_EXTRACT(description, 'The (.+?) completed', 1) AS wonder_name`. Always use this extraction when grouping or displaying wonder names — never show the raw description as the wonder name.
-   - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, TEMPLE, MONASTERY, FESTIVAL, HUNT, etc. These are NOT wonders and NOT tile improvements.
+   - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, FESTIVAL, HUNT, ATHLETICS, TRIUMPH, etc. These are NOT wonders and NOT tile improvements.
    - **Tile improvements** (barracks, mines, farms, quarries, ranges, garrisons, lumbermills, camps, nets, granaries, forts, theaters, groves, courts, harbors, etc.) are in the `territories` table as `improvement_type` (e.g. `IMPROVEMENT_BARRACKS`, `IMPROVEMENT_MINE`). Count at end-of-game: filter `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)` and `improvement_type ILIKE '%BARRACKS%'`.
 
 10. **Identifying people across matches**: Players use different in-game names across matches (e.g. "Fluffybunny", "Fluffster", "Fluffbunny" are all the same person). Always join `tournament_participants` and filter on `tp.display_name_normalized` to catch all aliases:
@@ -398,6 +399,40 @@ LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE cp.project_type ILIKE '%FORUM%'
 GROUP BY COALESCE(tp.display_name, p.player_name)
 ORDER BY total_forums DESC
+LIMIT 10
+```
+
+**Who built the most tile improvements** ("Who built the most temples?"):
+Tile improvements (temples, mines, barracks, etc.) live in `territories`. Count at end-of-game turn.
+```sql
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    COUNT(*) AS total_temples,
+    COUNT(DISTINCT t.match_id) AS matches_played
+FROM territories t
+JOIN players p ON t.match_id = p.match_id AND t.owner_player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE t.improvement_type ILIKE '%TEMPLE%'
+    AND t.turn_number = (SELECT MAX(t2.turn_number) FROM territories t2 WHERE t2.match_id = t.match_id)
+GROUP BY COALESCE(tp.display_name, p.player_name)
+ORDER BY total_temples DESC
+LIMIT 10
+```
+
+**Who had the most specialists** ("Who had the most apprentice officers?"):
+Specialists live in `territories`. Tiered specialists use numbered suffixes: `_1` = apprentice, `_2` = master, `_3` = elite (except acolytes/monks where `_3` = elder). Example: "apprentice officer" = `SPECIALIST_OFFICER_1`. To match all tiers of a type, use `ILIKE '%OFFICER%'`.
+```sql
+SELECT
+    COALESCE(tp.display_name, p.player_name) AS player,
+    COUNT(*) AS total_apprentice_officers,
+    COUNT(DISTINCT t.match_id) AS matches_played
+FROM territories t
+JOIN players p ON t.match_id = p.match_id AND t.owner_player_id = p.player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
+WHERE t.specialist_type = 'SPECIALIST_OFFICER_1'
+    AND t.turn_number = (SELECT MAX(t2.turn_number) FROM territories t2 WHERE t2.match_id = t.match_id)
+GROUP BY COALESCE(tp.display_name, p.player_name)
+ORDER BY total_apprentice_officers DESC
 LIMIT 10
 ```
 
