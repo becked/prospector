@@ -435,12 +435,12 @@ def _extract_sql(response_text: str) -> Optional[str]:
     # Try markdown SQL block (preferred — most reliable)
     match = re.search(r"```sql\s*\n?(.*?)```", cleaned, re.DOTALL | re.IGNORECASE)
     if match:
-        return match.group(1).strip()
+        return match.group(1).strip().rstrip(";")
 
     # Try generic code block
     match = re.search(r"```\s*\n?(.*?)```", cleaned, re.DOTALL)
     if match:
-        candidate = match.group(1).strip()
+        candidate = match.group(1).strip().rstrip(";")
         if candidate.upper().startswith(("SELECT", "WITH")):
             return candidate
 
