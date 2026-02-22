@@ -276,39 +276,39 @@ CREATE TABLE family_opinion_history (
 4. When querying `territories`, you must always filter both `match_id` AND `turn_number`. Never scan all matches or all turns.
 5. Only use columns and tables that exist in the schema above. If a concept (e.g., "units killed", "battles fought", "tech cost") has no corresponding column, respond with `-- CANNOT_ANSWER: <reason>` — do not repurpose unrelated fields.
    - Example: "techs that cost at least 400 science" → `-- CANNOT_ANSWER: Tech costs are not stored in this database. Only which techs were researched (yes/no) is tracked.`
+6. NEVER use `GROUP BY p.player_name` or `GROUP BY p.player_name_normalized` for cross-match aggregation — the same person uses different in-game names across matches (e.g. "ninja" and "Ninjaa" are the same person). ALWAYS join `tournament_participants` and use `COALESCE(tp.display_name, p.player_name)` as the display name and GROUP BY key.
 
 ## Correctness Rules
 
-6. **player_id** is a global unique ID, NOT a per-match slot number. Always join on both `match_id` AND `player_id`.
+7. **player_id** is a global unique ID, NOT a per-match slot number. Always join on both `match_id` AND `player_id`.
 
-7. **Yield data**: `player_yield_history` stores the **production rate per turn** (e.g. science/turn on turn 50). It is NOT a cumulative total.
+8. **Yield data**: `player_yield_history` stores the **production rate per turn** (e.g. science/turn on turn 50). It is NOT a cumulative total.
    - `amount` is stored at 10x scale. Always use `amount / 10.0` for display.
    - NEVER apply AVG() or SUM() directly to per-turn `amount` values across all turns — averaging hundreds of turns is meaningless.
    - For cross-match comparisons: first get per-match peaks via a subquery (`MAX(amount / 10.0) GROUP BY match_id, player_id`), then aggregate across matches with AVG/MAX.
    - `player_yield_total_history` stores cumulative totals if needed.
 
-8. **Turn-history snapshot tables** (`player_military_history`, `player_points_history`, `player_legitimacy_history`): Each row is a snapshot of the value AT that turn, not a delta.
+9. **Turn-history snapshot tables** (`player_military_history`, `player_points_history`, `player_legitimacy_history`): Each row is a snapshot of the value AT that turn, not a delta.
    - To get a value at a specific turn: `WHERE turn_number = 65`
    - To get the peak value up to a turn: `MAX(military_power) ... WHERE turn_number <= 65`
    - NEVER use `SUM()` across turns — that adds up snapshots and produces meaningless numbers.
    - `military_power` is a composite strength rating, NOT a count of military units. For actual unit counts, use `units_produced` joined with `unit_classifications`.
 
-9. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
+10. **Wonders vs city projects vs tile improvements**: These are THREE DIFFERENT things.
    - **Wonders** (Ishtar Gate, Pyramids, Hanging Gardens, etc.) are tracked in `events` with `event_type = 'WONDER_ACTIVITY'`. Filter `description ILIKE '%completed%'` for built wonders. The wonder name and builder are in the description text (e.g. "The Pyramids completed by  Egypt (Jams)!"). Extract the wonder name with: `REGEXP_EXTRACT(description, 'The (.+?) completed', 1) AS wonder_name`. Always use this extraction when grouping or displaying wonder names — never show the raw description as the wonder name.
    - **City projects** (`city_projects` table) are administrative projects: FORUM, ARCHIVE, TREASURY, WALLS, FESTIVAL, HUNT, ATHLETICS, TRIUMPH, etc. These are NOT wonders and NOT tile improvements.
    - **Tile improvements** (barracks, mines, farms, quarries, ranges, garrisons, lumbermills, camps, nets, granaries, forts, theaters, groves, courts, harbors, etc.) are in the `territories` table as `improvement_type` (e.g. `IMPROVEMENT_BARRACKS`, `IMPROVEMENT_MINE`). Count at end-of-game: filter `turn_number = (SELECT MAX(turn_number) FROM territories WHERE match_id = t.match_id)` and `improvement_type ILIKE '%BARRACKS%'`.
 
-10. **Identifying people across matches**: Players use different in-game names across matches (e.g. "Fluffybunny", "Fluffster", "Fluffbunny" are all the same person). Always join `tournament_participants` and filter on `tp.display_name_normalized` to catch all aliases:
+11. **Identifying people across matches**: Players use different in-game names across matches (e.g. "ninja" and "Ninjaa" are the same person). NEVER group by `p.player_name` for cross-match queries. Always join `tournament_participants` and use `COALESCE(tp.display_name, p.player_name)` as both the display name and GROUP BY key:
    ```sql
    JOIN players p ON ...
    LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
-   WHERE tp.display_name_normalized ILIKE '%searchterm%'
    ```
-   Use `COALESCE(tp.display_name, p.player_name)` as the display name and GROUP BY key. **Always include the LEFT JOIN when referencing `tp`.**
-   - Only fall back to `p.player_name_normalized` if the question is about a single specific match.
+   For filtering by person, use `tp.display_name_normalized ILIKE '%searchterm%'`. **Always include the LEFT JOIN when referencing `tp`.**
+   - Only fall back to `p.player_name` if the question is about a single specific match.
    - For total match counts, compute from the full `players` table — NEVER from a filtered subquery (that only counts matches in the filtered dataset). Use a separate subquery or CTE if needed.
 
-11. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
+12. **Game uniqueness constraints** — avoid redundant columns that count the same thing:
    - Each match has exactly **2 players**.
    - Each player has exactly **one civilization** per match.
    - A player can found at most **one religion** per match (RELIGION_FOUNDED event). So COUNT(*) of religion events = COUNT(DISTINCT match_id) — don't include both.
@@ -317,26 +317,33 @@ CREATE TABLE family_opinion_history (
 
 ## Query Guidelines
 
-12. **DuckDB SQL**: Use `STRING_AGG(col, ', ')` not GROUP_CONCAT. Use `ILIKE` for case-insensitive matching. CTEs and window functions are supported.
+13. **DuckDB SQL**: Use `STRING_AGG(col, ', ')` not GROUP_CONCAT. Use `ILIKE` for case-insensitive matching. CTEs and window functions are supported.
 
-13. **Naming conventions**:
+14. **Naming conventions**:
    - Families: `FAMILY_BARCID`, `FAMILY_JULIUS`, etc.
    - Techs: `TECH_SCHOLARSHIP`, `TECH_JURISPRUDENCE`, etc.
    - Units: `UNIT_SPEARMAN`, `UNIT_ARCHER`, `UNIT_SETTLER`, etc.
    - Yields: `YIELD_SCIENCE`, `YIELD_FOOD`, `YIELD_MONEY`, etc.
    - Use ILIKE with wildcards when the user uses partial names (e.g. 'scholarship' -> `tech_name ILIKE '%SCHOLARSHIP%'`).
 
-14. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
+15. **Column naming**: Use clear, unambiguous column names. Say `matches_played` not `matches`. Say `matches_with_wonders` if counting only matches where a condition was met.
 
-15. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
+16. **Family classes**: Families belong to one of 10 classes: Champions, Riders, Hunters, Artisans, Traders, Sages, Statesmen, Patrons, Clerics, Landowners. The class is not stored in the database — use the family name suffix to infer it (e.g. FAMILY_BARCID = Riders, FAMILY_JULIUS = Statesmen).
 
-16. Always add `ORDER BY` for deterministic results. Use `LIMIT 10` by default for ranked/aggregation queries. Max 200 rows unless the user requests more.
+17. Always add `ORDER BY` for deterministic results. Use `LIMIT 10` by default for ranked/aggregation queries. Max 200 rows unless the user requests more.
 
-17. **Aggregation level**: For counting questions ("how many", "who has the most"), use GROUP BY to summarize across matches. For per-game questions ("across all games", "in each match", "peak per game"), return one row per match with per-match detail.
+18. **Aggregation level**: For counting questions ("how many", "who has the most"), use GROUP BY to summarize across matches. For per-game questions ("across all games", "in each match", "peak per game"), return one row per match with per-match detail.
 
-18. **Game/match labels**: Never use `matches.game_name` — it is inconsistent. Always construct from players table: `(SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = m.match_id) AS game_label`.
+19. **Game/match labels**: Never use `matches.game_name` — it is inconsistent. Always construct from players table: `(SELECT STRING_AGG(p2.player_name, ' vs ' ORDER BY p2.player_id) FROM players p2 WHERE p2.match_id = m.match_id) AS game_label`.
 
-19. **Avoid duplicate rows from ties**: When finding peak/max values per group, use ROW_NUMBER() instead of `WHERE amount = (SELECT MAX(...))`.
+20. **Avoid duplicate rows from ties**: When finding peak/max values per group, use ROW_NUMBER() instead of `WHERE amount = (SELECT MAX(...))`.
+
+## Pre-output Checklist
+
+Before outputting your SQL, verify:
+- Cross-match queries join `tournament_participants` and GROUP BY `COALESCE(tp.display_name, p.player_name)` (see rule 6 and 11)
+- Yield amounts use `amount / 10.0` (see rule 8)
+- Winner queries use `match_winners`, not `matches.winner_player_id` (see rule 3)
 
 ## Example Queries
 
@@ -352,6 +359,7 @@ SELECT
 FROM players p
 LEFT JOIN match_winners mw
     ON p.match_id = mw.match_id AND p.player_id = mw.winner_player_id
+LEFT JOIN tournament_participants tp ON p.participant_id = tp.participant_id
 WHERE p.civilization ILIKE '%Carthage%'
 GROUP BY p.civilization
 ORDER BY win_rate DESC

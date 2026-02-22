@@ -13,6 +13,7 @@ from dash import ALL, Input, Output, State, callback, ctx, dash_table, dcc, html
 
 from tournament_visualizer.components.layouts import create_empty_state
 from tournament_visualizer.config import get_config
+from tournament_visualizer.data.evidence import generate_evidence
 from tournament_visualizer.theme import DARK_THEME
 
 logger = logging.getLogger(__name__)
@@ -211,6 +212,90 @@ def handle_chat_query(
                 icon="bi-inbox",
             )
         )
+
+    # Evidence panels — show supporting detail rows for verification
+    if result.success and not result.df.empty and result.sql:
+        try:
+            panels = generate_evidence(result.sql, result.df, service.db)
+            for panel in panels:
+                evidence_columns = [
+                    {"name": str(col), "id": str(col)} for col in panel.df.columns
+                ]
+                children.append(
+                    html.Details(
+                        [
+                            html.Summary(
+                                f"Evidence: {panel.title}"
+                                f" ({len(panel.df)} records)",
+                                style={
+                                    "cursor": "pointer",
+                                    "color": DARK_THEME["text_muted"],
+                                    "fontSize": "0.9em",
+                                },
+                                className="mt-3 mb-2",
+                            ),
+                            html.P(
+                                panel.description,
+                                style={
+                                    "color": DARK_THEME["text_muted"],
+                                    "fontSize": "0.85em",
+                                },
+                                className="mb-2",
+                            ),
+                            dash_table.DataTable(
+                                columns=evidence_columns,
+                                data=panel.df.to_dict("records"),
+                                sort_action="native",
+                                filter_action="native",
+                                page_action="native",
+                                page_size=50,
+                                style_table={"overflowX": "auto"},
+                                style_cell={
+                                    "textAlign": "left",
+                                    "padding": "6px 10px",
+                                    "fontFamily": "inherit",
+                                    "fontSize": "0.85em",
+                                    "backgroundColor": DARK_THEME["bg_dark"],
+                                    "color": DARK_THEME["text_primary"],
+                                    "border": (
+                                        f"1px solid {DARK_THEME['bg_light']}"
+                                    ),
+                                    "maxWidth": "300px",
+                                    "overflow": "hidden",
+                                    "textOverflow": "ellipsis",
+                                },
+                                style_header={
+                                    "backgroundColor": DARK_THEME["bg_medium"],
+                                    "fontWeight": "bold",
+                                    "color": DARK_THEME["text_primary"],
+                                    "border": (
+                                        f"1px solid {DARK_THEME['bg_light']}"
+                                    ),
+                                    "fontSize": "0.85em",
+                                },
+                                style_filter={
+                                    "backgroundColor": DARK_THEME["bg_dark"],
+                                    "color": DARK_THEME["text_primary"],
+                                    "border": (
+                                        f"1px solid {DARK_THEME['bg_light']}"
+                                    ),
+                                    "fontSize": "0.85em",
+                                },
+                                style_data_conditional=[
+                                    {
+                                        "if": {"row_index": "odd"},
+                                        "backgroundColor": DARK_THEME[
+                                            "bg_medium"
+                                        ],
+                                    },
+                                ],
+                            ),
+                        ],
+                        className="mt-4",
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Evidence panel generation failed: {e}")
 
     # Collapsible SQL display (dev only)
     if result.sql and get_config().DEBUG_MODE:
