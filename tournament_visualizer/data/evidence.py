@@ -464,7 +464,9 @@ def _technology_evidence(
     conn: object, scope: dict[str, list], sql_filters: _SqlFilters
 ) -> EvidencePanel | None:
     """Show technology research records."""
-    where_clause, params = _build_where_clause(scope)
+    where_clause, params = _build_where_clause(
+        scope, player_name_col="COALESCE(tpart.display_name, p.player_name)"
+    )
 
     where_clause, params = _append_filter_conditions(
         where_clause, params, "tp.tech_name", sql_filters.tech_patterns
