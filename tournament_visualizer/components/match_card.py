@@ -264,6 +264,39 @@ BATTLE_WINDOW = 3  # 3-turn window for battle detection
 LAW_MILESTONE_4 = 4
 LAW_MILESTONE_7 = 7
 
+# Succession laws are not competitive choices, exclude from milestones
+SUCCESSION_LAWS = {"LAW_PRIMOGENITURE", "LAW_SENIORITY", "LAW_ULTIMOGENITURE"}
+
+# Law class mapping: mutually exclusive law pairs share a class.
+# Swapping within a class (e.g., Slavery→Freedom) doesn't count as a new law.
+# Must stay in sync with get_cumulative_law_count_by_turn() in queries.py.
+LAW_CLASS_MAP: dict[str, str] = {
+    "LAW_SLAVERY": "slavery_freedom",
+    "LAW_FREEDOM": "slavery_freedom",
+    "LAW_CENTRALIZATION": "centralization_vassalage",
+    "LAW_VASSALAGE": "centralization_vassalage",
+    "LAW_COLONIES": "colonies_serfdom",
+    "LAW_SERFDOM": "colonies_serfdom",
+    "LAW_MONOTHEISM": "monotheism_polytheism",
+    "LAW_POLYTHEISM": "monotheism_polytheism",
+    "LAW_TYRANNY": "tyranny_constitution",
+    "LAW_CONSTITUTION": "tyranny_constitution",
+    "LAW_EPICS": "epics_exploration",
+    "LAW_EXPLORATION": "epics_exploration",
+    "LAW_DIVINE_RULE": "divine_rule_legal_code",
+    "LAW_LEGAL_CODE": "divine_rule_legal_code",
+    "LAW_GUILDS": "guilds_elites",
+    "LAW_ELITES": "guilds_elites",
+    "LAW_ICONOGRAPHY": "iconography_calligraphy",
+    "LAW_CALLIGRAPHY": "iconography_calligraphy",
+    "LAW_PHILOSOPHY": "philosophy_engineering",
+    "LAW_ENGINEERING": "philosophy_engineering",
+    "LAW_PROFESSIONAL_ARMY": "professional_army_volunteers",
+    "LAW_VOLUNTEERS": "professional_army_volunteers",
+    "LAW_TOLERANCE": "tolerance_orthodoxy",
+    "LAW_ORTHODOXY": "tolerance_orthodoxy",
+}
+
 
 def extract_key_events(
     events_df: pd.DataFrame,
@@ -343,7 +376,12 @@ def _find_law_milestones(
     law_df: pd.DataFrame,
     player_ids: tuple[int, int],
 ) -> list[dict[str, Any]]:
-    """Find turns when each player reaches 4th and 7th law."""
+    """Find turns when each player reaches 4th and 7th unique law class.
+
+    Counts distinct law classes, not raw adoption events. Swapping within
+    a class (e.g., Slavery→Freedom) doesn't increment the count. Excludes
+    succession laws which aren't competitive choices.
+    """
     if law_df.empty:
         return []
 
@@ -354,31 +392,41 @@ def _find_law_milestones(
             "turn_number"
         )
 
-        # 4th law milestone
-        if len(player_laws) >= LAW_MILESTONE_4:
-            events.append(
-                {
-                    "turn": int(player_laws.iloc[LAW_MILESTONE_4 - 1]["turn_number"]),
-                    "player_id": int(player_id),
-                    "event_type": "law_milestone",
-                    "title": "4th law",
-                    "icon": "",
-                    "priority": 50,
-                }
-            )
+        seen_classes: set[str] = set()
+        for _, row in player_laws.iterrows():
+            law_name = str(row["law_name"]).strip('"')
 
-        # 7th law milestone
-        if len(player_laws) >= LAW_MILESTONE_7:
-            events.append(
-                {
-                    "turn": int(player_laws.iloc[LAW_MILESTONE_7 - 1]["turn_number"]),
-                    "player_id": int(player_id),
-                    "event_type": "law_milestone",
-                    "title": "7th law",
-                    "icon": "",
-                    "priority": 50,
-                }
-            )
+            if law_name in SUCCESSION_LAWS:
+                continue
+
+            law_class = LAW_CLASS_MAP.get(law_name, law_name)
+
+            if law_class not in seen_classes:
+                seen_classes.add(law_class)
+                class_count = len(seen_classes)
+
+                if class_count == LAW_MILESTONE_4:
+                    events.append(
+                        {
+                            "turn": int(row["turn_number"]),
+                            "player_id": int(player_id),
+                            "event_type": "law_milestone",
+                            "title": "4th law",
+                            "icon": "",
+                            "priority": 50,
+                        }
+                    )
+                elif class_count == LAW_MILESTONE_7:
+                    events.append(
+                        {
+                            "turn": int(row["turn_number"]),
+                            "player_id": int(player_id),
+                            "event_type": "law_milestone",
+                            "title": "7th law",
+                            "icon": "",
+                            "priority": 50,
+                        }
+                    )
 
     return events
 
