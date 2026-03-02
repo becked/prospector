@@ -879,6 +879,10 @@ class OldWorldSaveParser:
             terrain_elem = tile_elem.find("Terrain")
             terrain = terrain_elem.text if terrain_elem is not None else None
 
+            # Extract height/elevation
+            height_elem = tile_elem.find("Height")
+            height = height_elem.text if height_elem is not None else None
+
             # Extract improvement
             improvement_elem = tile_elem.find("Improvement")
             improvement = improvement_elem.text if improvement_elem is not None else None
@@ -929,6 +933,7 @@ class OldWorldSaveParser:
                 "x_coord": x_coord,
                 "y_coord": y_coord,
                 "terrain": terrain,
+                "height": height,
                 "improvement": improvement,
                 "specialist": specialist,
                 "resource": resource,
@@ -962,6 +967,7 @@ class OldWorldSaveParser:
                         "y_coordinate": data["y_coord"],
                         "turn_number": turn,
                         "terrain_type": data["terrain"],
+                        "height_type": data["height"],
                         "improvement_type": data["improvement"],
                         "specialist_type": data["specialist"],
                         "resource_type": data["resource"],

@@ -365,6 +365,7 @@ class TournamentDatabase:
             y_coordinate INTEGER NOT NULL,
             turn_number INTEGER NOT NULL,
             terrain_type VARCHAR(50),
+            height_type VARCHAR(50),
             improvement_type VARCHAR(50),
             specialist_type VARCHAR(50),
             resource_type VARCHAR(50),
@@ -1660,9 +1661,9 @@ class TournamentDatabase:
             query = """
             INSERT INTO territories (
                 territory_id, match_id, x_coordinate, y_coordinate, turn_number,
-                terrain_type, improvement_type, specialist_type,
+                terrain_type, height_type, improvement_type, specialist_type,
                 resource_type, has_road, owner_player_id, city_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             values = []
@@ -1678,6 +1679,7 @@ class TournamentDatabase:
                         territory["y_coordinate"],
                         territory["turn_number"],
                         territory.get("terrain_type"),
+                        territory.get("height_type"),
                         territory.get("improvement_type"),
                         territory.get("specialist_type"),
                         territory.get("resource_type"),

@@ -178,6 +178,7 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
                 "x": int(row["x_coordinate"]),
                 "y": int(row["y_coordinate"]),
                 "terrain": safe_str(row.get("terrain_type")),
+                "height": safe_str(row.get("height_type")),
                 "owner": safe_int(row.get("owner_player_id")),
                 "improvement": safe_str(row.get("improvement_type")),
                 "specialist": safe_str(row.get("specialist_type")),

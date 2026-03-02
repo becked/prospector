@@ -4488,8 +4488,9 @@ class TournamentQueries:
     def get_territory_map_full(self, match_id: int, turn_number: int) -> pd.DataFrame:
         """Get complete territory map snapshot including all layers.
 
-        Returns all tiles with ownership, terrain, improvements, specialists,
-        resources, roads, and city information for the Pixi.js map viewer.
+        Returns all tiles with ownership, terrain, height, improvements,
+        specialists, resources, roads, and city information for the Pixi.js
+        map viewer.
 
         Args:
             match_id: Match to query
@@ -4500,6 +4501,7 @@ class TournamentQueries:
             - x_coordinate: Tile X position
             - y_coordinate: Tile Y position
             - terrain_type: Terrain constant
+            - height_type: Height/elevation constant (e.g., HEIGHT_HILL)
             - owner_player_id: Player ID or NULL
             - player_name: Player name (NULL if unowned)
             - civilization: Player civilization (NULL if unowned)
@@ -4552,6 +4554,7 @@ class TournamentQueries:
             t.x_coordinate,
             t.y_coordinate,
             t.terrain_type,
+            t.height_type,
             t.owner_player_id,
             p.player_name,
             p.civilization,
@@ -4596,6 +4599,7 @@ class TournamentQueries:
                 "x_coordinate",
                 "y_coordinate",
                 "terrain_type",
+                "height_type",
                 "owner_player_id",
                 "player_name",
                 "civilization",

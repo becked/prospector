@@ -303,6 +303,10 @@
         <!-- Layer Toggles -->
         <div class="layer-toggles">
             <label class="layer-toggle">
+                <input type="checkbox" id="toggle-height" checked>
+                <span>Height</span>
+            </label>
+            <label class="layer-toggle">
                 <input type="checkbox" id="toggle-ownership" checked>
                 <span>Ownership</span>
             </label>
@@ -379,6 +383,7 @@
             // Default layer visibility
             defaultLayers: {
                 terrain: true,
+                height: true,
                 ownership: true,
                 improvements: false,
                 resources: false,
@@ -473,33 +478,38 @@
             layers.terrain.zIndex = 0;
             mapContainer.addChild(layers.terrain);
 
+            layers.height = new PIXI.Container();
+            layers.height.zIndex = 1;
+            layers.height.visible = layerVisibility.height;
+            mapContainer.addChild(layers.height);
+
             layers.roads = new PIXI.Container();
-            layers.roads.zIndex = 1;
+            layers.roads.zIndex = 2;
             layers.roads.visible = layerVisibility.roads;
             mapContainer.addChild(layers.roads);
 
             layers.ownership = new PIXI.Container();
-            layers.ownership.zIndex = 2;
+            layers.ownership.zIndex = 3;
             layers.ownership.visible = layerVisibility.ownership;
             mapContainer.addChild(layers.ownership);
 
             layers.improvements = new PIXI.Container();
-            layers.improvements.zIndex = 3;
+            layers.improvements.zIndex = 4;
             layers.improvements.visible = layerVisibility.improvements;
             mapContainer.addChild(layers.improvements);
 
             layers.resources = new PIXI.Container();
-            layers.resources.zIndex = 4;
+            layers.resources.zIndex = 5;
             layers.resources.visible = layerVisibility.resources;
             mapContainer.addChild(layers.resources);
 
             layers.specialists = new PIXI.Container();
-            layers.specialists.zIndex = 5;
+            layers.specialists.zIndex = 6;
             layers.specialists.visible = layerVisibility.specialists;
             mapContainer.addChild(layers.specialists);
 
             layers.cities = new PIXI.Container();
-            layers.cities.zIndex = 6;
+            layers.cities.zIndex = 7;
             layers.cities.visible = layerVisibility.cities;
             mapContainer.addChild(layers.cities);
 
@@ -540,6 +550,7 @@
                 tiles: mapData.tiles.length,
                 players: mapData.players,
                 ownedTiles: mapData.tiles.filter(t => t.owner !== null).length,
+                heights: mapData.tiles.filter(t => t.height && t.height !== 'HEIGHT_FLAT' && t.height !== 'HEIGHT_OCEAN' && t.height !== 'HEIGHT_COAST' && t.height !== 'HEIGHT_LAKE').length,
                 cities: mapData.tiles.filter(t => t.city !== null).length,
                 improvements: mapData.tiles.filter(t => t.improvement !== null).length,
                 resources: mapData.tiles.filter(t => t.resource !== null).length,
@@ -563,6 +574,10 @@
             // Render terrain layer (always visible)
             renderTerrainLayer();
             console.log('Terrain layer rendered:', layers.terrain.children.length, 'sprites');
+
+            // Render height layer (hills, mountains, volcanoes)
+            renderHeightLayer();
+            console.log('Height layer rendered:', layers.height.children.length, 'items');
 
             // Render ownership layer
             renderOwnershipLayer();
@@ -607,7 +622,21 @@
                 }
             });
 
-            await Promise.all(loadPromises);
+            // Load height sprites (hills, mountains, volcanoes)
+            const heightTypes = ['HEIGHT_HILL', 'HEIGHT_MOUNTAIN', 'HEIGHT_VOLCANO'];
+            const heightPromises = heightTypes.map(async (h) => {
+                const key = `height_${h}`;
+                if (!spriteTextures[key]) {
+                    try {
+                        const url = `${CONFIG.spriteBase}/heights/masked/${h}.png`;
+                        spriteTextures[key] = await PIXI.Assets.load(url);
+                    } catch (e) {
+                        console.warn(`Failed to load height texture: ${h}`);
+                    }
+                }
+            });
+
+            await Promise.all([...loadPromises, ...heightPromises]);
         }
 
         // Map database improvement names to sprite filenames
@@ -746,6 +775,43 @@
                     graphics.on('pointerover', (e) => showTooltip(e, tile));
                     graphics.on('pointerout', hideTooltip);
                     layers.terrain.addChild(graphics);
+                }
+            });
+        }
+
+        function renderHeightLayer() {
+            // Only render visually distinct heights (skip flat, ocean, coast, lake)
+            mapData.tiles.forEach(tile => {
+                if (!tile.height || tile.height === 'HEIGHT_FLAT' ||
+                    tile.height === 'HEIGHT_OCEAN' || tile.height === 'HEIGHT_COAST' ||
+                    tile.height === 'HEIGHT_LAKE') return;
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+
+                const key = `height_${tile.height}`;
+                const texture = spriteTextures[key];
+
+                if (texture) {
+                    const sprite = new PIXI.Sprite(texture);
+                    sprite.anchor.set(0.5);
+                    sprite.x = centerX;
+                    sprite.y = centerY;
+                    sprite.alpha = 0.85;
+                    layers.height.addChild(sprite);
+                } else {
+                    // Fallback: colored hex overlay
+                    const colors = {
+                        'HEIGHT_HILL': 0x8B7355,
+                        'HEIGHT_MOUNTAIN': 0x6B6B6B,
+                        'HEIGHT_VOLCANO': 0xCC4400,
+                    };
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(colors[tile.height] || 0x808080, 0.4);
+                    drawFilledHex(graphics, centerX, centerY, 120, 88);
+                    graphics.endFill();
+                    layers.height.addChild(graphics);
                 }
             });
         }
@@ -1421,6 +1487,9 @@
 
             // Build content
             let content = `<div class="tooltip-row">Terrain: <strong>${formatName(tile.terrain)}</strong></div>`;
+            if (tile.height && tile.height !== 'HEIGHT_FLAT') {
+                content += `<div class="tooltip-row">Height: <strong>${formatName(tile.height)}</strong></div>`;
+            }
             content += `<div class="tooltip-row">Position: <strong>(${tile.x}, ${tile.y})</strong></div>`;
 
             if (tile.improvement) {
@@ -1458,7 +1527,7 @@
         function formatName(constant) {
             if (!constant) return '';
             return constant
-                .replace(/^(TERRAIN_|IMPROVEMENT_|RESOURCE_|SPECIALIST_)/, '')
+                .replace(/^(TERRAIN_|HEIGHT_|IMPROVEMENT_|RESOURCE_|SPECIALIST_)/, '')
                 .replace(/_/g, ' ')
                 .toLowerCase()
                 .replace(/\b\w/g, l => l.toUpperCase());
@@ -1490,6 +1559,9 @@
             });
 
             // Layer toggles
+            document.getElementById('toggle-height').addEventListener('change', (e) => {
+                layers.height.visible = e.target.checked;
+            });
             document.getElementById('toggle-ownership').addEventListener('change', (e) => {
                 layers.ownership.visible = e.target.checked;
             });
