@@ -945,7 +945,6 @@ def _calculate_army_composition(
         "Cavalry": 0.0,
         "Siege": 0.0,
         "Naval": 0.0,
-        "Support": 0.0,
     }
 
     if units_df.empty:
@@ -957,12 +956,8 @@ def _calculate_army_composition(
 
     # Group by role
     role_counts = player_units.groupby("role")["count"].sum()
-    total = role_counts.sum()
 
-    if total == 0:
-        return default
-
-    # Map roles to our categories
+    # Map roles to our categories (exclude support/civilian/religious)
     role_mapping = {
         "infantry": "Infantry",
         "melee": "Infantry",
@@ -972,18 +967,25 @@ def _calculate_army_composition(
         "siege": "Siege",
         "naval": "Naval",
         "ship": "Naval",
-        "support": "Support",
-        "religious": "Support",
-        "civilian": "Support",
     }
 
     composition = default.copy()
+    military_total = 0
     for role, count in role_counts.items():
         if role is None:
             continue
         role_lower = str(role).lower()
-        category = role_mapping.get(role_lower, "Support")
-        composition[category] += count / total
+        category = role_mapping.get(role_lower)
+        if category:
+            composition[category] += count
+            military_total += count
+
+    if military_total == 0:
+        return default
+
+    # Convert counts to percentages
+    for category in composition:
+        composition[category] /= military_total
 
     return composition
 
