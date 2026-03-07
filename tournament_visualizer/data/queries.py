@@ -6273,6 +6273,7 @@ class TournamentQueries:
                 - city_name: City name (e.g., 'CITYNAME_NINEVEH')
                 - player_id: Current owner player ID
                 - player_name: Current owner player name
+                - first_player_id: Original founder player ID
                 - founded_turn: Turn when city was founded
                 - is_capital: Boolean, TRUE if capital city
                 - population: City population (may be NULL)
@@ -6284,6 +6285,7 @@ class TournamentQueries:
             c.city_name,
             c.player_id,
             p.player_name,
+            c.first_player_id,
             c.founded_turn,
             c.is_capital,
             c.population,

@@ -526,6 +526,7 @@ def create_empire_profile_card(
     law_count: int,
     law_swaps: int,
     city_count: int,
+    founded_count: int = 0,
 ) -> dbc.Card:
     """Create an empire profile card for a player.
 
@@ -535,7 +536,8 @@ def create_empire_profile_card(
         religions: List of religions founded by this player
         law_count: Number of laws enacted
         law_swaps: Number of law swaps
-        city_count: Number of cities
+        city_count: Number of cities at end of game
+        founded_count: Number of cities founded by this player
 
     Returns:
         dbc.Card component
@@ -585,7 +587,12 @@ def create_empire_profile_card(
         )
 
     stats_lines = [
-        stat_row("Cities", str(city_count)),
+        stat_row(
+            "Cities",
+            f"{city_count}, {founded_count} founded"
+            if founded_count != city_count
+            else str(city_count),
+        ),
         stat_row("Wonders", str(wonders_built)),
         stat_row("Laws", laws_value),
     ]
@@ -1362,6 +1369,8 @@ def create_match_card_layout(
     # Get city counts from territory analysis
     p1_cities = territory_analysis.get("p1_final_cities", 0)
     p2_cities = territory_analysis.get("p2_final_cities", 0)
+    p1_founded = territory_analysis.get("p1_founded_cities", 0)
+    p2_founded = territory_analysis.get("p2_founded_cities", 0)
 
     # Build layout
     return html.Div(
@@ -1377,6 +1386,7 @@ def create_match_card_layout(
                             p1_laws["total"],
                             p1_laws["swaps"],
                             p1_cities,
+                            p1_founded,
                         ),
                         width=6,
                     ),
@@ -1388,6 +1398,7 @@ def create_match_card_layout(
                             p2_laws["total"],
                             p2_laws["swaps"],
                             p2_cities,
+                            p2_founded,
                         ),
                         width=6,
                     ),

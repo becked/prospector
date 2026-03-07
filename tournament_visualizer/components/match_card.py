@@ -197,6 +197,8 @@ def analyze_territory_tempo(
     result = {
         "p1_final_cities": 0,
         "p2_final_cities": 0,
+        "p1_founded_cities": 0,
+        "p2_founded_cities": 0,
         "p1_first_to_5": None,
         "p2_first_to_5": None,
         "p1_first_to_10": None,
@@ -217,6 +219,12 @@ def analyze_territory_tempo(
                 result["p1_final_cities"] = int(count)
             elif pid == p2_id:
                 result["p2_final_cities"] = int(count)
+
+    # Count cities founded by each player (using first_player_id)
+    if not cities_df.empty and "first_player_id" in cities_df.columns:
+        for pid, prefix in [(p1_id, "p1"), (p2_id, "p2")]:
+            founded = cities_df[cities_df["first_player_id"] == pid]
+            result[f"{prefix}_founded_cities"] = len(founded)
 
     # Calculate milestone turns from cities_df
     for pid, prefix in [(p1_id, "p1"), (p2_id, "p2")]:
