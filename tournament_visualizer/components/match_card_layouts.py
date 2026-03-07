@@ -935,7 +935,7 @@ def create_yield_comparison_card(
     text_color = "#eef2f7"
 
     # Order of metrics to display
-    metric_order = ["victory_points", "training", "science", "civics", "orders"]
+    metric_order = ["victory_points", "training", "science", "civics", "orders", "improvements"]
 
     charts = []
     for metric_key in metric_order:

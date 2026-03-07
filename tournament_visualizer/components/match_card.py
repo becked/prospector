@@ -1545,6 +1545,8 @@ def fetch_match_card_data(
     if queries.has_yield_total_history(match_id):
         yield_total_df = queries.get_yield_total_history_by_match(match_id)
 
+    improvement_df = queries.get_improvement_counts_by_player(match_id)
+
     match_summary_df = queries.get_match_summary()
     match_info = match_summary_df[match_summary_df["match_id"] == match_id]
 
@@ -1624,6 +1626,7 @@ def fetch_match_card_data(
         "player_names": (player1_name, player2_name),
         "civilizations": (player1_civ, player2_civ),
         "yield_total_df": yield_total_df,
+        "improvement_df": improvement_df,
         "victory_conditions": victory_conditions,
         "avg_turns": avg_turns,
     }
@@ -1651,6 +1654,7 @@ def analyze_match(
     player_names: tuple[str, str],
     civilizations: tuple[str, str],
     yield_total_df: Optional[pd.DataFrame] = None,
+    improvement_df: Optional[pd.DataFrame] = None,
     victory_conditions: str = "Unknown",
     avg_turns: int = 0,
 ) -> dict[str, Any]:
@@ -1676,6 +1680,7 @@ def analyze_match(
         civilizations: Tuple of (player1_civ, player2_civ)
         yield_total_df: Optional DataFrame from get_yield_total_history_by_match()
             (actual cumulative totals, ~30% more accurate for v1.0.81366+ saves)
+        improvement_df: Optional DataFrame from get_improvement_counts_by_player()
         victory_conditions: Enabled victory conditions for this match
         avg_turns: Average turn count across all matches
 
@@ -1774,6 +1779,22 @@ def analyze_match(
     yield_comparison = analyze_yield_comparison(
         yield_df, points_df, player_ids, yield_total_df
     )
+
+    # Add improvement totals to yield comparison
+    p1_improvements = 0
+    p2_improvements = 0
+    if improvement_df is not None and not improvement_df.empty:
+        for pid, player_var in [(p1_id, "p1"), (p2_id, "p2")]:
+            total = improvement_df[improvement_df["player_id"] == pid]["count"].sum()
+            if player_var == "p1":
+                p1_improvements = int(total)
+            else:
+                p2_improvements = int(total)
+    yield_comparison["improvements"] = {
+        "p1_total": float(p1_improvements),
+        "p2_total": float(p2_improvements),
+        "display_name": "Improvements",
+    }
 
     return {
         "match_id": match_id,
