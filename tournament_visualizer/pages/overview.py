@@ -48,6 +48,10 @@ from tournament_visualizer.components.charts import (
     create_succession_rate_chart,
     create_yield_stacked_chart,
     create_summary_metrics_cards,
+    create_tech_popularity_chart,
+    create_tech_timing_distribution_chart,
+    create_tech_timing_heatmap,
+    create_tech_winner_loser_chart,
     create_tournament_expansion_timeline_chart,
     create_tournament_production_strategies_chart,
     create_unit_popularity_sunburst_chart,
@@ -65,7 +69,9 @@ from tournament_visualizer.data.queries import get_queries
 logger = logging.getLogger(__name__)
 
 
-def parse_turn_length(turn_length: Optional[int]) -> tuple[Optional[int], Optional[int]]:
+def parse_turn_length(
+    turn_length: Optional[int],
+) -> tuple[Optional[int], Optional[int]]:
     """Parse turn length slider value into min and max turns.
 
     Args:
@@ -830,18 +836,29 @@ layout = html.Div(
                                                         ),
                                                         html.Span(
                                                             [
-                                                                html.Small("Cumulative:", className="text-muted me-3"),
+                                                                html.Small(
+                                                                    "Cumulative:",
+                                                                    className="text-muted me-3",
+                                                                ),
                                                                 dbc.RadioItems(
                                                                     id="overview-science-scale-toggle",
                                                                     options=[
-                                                                        {"label": "Linear", "value": "linear"},
-                                                                        {"label": "Log", "value": "log"},
+                                                                        {
+                                                                            "label": "Linear",
+                                                                            "value": "linear",
+                                                                        },
+                                                                        {
+                                                                            "label": "Log",
+                                                                            "value": "log",
+                                                                        },
                                                                     ],
                                                                     value="linear",
                                                                     inline=True,
                                                                     inputClassName="me-1",
                                                                     labelClassName="small",
-                                                                    style={"gap": "0.25rem"},
+                                                                    style={
+                                                                        "gap": "0.25rem"
+                                                                    },
                                                                 ),
                                                             ],
                                                             className="d-flex align-items-center",
@@ -1001,6 +1018,77 @@ layout = html.Div(
                                             title="Production Strategies",
                                             chart_id="overview-production-strategies",
                                             height="1600px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                    ],
+                ),
+                # Tab 7: Techs
+                dbc.Tab(
+                    label="Techs",
+                    tab_id="techs-tab",
+                    children=[
+                        # Row 1: Tech Tree Timing heatmap
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Tech Tree Timing",
+                                            chart_id="overview-tech-timing-heatmap",
+                                            height="600px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4 mt-3",
+                        ),
+                        # Row 2: Tech Research Rate heatmap
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Tech Research Rate",
+                                            chart_id="overview-tech-popularity",
+                                            height="600px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 2: Winner vs Loser advantage
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Winner vs Loser Tech Advantage",
+                                            chart_id="overview-tech-winner-loser",
+                                            height="2400px",
+                                        )
+                                    ],
+                                    width=12,
+                                ),
+                            ],
+                            className="mb-4",
+                        ),
+                        # Row 3: Tech timing distribution
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        create_chart_card(
+                                            title="Tech Research Turn Distribution",
+                                            chart_id="overview-tech-timing-distribution",
+                                            height="2400px",
                                         )
                                     ],
                                     width=12,
@@ -1359,7 +1447,9 @@ def update_nations_tab_charts(
 
     # 4. Counter-Pick Heatmap
     try:
-        df_counter = queries.get_nation_counter_pick_matrix(min_games=1, **filter_params)
+        df_counter = queries.get_nation_counter_pick_matrix(
+            min_games=1, **filter_params
+        )
         fig_counter = create_nation_counter_pick_heatmap(df_counter)
     except Exception as e:
         logger.error(f"Error loading counter-pick data: {e}")
@@ -1451,7 +1541,9 @@ def update_family_tab_charts(
     }
 
     # Filter params without result_filter for charts that need both winners and losers
-    filter_params_no_result = {k: v for k, v in filter_params.items() if k != "result_filter"}
+    filter_params_no_result = {
+        k: v for k, v in filter_params.items() if k != "result_filter"
+    }
 
     # 1. Family Class Win Rate
     try:
@@ -1509,7 +1601,9 @@ def update_family_tab_charts(
         fig_combo = (
             create_family_class_combo_chart(df_combo)
             if not df_combo.empty
-            else create_empty_chart_placeholder("No combo data available (need min 2 games)")
+            else create_empty_chart_placeholder(
+                "No combo data available (need min 2 games)"
+            )
         )
     except Exception as e:
         logger.error(f"Error loading family combo stats: {e}")
@@ -1529,7 +1623,9 @@ def update_family_tab_charts(
 
     # 7. City Distribution by Class
     try:
-        df_city = queries.get_family_city_distribution_by_result(**filter_params_no_result)
+        df_city = queries.get_family_city_distribution_by_result(
+            **filter_params_no_result
+        )
         fig_city = (
             create_family_city_distribution_chart(df_city)
             if not df_city.empty
@@ -1541,7 +1637,9 @@ def update_family_tab_charts(
 
     # 8. Family Opinion Over Time
     try:
-        df_opinion_time = queries.get_family_opinion_over_time(**filter_params_no_result)
+        df_opinion_time = queries.get_family_opinion_over_time(
+            **filter_params_no_result
+        )
         fig_opinion_time = (
             create_family_opinion_over_time_chart(df_opinion_time)
             if not df_opinion_time.empty
@@ -2594,7 +2692,7 @@ def _create_yield_callback(
         Input("overview-nations-dropdown", "value"),
         Input("overview-players-dropdown", "value"),
         Input("overview-result-dropdown", "value"),
-        )
+    )
     def update_yield_chart(
         round_num: Optional[list[int]],
         turn_length: Optional[int],
@@ -3064,3 +3162,225 @@ def update_science_correlation_chart(
     except Exception as e:
         logger.error(f"Error creating science correlation chart: {e}")
         return create_empty_chart_placeholder("Error loading correlation data")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Techs Tab Callbacks
+# ──────────────────────────────────────────────────────────────────────
+
+
+@callback(
+    Output("overview-tech-popularity", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def update_tech_popularity(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+):
+    """Update tech research rate bar chart."""
+    if active_tab != "techs-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_tech_popularity_across_matches(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_tech_popularity_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading tech popularity: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-tech-timing-heatmap", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def update_tech_timing_heatmap(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+):
+    """Update tech tree timing heatmap."""
+    if active_tab != "techs-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_tech_popularity_across_matches(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_tech_timing_heatmap(df)
+
+    except Exception as e:
+        logger.error(f"Error loading tech timing heatmap: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-tech-winner-loser", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def update_tech_winner_loser(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+):
+    """Update winner vs loser tech advantage chart."""
+    if active_tab != "techs-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_tech_winner_loser_comparison(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No winner/loser data available")
+
+        return create_tech_winner_loser_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading tech winner/loser comparison: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")
+
+
+@callback(
+    Output("overview-tech-timing-distribution", "figure"),
+    Input("overview-tabs", "active_tab"),
+    Input("overview-round-filter-dropdown", "value"),
+    Input("overview-turn-length-slider", "value"),
+    Input("overview-map-size-dropdown", "value"),
+    Input("overview-map-class-dropdown", "value"),
+    Input("overview-map-aspect-dropdown", "value"),
+    Input("overview-nations-dropdown", "value"),
+    Input("overview-players-dropdown", "value"),
+    Input("overview-result-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def update_tech_timing_distribution(
+    active_tab: Optional[str],
+    round_num: Optional[list[int]],
+    turn_length: Optional[int],
+    map_size: Optional[list[str]],
+    map_class: Optional[list[str]],
+    map_aspect: Optional[list[str]],
+    nations: Optional[List[str]],
+    players: Optional[List[str]],
+    result_filter: Optional[str],
+):
+    """Update tech research turn distribution box plot."""
+    if active_tab != "techs-tab":
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        queries = get_queries()
+        min_turns, max_turns = parse_turn_length(turn_length)
+
+        df = queries.get_tech_research_turns(
+            tournament_round=round_num,
+            bracket=None,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations if nations else None,
+            players=players if players else None,
+            result_filter=result_filter if result_filter != "all" else None,
+        )
+
+        if df.empty:
+            return create_empty_chart_placeholder("No data for selected filters")
+
+        return create_tech_timing_distribution_chart(df)
+
+    except Exception as e:
+        logger.error(f"Error loading tech timing distribution: {e}")
+        return create_empty_chart_placeholder(f"Error: {str(e)}")

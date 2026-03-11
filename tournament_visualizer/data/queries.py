@@ -1484,10 +1484,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_nation_win_stats",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -1568,10 +1574,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_nation_loss_stats",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -1650,10 +1662,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_nation_popularity",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -1726,10 +1744,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_map_breakdown",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -1805,10 +1829,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_unit_popularity",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -2254,6 +2284,272 @@ class TournamentQueries:
 
         with self.db.get_connection() as conn:
             return conn.execute(query, [match_id]).df()
+
+    def get_tech_popularity_across_matches(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get tech research rates and average turn across all filtered matches.
+
+        Args:
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns:
+                - tech_name: Technology identifier
+                - times_researched: Number of players who researched this tech
+                - total_players: Total number of players in filtered set
+                - research_rate: Percentage of players who researched (0-100)
+                - avg_turn: Average turn number when researched
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        player_filter, params = self._build_player_filter(filtered, result_filter)
+        match_ids = self._extract_match_ids(filtered, result_filter)
+        params["match_ids"] = match_ids
+
+        player_where = f"AND {player_filter}" if player_filter else ""
+
+        query = f"""
+        WITH filtered_players AS (
+            SELECT DISTINCT p.match_id, p.player_id
+            FROM players p
+            WHERE p.match_id = ANY($match_ids)
+                {player_where}
+        ),
+        tech_discoveries AS (
+            SELECT
+                json_extract_string(e.event_data, '$.tech') as tech_name,
+                e.turn_number,
+                e.match_id,
+                e.player_id
+            FROM events e
+            JOIN filtered_players fp
+                ON e.match_id = fp.match_id AND e.player_id = fp.player_id
+            WHERE e.event_type = 'TECH_DISCOVERED'
+        )
+        SELECT
+            td.tech_name,
+            COUNT(*) as times_researched,
+            (SELECT COUNT(*) FROM filtered_players) as total_players,
+            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM filtered_players), 1) as research_rate,
+            ROUND(AVG(td.turn_number), 1) as avg_turn
+        FROM tech_discoveries td
+        GROUP BY td.tech_name
+        ORDER BY td.tech_name
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
+
+    def get_tech_winner_loser_comparison(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """Get per-tech research rates split by winner vs loser.
+
+        Args:
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
+
+        Returns:
+            DataFrame with columns:
+                - tech_name: Technology identifier
+                - winner_research_rate: % of winners who researched
+                - loser_research_rate: % of losers who researched
+                - advantage: winner_rate - loser_rate (positive = winner advantage)
+                - winner_avg_turn: Average turn winners researched
+                - loser_avg_turn: Average turn losers researched
+        """
+        # Get match IDs without result filter
+        match_ids = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=None,
+        )
+
+        if not match_ids:
+            return pd.DataFrame()
+
+        # Get winner pairs for classification
+        winner_pairs = self._get_winner_player_ids(match_ids)
+        if not winner_pairs:
+            return pd.DataFrame()
+
+        # Only include matches that have winner data
+        matches_with_winners = list(set(m for m, _ in winner_pairs))
+        winner_values = ", ".join(f"({m}, {pid})" for m, pid in winner_pairs)
+
+        query = f"""
+        WITH winner_ids AS (
+            SELECT * FROM (VALUES {winner_values}) AS t(match_id, player_id)
+        ),
+        all_players AS (
+            SELECT p.match_id, p.player_id,
+                CASE WHEN w.player_id IS NOT NULL THEN 'winner' ELSE 'loser' END as result
+            FROM players p
+            LEFT JOIN winner_ids w
+                ON p.match_id = w.match_id AND p.player_id = w.player_id
+            WHERE p.match_id = ANY($match_ids)
+        ),
+        player_counts AS (
+            SELECT
+                result,
+                COUNT(*) as total
+            FROM all_players
+            GROUP BY result
+        ),
+        tech_by_result AS (
+            SELECT
+                json_extract_string(e.event_data, '$.tech') as tech_name,
+                ap.result,
+                COUNT(*) as cnt,
+                AVG(e.turn_number) as avg_turn
+            FROM events e
+            JOIN all_players ap ON e.match_id = ap.match_id AND e.player_id = ap.player_id
+            WHERE e.event_type = 'TECH_DISCOVERED'
+            GROUP BY json_extract_string(e.event_data, '$.tech'), ap.result
+        )
+        SELECT
+            COALESCE(w.tech_name, l.tech_name) as tech_name,
+            ROUND(COALESCE(w.cnt, 0) * 100.0 / wc.total, 1) as winner_research_rate,
+            ROUND(COALESCE(l.cnt, 0) * 100.0 / lc.total, 1) as loser_research_rate,
+            ROUND(COALESCE(w.cnt, 0) * 100.0 / wc.total - COALESCE(l.cnt, 0) * 100.0 / lc.total, 1) as advantage,
+            ROUND(w.avg_turn, 1) as winner_avg_turn,
+            ROUND(l.avg_turn, 1) as loser_avg_turn
+        FROM (SELECT * FROM tech_by_result WHERE result = 'winner') w
+        FULL OUTER JOIN (SELECT * FROM tech_by_result WHERE result = 'loser') l
+            ON w.tech_name = l.tech_name
+        CROSS JOIN (SELECT total FROM player_counts WHERE result = 'winner') wc
+        CROSS JOIN (SELECT total FROM player_counts WHERE result = 'loser') lc
+        ORDER BY advantage DESC
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, {"match_ids": matches_with_winners}).df()
+
+    def get_tech_research_turns(
+        self,
+        tournament_round: Optional[list[int]] = None,
+        bracket: Optional[str] = None,
+        min_turns: Optional[int] = None,
+        max_turns: Optional[int] = None,
+        map_size: Optional[list[str]] = None,
+        map_class: Optional[list[str]] = None,
+        map_aspect: Optional[list[str]] = None,
+        nations: Optional[list[str]] = None,
+        players: Optional[list[str]] = None,
+        result_filter: ResultFilter = None,
+    ) -> pd.DataFrame:
+        """Get raw tech discovery turn numbers for distribution analysis.
+
+        Args:
+            tournament_round: Filter by tournament round number
+            bracket: Filter by bracket ('Winners', 'Losers', 'Unknown')
+            min_turns: Filter by minimum total turns
+            max_turns: Filter by maximum total turns
+            map_size: Filter by map size
+            map_class: Filter by map class
+            map_aspect: Filter by map aspect ratio
+            nations: Filter by civilizations played
+            players: Filter by player names
+            result_filter: Filter by match result (winners/losers/all)
+
+        Returns:
+            DataFrame with columns:
+                - tech_name: Technology identifier
+                - turn_number: Turn when researched
+        """
+        filtered = self._get_filtered_match_ids(
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
+        )
+
+        if not filtered:
+            return pd.DataFrame()
+
+        player_filter, params = self._build_player_filter(filtered, result_filter)
+        match_ids = self._extract_match_ids(filtered, result_filter)
+        params["match_ids"] = match_ids
+
+        player_where = f"AND {player_filter}" if player_filter else ""
+
+        query = f"""
+        SELECT
+            json_extract_string(e.event_data, '$.tech') as tech_name,
+            e.turn_number
+        FROM events e
+        JOIN players p ON e.match_id = p.match_id AND e.player_id = p.player_id
+        WHERE e.event_type = 'TECH_DISCOVERED'
+            AND e.match_id = ANY($match_ids)
+            {player_where}
+        ORDER BY tech_name, turn_number
+        """
+
+        with self.db.get_connection() as conn:
+            return conn.execute(query, params).df()
 
     def get_law_timeline(self, match_id: int) -> pd.DataFrame:
         """Get individual law adoptions for timeline visualization.
@@ -3928,10 +4224,16 @@ class TournamentQueries:
         cache_key = self._make_cache_key(
             "get_nation_counter_pick_matrix",
             min_games=min_games,
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -4047,10 +4349,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_pick_order_win_rates",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -5216,12 +5524,11 @@ class TournamentQueries:
                     FROM cities
                     WHERE match_id = ? AND player_id = ? AND is_capital = TRUE
                     """
-                    capital_df = conn.execute(
-                        capital_query, [match_id, player_id]
-                    ).df()
+                    capital_df = conn.execute(capital_query, [match_id, player_id]).df()
                     culture_level = (
                         int(capital_df["culture_level"].iloc[0])
-                        if not capital_df.empty and capital_df["culture_level"].iloc[0] is not None
+                        if not capital_df.empty
+                        and capital_df["culture_level"].iloc[0] is not None
                         else 2  # Default to Developing
                     )
                     science_value = 20 * culture_level
@@ -5550,9 +5857,17 @@ class TournamentQueries:
                 # Count distinct Dualism theologies (could be multiple religions)
                 dualism_count = len(player_rows)
                 # Use actual total religion count from database, or estimate 2 per city
-                total_religions = int(player_rows["total_religions"].iloc[0]) if player_rows["total_religions"].iloc[0] else 0
+                total_religions = (
+                    int(player_rows["total_religions"].iloc[0])
+                    if player_rows["total_religions"].iloc[0]
+                    else 0
+                )
                 # +10 per religion level across all cities
-                total_bonus = 10 * total_religions if total_religions > 0 else 10 * dualism_count * 2
+                total_bonus = (
+                    10 * total_religions
+                    if total_religions > 0
+                    else 10 * dualism_count * 2
+                )
                 results.append(
                     {
                         "player_id": player_id,
@@ -7026,10 +7341,16 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_matches_by_round",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players, result_filter=result_filter,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
+            result_filter=result_filter,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -7313,10 +7634,15 @@ class TournamentQueries:
         """
         cache_key = self._make_cache_key(
             "get_science_win_correlation",
-            tournament_round=tournament_round, bracket=bracket,
-            min_turns=min_turns, max_turns=max_turns,
-            map_size=map_size, map_class=map_class, map_aspect=map_aspect,
-            nations=nations, players=players,
+            tournament_round=tournament_round,
+            bracket=bracket,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            map_size=map_size,
+            map_class=map_class,
+            map_aspect=map_aspect,
+            nations=nations,
+            players=players,
         )
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -9370,7 +9696,9 @@ class TournamentQueries:
                 - governance_component: Governance sub-score (0-100)
                 - military_component: Military sub-score (0-100)
         """
-        cache_key = self._make_cache_key("get_player_skill_ratings", min_matches=min_matches)
+        cache_key = self._make_cache_key(
+            "get_player_skill_ratings", min_matches=min_matches
+        )
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
@@ -9426,9 +9754,11 @@ class TournamentQueries:
         # Only include columns that exist
         result_columns = [c for c in result_columns if c in player_df.columns]
 
-        result = player_df[result_columns].sort_values(
-            "skill_score", ascending=False
-        ).reset_index(drop=True)
+        result = (
+            player_df[result_columns]
+            .sort_values("skill_score", ascending=False)
+            .reset_index(drop=True)
+        )
 
         self._cache_set(cache_key, result)
         return result.copy()
@@ -9700,13 +10030,17 @@ class TournamentQueries:
             return np.average(values[mask], weights=weights[mask])
 
         # Group by player (using grouping_key for consistency)
-        aggregated = per_game_df.groupby("grouping_key").agg(
-            player_name=("player_name", "first"),
-            participant_id=("participant_id", "first"),
-            matches_played=("match_id", "nunique"),
-            wins=("won", "sum"),
-            total_win_margin=("win_margin", "sum"),
-        ).reset_index()
+        aggregated = (
+            per_game_df.groupby("grouping_key")
+            .agg(
+                player_name=("player_name", "first"),
+                participant_id=("participant_id", "first"),
+                matches_played=("match_id", "nunique"),
+                wins=("won", "sum"),
+                total_win_margin=("win_margin", "sum"),
+            )
+            .reset_index()
+        )
 
         # Calculate win rate
         aggregated["win_rate"] = (
@@ -9714,26 +10048,35 @@ class TournamentQueries:
         ).round(2)
 
         # Calculate average win margin (only for wins)
-        win_margins = per_game_df[per_game_df["won"] == 1].groupby("grouping_key").agg(
-            avg_win_margin=("win_margin", "mean")
-        ).reset_index()
+        win_margins = (
+            per_game_df[per_game_df["won"] == 1]
+            .groupby("grouping_key")
+            .agg(avg_win_margin=("win_margin", "mean"))
+            .reset_index()
+        )
         aggregated = aggregated.merge(win_margins, on="grouping_key", how="left")
         aggregated["avg_win_margin"] = aggregated["avg_win_margin"].fillna(0)
 
         # Calculate weighted averages for other metrics
-        weighted_metrics = per_game_df.groupby("grouping_key").apply(
-            lambda g: pd.Series({
-                "avg_total_yields": weighted_avg(g, "total_yields_per_turn"),
-                "avg_expansion_rate": weighted_avg(g, "expansion_rate"),
-                "avg_law_rate": weighted_avg(g, "law_rate"),
-                "avg_legitimacy": weighted_avg(g, "avg_legitimacy"),
-                # Military metrics
-                "avg_military_power": weighted_avg(g, "avg_military_power"),
-                "avg_army_diversity": weighted_avg(g, "army_diversity_score"),
-                "avg_power_lead": weighted_avg(g, "power_lead_pct"),
-            }),
-            include_groups=False
-        ).reset_index()
+        weighted_metrics = (
+            per_game_df.groupby("grouping_key")
+            .apply(
+                lambda g: pd.Series(
+                    {
+                        "avg_total_yields": weighted_avg(g, "total_yields_per_turn"),
+                        "avg_expansion_rate": weighted_avg(g, "expansion_rate"),
+                        "avg_law_rate": weighted_avg(g, "law_rate"),
+                        "avg_legitimacy": weighted_avg(g, "avg_legitimacy"),
+                        # Military metrics
+                        "avg_military_power": weighted_avg(g, "avg_military_power"),
+                        "avg_army_diversity": weighted_avg(g, "army_diversity_score"),
+                        "avg_power_lead": weighted_avg(g, "power_lead_pct"),
+                    }
+                ),
+                include_groups=False,
+            )
+            .reset_index()
+        )
 
         aggregated = aggregated.merge(weighted_metrics, on="grouping_key", how="left")
 
@@ -9753,8 +10096,9 @@ class TournamentQueries:
         def to_percentile(series: pd.Series) -> pd.Series:
             """Convert values to percentiles (0-100)."""
             return series.apply(
-                lambda x: stats.percentileofscore(series.dropna(), x)
-                if pd.notna(x) else 50.0
+                lambda x: (
+                    stats.percentileofscore(series.dropna(), x) if pd.notna(x) else 50.0
+                )
             )
 
         # Normalize each metric to percentile
@@ -9792,33 +10136,32 @@ class TournamentQueries:
 
         # Calculate component scores
         player_df["win_component"] = (
-            player_df["win_rate_pct"] * 0.7 +
-            player_df["win_margin_pct"] * 0.3
+            player_df["win_rate_pct"] * 0.7 + player_df["win_margin_pct"] * 0.3
         )
 
         player_df["economy_component"] = player_df["total_yields_pct"]
 
         player_df["governance_component"] = (
-            player_df["legitimacy_pct"] / 3.0 +
-            player_df["expansion_pct"] / 3.0 +
-            player_df["law_rate_pct"] / 3.0
+            player_df["legitimacy_pct"] / 3.0
+            + player_df["expansion_pct"] / 3.0
+            + player_df["law_rate_pct"] / 3.0
         )
 
         # Military component: military_power (40%) + army_diversity (20%) + power_lead (40%)
         # military_power_pct is percentile-normalized (0-100)
         # avg_army_diversity and avg_power_lead are already 0-100 scale
         player_df["military_component"] = (
-            player_df["military_power_pct"] * 0.40 +
-            player_df["avg_army_diversity"] * 0.20 +
-            player_df["avg_power_lead"] * 0.40
+            player_df["military_power_pct"] * 0.40
+            + player_df["avg_army_diversity"] * 0.20
+            + player_df["avg_power_lead"] * 0.40
         )
 
         # Calculate raw composite score (equal weights for all 4 components)
         raw_score = (
-            player_df["win_component"] * 0.25 +
-            player_df["economy_component"] * 0.25 +
-            player_df["governance_component"] * 0.25 +
-            player_df["military_component"] * 0.25
+            player_df["win_component"] * 0.25
+            + player_df["economy_component"] * 0.25
+            + player_df["governance_component"] * 0.25
+            + player_df["military_component"] * 0.25
         )
 
         # Apply confidence adjustment (regress toward 50 for low sample sizes)
@@ -9826,9 +10169,7 @@ class TournamentQueries:
         # At 3 matches: 50% actual, 50% population mean
         # At 5+ matches: 80%+ actual
         confidence_threshold = 5
-        confidence = np.minimum(
-            player_df["matches_played"] / confidence_threshold, 1.0
-        )
+        confidence = np.minimum(player_df["matches_played"] / confidence_threshold, 1.0)
         weight = np.sqrt(confidence)  # sqrt for faster initial confidence gain
 
         population_mean = 50.0
@@ -9871,17 +10212,19 @@ class TournamentQueries:
         # Add readable columns
         player_games["result"] = player_games["won"].map({1: "Win", 0: "Loss"})
 
-        return player_games[[
-            "match_id",
-            "game_length",
-            "result",
-            "win_margin",
-            "science_per_turn",
-            "expansion_rate",
-            "ambition_rate",
-            "avg_legitimacy",
-            "min_legitimacy",
-        ]].sort_values("match_id")
+        return player_games[
+            [
+                "match_id",
+                "game_length",
+                "result",
+                "win_margin",
+                "science_per_turn",
+                "expansion_rate",
+                "ambition_rate",
+                "avg_legitimacy",
+                "min_legitimacy",
+            ]
+        ].sort_values("match_id")
 
 
 # Global queries instance

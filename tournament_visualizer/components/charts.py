@@ -19,7 +19,10 @@ from ..config import (
 )
 from ..nation_colors import get_nation_color
 from ..theme import CHART_THEME
-from ..data.transformations import forward_fill_history, forward_fill_history_by_category
+from ..data.transformations import (
+    forward_fill_history,
+    forward_fill_history_by_category,
+)
 
 
 def _get_text_color_for_background(bg_color: str) -> str:
@@ -36,7 +39,11 @@ def _get_text_color_for_background(bg_color: str) -> str:
         hex_color = bg_color.lstrip("#")
         if len(hex_color) == 3:
             hex_color = "".join(c * 2 for c in hex_color)
-        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        r, g, b = (
+            int(hex_color[0:2], 16),
+            int(hex_color[2:4], 16),
+            int(hex_color[4:6], 16),
+        )
     elif bg_color.startswith("rgb"):
         # Parse rgb(r, g, b) format
         import re
@@ -8147,7 +8154,9 @@ def create_science_infrastructure_treemap(
         Plotly figure with treemap
     """
     if df.empty:
-        return create_empty_chart_placeholder("No science infrastructure data available")
+        return create_empty_chart_placeholder(
+            "No science infrastructure data available"
+        )
 
     # Build hierarchical data with unique IDs to avoid duplicate label issues
     ids = ["Science"]
@@ -8191,7 +8200,9 @@ def create_science_infrastructure_treemap(
                 labels.append(display_name)
                 parents.append(cat_id)
                 values.append(int(row["count"]))
-                color = player_colors.get(player, "#808080") if player_colors else "#808080"
+                color = (
+                    player_colors.get(player, "#808080") if player_colors else "#808080"
+                )
                 colors.append(color)
 
     fig = go.Figure(
@@ -8234,7 +8245,9 @@ def create_science_infrastructure_sunburst(
         Plotly figure with sunburst chart
     """
     if df.empty:
-        return create_empty_chart_placeholder("No science infrastructure data available")
+        return create_empty_chart_placeholder(
+            "No science infrastructure data available"
+        )
 
     # Calculate total for root
     total_assets = int(df["count"].sum())
@@ -8266,7 +8279,9 @@ def create_science_infrastructure_sunburst(
         for category in categories:
             cat_id = f"{player}-{category}"
             display_cat = "Specialists" if category == "specialist" else "Improvements"
-            cat_total = int(player_data[player_data["asset_category"] == category]["count"].sum())
+            cat_total = int(
+                player_data[player_data["asset_category"] == category]["count"].sum()
+            )
             ids.append(cat_id)
             labels.append(display_cat)
             parents.append(f"player-{player}")
@@ -8283,7 +8298,9 @@ def create_science_infrastructure_sunburst(
                 labels.append(display_name)
                 parents.append(cat_id)
                 values.append(int(row["count"]))
-                color = player_colors.get(player, "#808080") if player_colors else "#808080"
+                color = (
+                    player_colors.get(player, "#808080") if player_colors else "#808080"
+                )
                 colors.append(color)
 
     fig = go.Figure(
@@ -8338,10 +8355,14 @@ def create_science_infrastructure_timeline(
     players = sorted(timeline["player_name"].unique())
 
     for i, player in enumerate(players):
-        player_data = timeline[timeline["player_name"] == player].sort_values("turn_number")
+        player_data = timeline[timeline["player_name"] == player].sort_values(
+            "turn_number"
+        )
 
         if player_colors:
-            color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+            color = player_colors.get(
+                player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+            )
         else:
             color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
 
@@ -8421,11 +8442,15 @@ def create_science_sources_comparison(
         # Build values list aligned with all_assets
         values = []
         for asset in all_assets:
-            asset_count = player_data[player_data["display_name"] == asset]["count"].sum()
+            asset_count = player_data[player_data["display_name"] == asset][
+                "count"
+            ].sum()
             values.append(int(asset_count))
 
         if player_colors:
-            color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)])
+            color = player_colors.get(
+                player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+            )
         else:
             color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
 
@@ -8562,9 +8587,7 @@ def create_science_breakdown_chart(
                 x=breakdown_df[col],
                 orientation="h",
                 marker_color=color,
-                text=breakdown_df[col].apply(
-                    lambda x: f"{x:.0f}" if x >= 1 else ""
-                ),
+                text=breakdown_df[col].apply(lambda x: f"{x:.0f}" if x >= 1 else ""),
                 textposition="inside",
                 customdata=customdata,
                 hovertemplate=(
@@ -8627,22 +8650,28 @@ def create_science_modifiers_chart(
 
     if not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
-            all_modifiers.append({
-                "player_name": row["player_name"],
-                "modifier_type": row["modifier_type"],
-                "modifier_percent": row["modifier_percent"] * row["count"],
-                "display_name": _format_science_asset_name(row["modifier_type"]),
-            })
+            all_modifiers.append(
+                {
+                    "player_name": row["player_name"],
+                    "modifier_type": row["modifier_type"],
+                    "modifier_percent": row["modifier_percent"] * row["count"],
+                    "display_name": _format_science_asset_name(row["modifier_type"]),
+                }
+            )
 
     if not projects_df.empty:
-        sm_projects = projects_df[projects_df["project_type"] == "PROJECT_SCIENTIFIC_METHOD"]
+        sm_projects = projects_df[
+            projects_df["project_type"] == "PROJECT_SCIENTIFIC_METHOD"
+        ]
         for _, row in sm_projects.iterrows():
-            all_modifiers.append({
-                "player_name": row["player_name"],
-                "modifier_type": "PROJECT_SCIENTIFIC_METHOD",
-                "modifier_percent": row["modifier_percent"] * row["count"],
-                "display_name": "Scientific Method",
-            })
+            all_modifiers.append(
+                {
+                    "player_name": row["player_name"],
+                    "modifier_type": "PROJECT_SCIENTIFIC_METHOD",
+                    "modifier_percent": row["modifier_percent"] * row["count"],
+                    "display_name": "Scientific Method",
+                }
+            )
 
     if not all_modifiers:
         return create_empty_chart_placeholder("No science modifiers found")
@@ -8668,7 +8697,9 @@ def create_science_modifiers_chart(
 
     for mod_type in modifier_types:
         mod_data = mod_df[mod_df["modifier_type"] == mod_type]
-        display_name = mod_data["display_name"].iloc[0] if not mod_data.empty else mod_type
+        display_name = (
+            mod_data["display_name"].iloc[0] if not mod_data.empty else mod_type
+        )
 
         # Build values for all players
         values = []
@@ -8771,8 +8802,7 @@ def create_science_sources_detail_chart(
     # Calculate science value for each row
     infra_df = infra_df.copy()
     infra_df["science_value"] = infra_df.apply(
-        lambda row: SCIENCE_VALUES.get(row["asset_type"], 0) * row["count"],
-        axis=1
+        lambda row: SCIENCE_VALUES.get(row["asset_type"], 0) * row["count"], axis=1
     )
     infra_df["display_name"] = infra_df["asset_type"].apply(_format_science_asset_name)
 
@@ -8803,7 +8833,13 @@ def create_science_sources_detail_chart(
                 values.append(0)
                 texts.append("")
 
-        color = player_colors.get(player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]) if player_colors else Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        color = (
+            player_colors.get(
+                player, Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+            )
+            if player_colors
+            else Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+        )
 
         fig.add_trace(
             go.Bar(
@@ -9016,8 +9052,8 @@ def create_skill_radar_chart(
                 theta=categories_closed,
                 fill="toself",
                 fillcolor=f"rgba({int(player_colors[i][1:3], 16)}, "
-                          f"{int(player_colors[i][3:5], 16)}, "
-                          f"{int(player_colors[i][5:7], 16)}, 0.2)",
+                f"{int(player_colors[i][3:5], 16)}, "
+                f"{int(player_colors[i][5:7], 16)}, 0.2)",
                 line=dict(color=player_colors[i], width=2),
                 name=player_name,
                 customdata=raw_values,
@@ -9059,6 +9095,371 @@ def create_skill_radar_chart(
             bordercolor=CHART_THEME["hoverlabel_bordercolor"],
             font=dict(color=CHART_THEME["hoverlabel_font_color"]),
         ),
+    )
+
+    return fig
+
+
+def _get_tech_display_order() -> list[tuple[str, str]]:
+    """Get tech IDs and display names in canonical tech tree order.
+
+    Returns:
+        List of (tech_id, display_name) tuples in tech.xml order.
+    """
+    from ..tech_tree import TECHS
+
+    return [(tech_id, info[0]) for tech_id, info in TECHS.items()]
+
+
+def create_tech_popularity_chart(df: pd.DataFrame) -> go.Figure:
+    """Create heatmap showing tech research rate using tech tree grid positions.
+
+    Args:
+        df: DataFrame with columns: tech_name, times_researched, total_players,
+            research_rate, avg_turn
+
+    Returns:
+        Plotly figure with heatmap colored by research rate
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No tech data available")
+
+    from ..tech_tree import TECHS
+
+    df = df.copy()
+    df_lookup = df.set_index("tech_name")
+
+    # Build grid: same approach as timing heatmap but colored by research_rate
+    grid_data: dict[tuple[int, int], tuple[str, float, float, int, int]] = {}
+    for tech_id, (display_name, col, row) in TECHS.items():
+        if col is None or row is None:
+            continue
+        if tech_id not in df_lookup.index:
+            continue
+        tech_row = df_lookup.loc[tech_id]
+        rate = tech_row["research_rate"]
+        avg_turn = tech_row["avg_turn"]
+        researched = int(tech_row["times_researched"])
+        total = int(tech_row["total_players"])
+        pos = (col, row)
+        # Keep the tech with higher research rate for shared positions
+        if pos not in grid_data or rate > grid_data[pos][1]:
+            grid_data[pos] = (display_name, rate, avg_turn, researched, total)
+
+    if not grid_data:
+        return create_empty_chart_placeholder("No tech position data available")
+
+    max_col = max(c for c, r in grid_data)
+    max_row = max(r for c, r in grid_data)
+
+    z_values = [[None] * (max_col + 1) for _ in range(max_row + 1)]
+    text_values = [[""] * (max_col + 1) for _ in range(max_row + 1)]
+    hover_text = [[""] * (max_col + 1) for _ in range(max_row + 1)]
+
+    for (col, row), (name, rate, avg_turn, researched, total) in grid_data.items():
+        z_values[row][col] = rate
+        text_values[row][col] = name
+        hover_text[row][col] = (
+            f"<b>{name}</b><br>"
+            f"Research Rate: {rate:.1f}%<br>"
+            f"Researched by: {researched}/{total} players<br>"
+            f"Avg Turn: {avg_turn:.1f}"
+        )
+
+    fig = create_base_figure(show_legend=False)
+
+    fig.add_trace(
+        go.Heatmap(
+            z=z_values,
+            text=text_values,
+            texttemplate="%{text}",
+            textfont={"size": 9},
+            hovertext=hover_text,
+            hoverinfo="text",
+            colorscale="Blues",
+            zmin=0,
+            zmax=100,
+            showscale=True,
+            colorbar=dict(
+                title=dict(text="Research<br>Rate", side="right"),
+                ticksuffix="%",
+                tickvals=[0, 25, 50, 75, 100],
+                len=0.75,
+                thickness=15,
+                x=1.02,
+            ),
+            xgap=2,
+            ygap=2,
+        )
+    )
+
+    fig.update_xaxes(
+        title="Tech Tree Column",
+        tickvals=list(range(max_col + 1)),
+        side="bottom",
+    )
+    fig.update_yaxes(
+        title="Tech Tree Row",
+        tickvals=list(range(max_row + 1)),
+        autorange="reversed",
+    )
+    fig.update_layout(
+        margin=dict(l=60, r=80, t=20, b=40),
+        height=max(400, (max_row + 1) * 50 + 80),
+    )
+
+    return fig
+
+
+def create_tech_timing_heatmap(df: pd.DataFrame) -> go.Figure:
+    """Create heatmap of tech tree with color showing average research turn.
+
+    Uses tech tree grid positions (column, row) to lay out techs spatially.
+    Only includes techs with valid grid positions (excludes event bonuses).
+
+    Args:
+        df: DataFrame with columns: tech_name, avg_turn, research_rate
+
+    Returns:
+        Plotly figure with heatmap matching tech tree layout
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No tech data available")
+
+    from ..tech_tree import TECHS
+
+    # Build mapping of grid positions to tech data
+    # Only use techs with valid positions; for shared positions, prefer
+    # the tech with higher research rate (usually the base tech)
+    df = df.copy()
+    df_lookup = df.set_index("tech_name")
+
+    grid_data: dict[tuple[int, int], tuple[str, float, float]] = {}
+    for tech_id, (display_name, col, row) in TECHS.items():
+        if col is None or row is None:
+            continue
+        if tech_id not in df_lookup.index:
+            continue
+        tech_row = df_lookup.loc[tech_id]
+        avg_turn = tech_row["avg_turn"]
+        rate = tech_row["research_rate"]
+        pos = (col, row)
+        # Keep the tech with higher research rate for shared positions
+        if pos not in grid_data or rate > grid_data[pos][2]:
+            grid_data[pos] = (display_name, avg_turn, rate)
+
+    if not grid_data:
+        return create_empty_chart_placeholder("No tech position data available")
+
+    # Determine grid dimensions
+    max_col = max(c for c, r in grid_data)
+    max_row = max(r for c, r in grid_data)
+
+    # Build 2D arrays for heatmap (rows on y-axis, columns on x-axis)
+    z_values = [[None] * (max_col + 1) for _ in range(max_row + 1)]
+    text_values = [[""] * (max_col + 1) for _ in range(max_row + 1)]
+    hover_text = [[""] * (max_col + 1) for _ in range(max_row + 1)]
+
+    for (col, row), (name, avg_turn, rate) in grid_data.items():
+        z_values[row][col] = avg_turn
+        text_values[row][col] = name
+        hover_text[row][col] = (
+            f"<b>{name}</b><br>"
+            f"Avg Research Turn: {avg_turn:.1f}<br>"
+            f"Research Rate: {rate:.1f}%"
+        )
+
+    fig = create_base_figure(show_legend=False)
+
+    fig.add_trace(
+        go.Heatmap(
+            z=z_values,
+            text=text_values,
+            texttemplate="%{text}",
+            textfont={"size": 9},
+            hovertext=hover_text,
+            hoverinfo="text",
+            colorscale="YlOrRd",
+            zmin=0,
+            showscale=True,
+            colorbar=dict(
+                title=dict(text="Avg Turn", side="right"),
+                len=0.75,
+                thickness=15,
+                x=1.02,
+            ),
+            xgap=2,
+            ygap=2,
+        )
+    )
+
+    fig.update_xaxes(
+        title="Tech Tree Column",
+        tickvals=list(range(max_col + 1)),
+        side="bottom",
+    )
+    fig.update_yaxes(
+        title="Tech Tree Row",
+        tickvals=list(range(max_row + 1)),
+        autorange="reversed",
+    )
+    fig.update_layout(
+        margin=dict(l=60, r=80, t=20, b=40),
+        height=max(400, (max_row + 1) * 50 + 80),
+    )
+
+    return fig
+
+
+def create_tech_winner_loser_chart(df: pd.DataFrame) -> go.Figure:
+    """Create diverging bar chart showing winner vs loser tech research advantage.
+
+    Args:
+        df: DataFrame with columns: tech_name, winner_research_rate,
+            loser_research_rate, advantage, winner_avg_turn, loser_avg_turn
+
+    Returns:
+        Plotly figure with diverging horizontal bars
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No winner/loser tech data available")
+
+    tech_order = _get_tech_display_order()
+    tech_id_to_name = {tid: name for tid, name in tech_order}
+
+    df = df.copy()
+    df["display_name"] = df["tech_name"].map(tech_id_to_name)
+    df = df.dropna(subset=["display_name"])
+
+    # Sort by advantage (biggest winner advantage at top)
+    df = df.sort_values("advantage", ascending=True)
+
+    # Color: green for winner advantage, red for loser advantage
+    colors = ["#66BB6A" if adv >= 0 else "#EF5350" for adv in df["advantage"]]
+
+    hover_text = []
+    for _, row in df.iterrows():
+        parts = [
+            f"<b>{row['display_name']}</b>",
+            f"Winner Rate: {row['winner_research_rate']:.1f}%",
+            f"Loser Rate: {row['loser_research_rate']:.1f}%",
+            f"Advantage: {row['advantage']:+.1f}pp",
+        ]
+        if pd.notna(row.get("winner_avg_turn")):
+            parts.append(f"Winner Avg Turn: {row['winner_avg_turn']:.1f}")
+        if pd.notna(row.get("loser_avg_turn")):
+            parts.append(f"Loser Avg Turn: {row['loser_avg_turn']:.1f}")
+        hover_text.append("<br>".join(parts))
+
+    fig = create_base_figure(show_legend=False)
+
+    fig.add_trace(
+        go.Bar(
+            y=df["display_name"],
+            x=df["advantage"],
+            orientation="h",
+            marker=dict(color=colors),
+            hovertemplate="%{hovertext}<extra></extra>",
+            hovertext=hover_text,
+        )
+    )
+
+    fig.add_vline(
+        x=0,
+        line_dash="dash",
+        line_color="gray",
+        opacity=0.7,
+    )
+
+    # Annotations for context
+    fig.add_annotation(
+        text="Winners research more →",
+        xref="paper",
+        yref="paper",
+        x=0.75,
+        y=1.02,
+        showarrow=False,
+        font=dict(size=10, color="#66BB6A"),
+    )
+    fig.add_annotation(
+        text="← Losers research more",
+        xref="paper",
+        yref="paper",
+        x=0.25,
+        y=1.02,
+        showarrow=False,
+        font=dict(size=10, color="#EF5350"),
+    )
+
+    fig.update_xaxes(title="Research Rate Advantage (pp)", zeroline=True)
+    fig.update_yaxes(tickfont=dict(size=10))
+    fig.update_layout(
+        margin=dict(l=200, r=60, t=30, b=40),
+        height=max(400, len(df) * 28),
+    )
+
+    return fig
+
+
+def create_tech_timing_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create horizontal box plot showing tech research turn distribution.
+
+    Args:
+        df: DataFrame with columns: tech_name, turn_number (one row per discovery)
+
+    Returns:
+        Plotly figure with box plots showing turn distribution per tech
+    """
+    if df.empty:
+        return create_empty_chart_placeholder("No tech timing data available")
+
+    tech_order = _get_tech_display_order()
+    tech_id_to_name = {tid: name for tid, name in tech_order}
+    ordered_ids = [tid for tid, _ in tech_order]
+
+    df = df.copy()
+    df["display_name"] = df["tech_name"].map(tech_id_to_name)
+    df = df.dropna(subset=["display_name"])
+
+    # Order by tech tree (reversed for bottom-to-top display)
+    id_to_order = {tid: i for i, tid in enumerate(ordered_ids)}
+    df["sort_order"] = df["tech_name"].map(id_to_order)
+
+    # Get unique techs in order for category axis
+    tech_names_ordered = (
+        df.drop_duplicates("tech_name")
+        .sort_values("sort_order", ascending=False)["display_name"]
+        .tolist()
+    )
+
+    fig = create_base_figure(show_legend=False)
+
+    fig.add_trace(
+        go.Box(
+            x=df["turn_number"],
+            y=df["display_name"],
+            orientation="h",
+            marker=dict(
+                color=CHART_THEME["font_color"],
+                size=3,
+                opacity=0.5,
+            ),
+            line=dict(color=Config.PRIMARY_COLORS[0]),
+            fillcolor="rgba(99, 110, 250, 0.3)",
+            boxmean=True,
+            hoverinfo="x+y",
+        )
+    )
+
+    fig.update_xaxes(title="Turn Number")
+    fig.update_yaxes(
+        categoryorder="array",
+        categoryarray=tech_names_ordered,
+        tickfont=dict(size=10),
+    )
+    fig.update_layout(
+        margin=dict(l=200, r=40, t=20, b=40),
+        height=max(400, len(tech_names_ordered) * 28),
     )
 
     return fig
