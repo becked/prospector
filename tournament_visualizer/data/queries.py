@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import pandas as pd
 
-from ..config import Config, FAMILY_CLASS_MAP, get_family_class
+from ..config import FAMILY_CLASS_MAP, Config, get_family_class
 from .database import TournamentDatabase, get_database
 
 logger = logging.getLogger(__name__)
@@ -5037,6 +5037,8 @@ class TournamentQueries:
         """Get time-series of science infrastructure buildup per player.
 
         Tracks specialists and improvements that produce science across all turns.
+        Specialists are split by whether they're in a Sages family city to enable
+        the +1 science/specialist bonus calculation in the chart layer.
 
         Args:
             match_id: Match to query
@@ -5049,6 +5051,7 @@ class TournamentQueries:
                 - asset_category: 'specialist' or 'improvement'
                 - asset_type: Raw type (e.g., 'SPECIALIST_PHILOSOPHER_1')
                 - count: Number of this asset type
+                - in_sages_city: Whether the asset is in a Sages family city
         """
         # Science-producing improvements (from docs/science-generation-guide.md)
         # - Watermills/Windmills: 20 science each
@@ -5062,6 +5065,8 @@ class TournamentQueries:
             "'IMPROVEMENT_SHRINE_NABU', 'IMPROVEMENT_SHRINE_ATHENA'"
         )
 
+        sages_list = ", ".join(f"'{f}'" for f in SAGES_FAMILIES)
+
         # All specialists produce science (rural=10, apprentice=20, master=30, elder=40)
         # Plus Philosophers and Doctors get additional bonuses
         query = f"""
@@ -5072,13 +5077,16 @@ class TournamentQueries:
                 p.player_name,
                 'specialist' as asset_category,
                 t.specialist_type as asset_type,
-                COUNT(*) as count
+                COUNT(*) as count,
+                CASE WHEN c.family_name IN ({sages_list}) THEN true ELSE false END as in_sages_city
             FROM territories t
             JOIN players p ON t.match_id = p.match_id
                            AND t.owner_player_id = p.player_id
+            LEFT JOIN cities c ON t.match_id = c.match_id AND t.city_id = c.city_id
             WHERE t.match_id = ?
               AND t.specialist_type IS NOT NULL
-            GROUP BY t.turn_number, p.player_id, p.player_name, t.specialist_type
+            GROUP BY t.turn_number, p.player_id, p.player_name, t.specialist_type,
+                     CASE WHEN c.family_name IN ({sages_list}) THEN true ELSE false END
         ),
         improvement_counts AS (
             SELECT
@@ -5087,7 +5095,8 @@ class TournamentQueries:
                 p.player_name,
                 'improvement' as asset_category,
                 t.improvement_type as asset_type,
-                COUNT(*) as count
+                COUNT(*) as count,
+                false as in_sages_city
             FROM territories t
             JOIN players p ON t.match_id = p.match_id
                            AND t.owner_player_id = p.player_id
@@ -5111,6 +5120,7 @@ class TournamentQueries:
 
         Returns aggregated counts of science-producing assets for a specific turn.
         If turn_number is not specified, uses the final turn of the match.
+        Specialists are split by whether they're in a Sages family city.
 
         Args:
             match_id: Match to query
@@ -5123,6 +5133,7 @@ class TournamentQueries:
                 - asset_category: 'specialist' or 'improvement'
                 - asset_type: Raw type (e.g., 'SPECIALIST_PHILOSOPHER_1')
                 - count: Total count
+                - in_sages_city: Whether the asset is in a Sages family city
         """
         if turn_number is None:
             _, max_turn = self.get_territory_turn_range(match_id)
@@ -5140,6 +5151,8 @@ class TournamentQueries:
             "'IMPROVEMENT_SHRINE_NABU', 'IMPROVEMENT_SHRINE_ATHENA'"
         )
 
+        sages_list = ", ".join(f"'{f}'" for f in SAGES_FAMILIES)
+
         # All specialists produce science based on tier
         query = f"""
         WITH specialist_counts AS (
@@ -5148,14 +5161,17 @@ class TournamentQueries:
                 p.player_name,
                 'specialist' as asset_category,
                 t.specialist_type as asset_type,
-                COUNT(*) as count
+                COUNT(*) as count,
+                CASE WHEN c.family_name IN ({sages_list}) THEN true ELSE false END as in_sages_city
             FROM territories t
             JOIN players p ON t.match_id = p.match_id
                            AND t.owner_player_id = p.player_id
+            LEFT JOIN cities c ON t.match_id = c.match_id AND t.city_id = c.city_id
             WHERE t.match_id = ?
               AND t.turn_number = ?
               AND t.specialist_type IS NOT NULL
-            GROUP BY p.player_id, p.player_name, t.specialist_type
+            GROUP BY p.player_id, p.player_name, t.specialist_type,
+                     CASE WHEN c.family_name IN ({sages_list}) THEN true ELSE false END
         ),
         improvement_counts AS (
             SELECT
@@ -5163,7 +5179,8 @@ class TournamentQueries:
                 p.player_name,
                 'improvement' as asset_category,
                 t.improvement_type as asset_type,
-                COUNT(*) as count
+                COUNT(*) as count,
+                false as in_sages_city
             FROM territories t
             JOIN players p ON t.match_id = p.match_id
                            AND t.owner_player_id = p.player_id

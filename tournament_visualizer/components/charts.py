@@ -17,12 +17,11 @@ from ..config import (
     Config,
     get_family_class_color,
 )
-from ..nation_colors import get_nation_color
-from ..theme import CHART_THEME
 from ..data.transformations import (
     forward_fill_history,
-    forward_fill_history_by_category,
 )
+from ..nation_colors import get_nation_color
+from ..theme import CHART_THEME
 
 
 def _get_text_color_for_background(bg_color: str) -> str:
@@ -5355,7 +5354,6 @@ def create_city_founding_scatter_jitter_chart(
             color = get_nation_color(civ) if civ else Config.PRIMARY_COLORS[y_pos]
 
         # Add jitter: small random offset to prevent exact overlap
-        import numpy as np
 
         np.random.seed(42)  # For consistent jitter
         jitter = np.random.uniform(-0.15, 0.15, len(player_data))
@@ -8112,6 +8110,14 @@ def _format_science_asset_name(asset_type: str) -> str:
     if not asset_type:
         return "Unknown"
 
+    # Handle project types (Archives, Scientific Method)
+    if asset_type.startswith("PROJECT_ARCHIVE"):
+        tier = asset_type.split("_")[-1]
+        numerals = {"1": "I", "2": "II", "3": "III", "4": "IV"}
+        return f"Archive {numerals.get(tier, tier)}"
+    if asset_type == "PROJECT_SCIENTIFIC_METHOD":
+        return "Scientific Method"
+
     # Handle specialists - reuse existing helper
     if asset_type.startswith("SPECIALIST_"):
         return _format_specialist_name(asset_type)
@@ -8333,9 +8339,9 @@ def create_science_infrastructure_timeline(
     df: pd.DataFrame,
     player_colors: Optional[Dict[str, str]] = None,
 ) -> go.Figure:
-    """Create stacked area chart showing science infrastructure buildup.
+    """Create line chart showing science infrastructure buildup.
 
-    Shows cumulative count of science-producing assets over time per player.
+    Shows count of science-producing assets over time per player.
 
     Args:
         df: DataFrame from get_science_infrastructure_timeline()
@@ -8371,10 +8377,9 @@ def create_science_infrastructure_timeline(
                 x=player_data["turn_number"],
                 y=player_data["count"],
                 name=player,
-                mode="lines",
-                stackgroup="one",
-                fillcolor=color,
-                line=dict(width=0.5, color=color),
+                mode="lines+markers",
+                line=dict(width=2, color=color),
+                marker=dict(size=4),
                 hovertemplate=(
                     f"<b>{player}</b><br>"
                     "Turn: %{x}<br>"
@@ -8782,14 +8787,19 @@ def create_science_modifiers_chart(
 def create_science_sources_detail_chart(
     infra_df: pd.DataFrame,
     player_colors: Optional[Dict[str, str]] = None,
+    projects_df: Optional[pd.DataFrame] = None,
+    bonuses_df: Optional[pd.DataFrame] = None,
 ) -> go.Figure:
     """Create grouped bar chart showing detailed science sources.
 
-    Shows individual specialist and improvement types per player.
+    Shows individual specialist and improvement types per player,
+    plus Archive projects and empire bonuses.
 
     Args:
         infra_df: DataFrame from get_science_infrastructure_summary()
         player_colors: Optional dict mapping player names to colors
+        projects_df: Optional DataFrame from get_science_projects_summary()
+        bonuses_df: Optional DataFrame from get_science_bonuses_summary()
 
     Returns:
         Plotly figure with grouped bar chart
@@ -8805,6 +8815,56 @@ def create_science_sources_detail_chart(
         lambda row: SCIENCE_VALUES.get(row["asset_type"], 0) * row["count"], axis=1
     )
     infra_df["display_name"] = infra_df["asset_type"].apply(_format_science_asset_name)
+
+    # Add Sages family bonus as a separate bar
+    if "in_sages_city" in infra_df.columns:
+        sages_mask = (infra_df["in_sages_city"] == True) & (  # noqa: E712
+            infra_df["asset_category"] == "specialist"
+        )
+        sages_rows = infra_df[sages_mask].copy()
+        if not sages_rows.empty:
+            # +10 raw science per specialist in Sages cities
+            sages_rows["science_value"] = sages_rows["count"] * 10
+            sages_rows["display_name"] = "Sages Bonus"
+            sages_rows["asset_type"] = "SAGES_BONUS"
+            infra_df = pd.concat([infra_df, sages_rows], ignore_index=True)
+
+    # Add Archive project rows (individual tiers)
+    if projects_df is not None and not projects_df.empty:
+        non_modifier = projects_df[~projects_df["is_modifier"]]
+        for _, row in non_modifier.iterrows():
+            if row["science_value"] > 0 and row["count"] > 0:
+                new_row = {
+                    "player_id": row["player_id"],
+                    "player_name": row["player_name"],
+                    "asset_category": "project",
+                    "asset_type": row["project_type"],
+                    "count": row["count"],
+                    "in_sages_city": False,
+                    "science_value": row["science_value"] * row["count"],
+                    "display_name": _format_science_asset_name(row["project_type"]),
+                }
+                infra_df = pd.concat(
+                    [infra_df, pd.DataFrame([new_row])], ignore_index=True
+                )
+
+    # Add empire bonus rows
+    if bonuses_df is not None and not bonuses_df.empty:
+        for _, row in bonuses_df.iterrows():
+            if row["science_value"] > 0:
+                new_row = {
+                    "player_id": row["player_id"],
+                    "player_name": row["player_name"],
+                    "asset_category": "bonus",
+                    "asset_type": f"BONUS_{row['bonus_source']}",
+                    "count": 1,
+                    "in_sages_city": False,
+                    "science_value": row["science_value"],
+                    "display_name": row["bonus_source"],
+                }
+                infra_df = pd.concat(
+                    [infra_df, pd.DataFrame([new_row])], ignore_index=True
+                )
 
     # Filter to only rows with science value
     infra_df = infra_df[infra_df["science_value"] > 0]
@@ -8883,6 +8943,401 @@ def create_science_sources_detail_chart(
             font=dict(color=CHART_THEME["hoverlabel_font_color"]),
         ),
     )
+
+    return fig
+
+
+def create_science_rate_cumulative_chart(
+    rate_df: pd.DataFrame,
+    total_turns: Optional[int] = None,
+    player_colors: Optional[Dict[str, str]] = None,
+    cumulative_df: Optional[pd.DataFrame] = None,
+) -> go.Figure:
+    """Create rate + cumulative science chart with event spike annotations.
+
+    Top subplot shows science per turn, bottom shows cumulative total.
+    When cumulative data is available, detects turns where events gave
+    lump-sum science (visible as spikes above the expected rate).
+
+    Args:
+        rate_df: DataFrame with columns: player_name, turn_number, amount
+            (from get_yield_history_by_match filtered to YIELD_SCIENCE)
+        total_turns: Optional total turns to extend lines to match end
+        player_colors: Optional dict mapping player names to hex colors
+        cumulative_df: Optional DataFrame with actual cumulative totals
+            (from get_yield_total_history_by_match filtered to YIELD_SCIENCE)
+
+    Returns:
+        Plotly figure with two vertically stacked subplots
+    """
+    if rate_df.empty:
+        return create_empty_chart_placeholder(
+            "No science yield data available for this match"
+        )
+
+    # Forward-fill sparse yield data (delta-encoded in newer save files)
+    rate_df = forward_fill_history(
+        rate_df,
+        value_cols=["amount"],
+        preserve_columns=["player_name", "resource_type"],
+    )
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.5, 0.5],
+        subplot_titles=("Per Turn", "Cumulative Total"),
+    )
+    fig = apply_dark_theme(fig)
+
+    players = rate_df["player_name"].unique()
+
+    for i, player in enumerate(players):
+        player_data = rate_df[rate_df["player_name"] == player].sort_values(
+            "turn_number"
+        )
+        if player_colors and player in player_colors:
+            color = player_colors[player]
+        else:
+            color = Config.PRIMARY_COLORS[i % len(Config.PRIMARY_COLORS)]
+
+        turns = player_data["turn_number"].tolist()
+        yields = player_data["amount"].tolist()
+
+        # Build cumulative data
+        cumulative: list[float] = []
+        has_actual_cumulative = False
+        if cumulative_df is not None and not cumulative_df.empty:
+            player_cumulative = cumulative_df[
+                cumulative_df["player_name"] == player
+            ].sort_values("turn_number")
+            if not player_cumulative.empty:
+                has_actual_cumulative = True
+                cumulative_turns = player_cumulative["turn_number"].tolist()
+                turn_to_total = dict(zip(cumulative_turns, player_cumulative["amount"]))
+                cumulative = [turn_to_total.get(t, 0) for t in turns]
+
+        if not cumulative:
+            running_total = 0.0
+            for y in yields:
+                running_total += y
+                cumulative.append(running_total)
+
+        # Extend lines to match end
+        if total_turns and turns and turns[-1] < total_turns:
+            turns = turns + [total_turns]
+            yields = yields + [yields[-1]]
+            cumulative = cumulative + [cumulative[-1]]
+
+        # Rate chart (top)
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=yields,
+                mode="lines+markers",
+                name=player,
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate=(
+                    f"<b>{player}</b><br>" "Turn %{x}: %{y:.1f}/turn<extra></extra>"
+                ),
+                legendgroup=player,
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Cumulative chart (bottom)
+        fig.add_trace(
+            go.Scatter(
+                x=turns,
+                y=cumulative,
+                mode="lines+markers",
+                name=player,
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate=(
+                    f"<b>{player}</b><br>" "Turn %{x}: %{y:,.0f} total<extra></extra>"
+                ),
+                legendgroup=player,
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+
+        # Detect and annotate event spikes on cumulative subplot
+        if has_actual_cumulative and len(cumulative) > 1:
+            spike_turns = []
+            spike_values = []
+            spike_texts = []
+
+            # Build rate lookup for this player
+            rate_lookup = dict(zip(turns, yields))
+
+            for j in range(1, len(turns)):
+                actual_change = cumulative[j] - cumulative[j - 1]
+                expected_change = rate_lookup.get(turns[j], 0)
+                spike = actual_change - expected_change
+                # Threshold: >5 science (post-divide-by-10) to filter noise
+                if spike > 5.0:
+                    spike_turns.append(turns[j])
+                    spike_values.append(cumulative[j])
+                    spike_texts.append(f"+{spike:.0f} event science")
+
+            if spike_turns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=spike_turns,
+                        y=spike_values,
+                        mode="markers",
+                        name=f"{player} events",
+                        marker=dict(
+                            symbol="diamond",
+                            size=12,
+                            color=color,
+                            line=dict(width=2, color="white"),
+                        ),
+                        hovertemplate=(
+                            f"<b>{player} - Event Science</b><br>"
+                            "Turn %{x}<br>"
+                            "%{text}<extra></extra>"
+                        ),
+                        text=spike_texts,
+                        legendgroup=player,
+                        showlegend=False,
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+    fig.update_layout(
+        height=500,
+        margin=dict(t=30, b=40, l=60, r=20),
+        hovermode="closest",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        template=None,
+    )
+
+    for annotation in fig["layout"]["annotations"]:
+        annotation["font"] = dict(size=11, color=CHART_THEME["text_muted"])
+
+    fig.update_xaxes(title_text="Turn Number", row=2, col=1)
+    fig.update_yaxes(title_text="Science/Turn", row=1, col=1)
+    fig.update_yaxes(title_text="Total Science", row=2, col=1)
+
+    return fig
+
+
+def create_science_sources_stacked_chart(
+    infra_df: pd.DataFrame,
+    player_colors: Optional[Dict[str, str]] = None,
+    projects_df: Optional[pd.DataFrame] = None,
+    bonuses_df: Optional[pd.DataFrame] = None,
+) -> go.Figure:
+    """Create per-player stacked area charts showing science by source category.
+
+    Two side-by-side subplots (one per player) with stacked areas for each
+    source category: Philosophers, Doctors, Specialists, Improvements,
+    Projects, and Empire Bonuses.
+
+    Args:
+        infra_df: DataFrame from get_science_infrastructure_timeline() with
+            columns: turn_number, player_name, asset_category, asset_type, count
+        player_colors: Optional dict mapping player names to hex colors
+        projects_df: Optional DataFrame from get_science_projects_summary()
+        bonuses_df: Optional DataFrame from get_science_bonuses_summary()
+
+    Returns:
+        Plotly figure with side-by-side stacked area subplots
+    """
+    from ..data.queries import SCIENCE_VALUES
+
+    if infra_df.empty:
+        return create_empty_chart_placeholder("No science infrastructure data")
+
+    # Calculate science value per row (raw values, divide by 10 for display)
+    infra_df = infra_df.copy()
+    infra_df["science"] = infra_df.apply(
+        lambda row: SCIENCE_VALUES.get(row["asset_type"], 0) * row["count"] / 10.0,
+        axis=1,
+    )
+
+    # Categorize assets into source groups
+    def categorize(asset_type: str) -> str:
+        if asset_type.startswith("SPECIALIST_PHILOSOPHER"):
+            return "Philosophers"
+        elif asset_type.startswith("SPECIALIST_DOCTOR"):
+            return "Doctors"
+        elif asset_type.startswith("SPECIALIST_"):
+            return "Specialists"
+        elif asset_type.startswith("IMPROVEMENT_"):
+            return "Improvements"
+        return "Other"
+
+    infra_df["category"] = infra_df["asset_type"].apply(categorize)
+
+    # Add Sages family bonus rows for specialists in Sages cities
+    if "in_sages_city" in infra_df.columns:
+        sages_mask = (infra_df["in_sages_city"] == True) & (  # noqa: E712
+            infra_df["asset_category"] == "specialist"
+        )
+        sages_rows = infra_df[sages_mask].copy()
+        if not sages_rows.empty:
+            sages_rows["science"] = (
+                sages_rows["count"] * 1.0
+            )  # +1/specialist (10 raw / 10)
+            sages_rows["category"] = "Sages Bonus"
+            infra_df = pd.concat([infra_df, sages_rows], ignore_index=True)
+
+    # Filter out zero-science rows
+    infra_df = infra_df[infra_df["science"] > 0]
+    if infra_df.empty:
+        return create_empty_chart_placeholder("No science-producing assets found")
+
+    # Aggregate by turn, player, category
+    grouped = (
+        infra_df.groupby(["turn_number", "player_name", "category"])["science"]
+        .sum()
+        .reset_index()
+    )
+
+    # Add flat project and bonus values for every turn
+    # These are end-game values since build timing isn't tracked
+    all_turns_by_player: Dict[str, list] = {}
+    for player in grouped["player_name"].unique():
+        all_turns_by_player[player] = sorted(
+            grouped[grouped["player_name"] == player]["turn_number"].unique()
+        )
+
+    # Projects: sum non-modifier project science values per player
+    if projects_df is not None and not projects_df.empty:
+        non_modifier = projects_df[~projects_df["is_modifier"]]
+        for player_name in non_modifier["player_name"].unique():
+            player_projects = non_modifier[non_modifier["player_name"] == player_name]
+            # science_value is raw, count is number of cities with this project
+            total_science = (
+                player_projects["science_value"] * player_projects["count"]
+            ).sum() / 10.0
+            if total_science > 0 and player_name in all_turns_by_player:
+                project_rows = pd.DataFrame(
+                    {
+                        "turn_number": all_turns_by_player[player_name],
+                        "player_name": player_name,
+                        "category": "Projects",
+                        "science": total_science,
+                    }
+                )
+                grouped = pd.concat([grouped, project_rows], ignore_index=True)
+
+    # Empire Bonuses: sum science_value per player (already in raw units)
+    if bonuses_df is not None and not bonuses_df.empty:
+        for player_name in bonuses_df["player_name"].unique():
+            player_bonuses = bonuses_df[bonuses_df["player_name"] == player_name]
+            total_science = player_bonuses["science_value"].sum() / 10.0
+            if total_science > 0 and player_name in all_turns_by_player:
+                bonus_rows = pd.DataFrame(
+                    {
+                        "turn_number": all_turns_by_player[player_name],
+                        "player_name": player_name,
+                        "category": "Empire Bonuses",
+                        "science": total_science,
+                    }
+                )
+                grouped = pd.concat([grouped, bonus_rows], ignore_index=True)
+
+    players = sorted(grouped["player_name"].unique())
+
+    # Category colors (fixed, independent of player)
+    category_colors = {
+        "Philosophers": "#4CAF50",
+        "Doctors": "#2196F3",
+        "Specialists": "#78909C",
+        "Improvements": "#FF9800",
+        "Sages Bonus": "#9C27B0",
+        "Projects": "#FF5722",
+        "Empire Bonuses": "#E91E63",
+    }
+    category_order = [
+        "Improvements",
+        "Specialists",
+        "Sages Bonus",
+        "Doctors",
+        "Philosophers",
+        "Projects",
+        "Empire Bonuses",
+    ]
+
+    fig = make_subplots(
+        rows=1,
+        cols=min(len(players), 2),
+        shared_yaxes=True,
+        horizontal_spacing=0.06,
+        subplot_titles=players[:2],
+    )
+    fig = apply_dark_theme(fig)
+
+    for col_idx, player in enumerate(players[:2], start=1):
+        player_data = grouped[grouped["player_name"] == player]
+        all_turns = sorted(player_data["turn_number"].unique())
+
+        for cat in category_order:
+            cat_data = player_data[player_data["category"] == cat]
+            if cat_data.empty:
+                continue
+
+            # Build complete turn series with 0-fill for missing turns
+            turn_to_science = dict(zip(cat_data["turn_number"], cat_data["science"]))
+            values = [turn_to_science.get(t, 0) for t in all_turns]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=all_turns,
+                    y=values,
+                    name=cat,
+                    mode="lines",
+                    stackgroup=f"player{col_idx}",
+                    fillcolor=category_colors.get(cat, "#888888"),
+                    line=dict(width=0.5, color=category_colors.get(cat, "#888888")),
+                    hovertemplate=(
+                        f"<b>{cat}</b><br>" "Turn %{x}: %{y:.1f}/turn<extra></extra>"
+                    ),
+                    legendgroup=cat,
+                    showlegend=(col_idx == 1),
+                ),
+                row=1,
+                col=col_idx,
+            )
+
+    fig.update_layout(
+        height=450,
+        margin=dict(t=40, b=60, l=60, r=20),
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.06,
+            xanchor="center",
+            x=0.5,
+        ),
+        template=None,
+    )
+
+    for annotation in fig["layout"]["annotations"]:
+        annotation["font"] = dict(size=12, color=CHART_THEME["font_color"])
+
+    fig.update_xaxes(title_text="Turn Number", row=1, col=1)
+    if len(players) > 1:
+        fig.update_xaxes(title_text="Turn Number", row=1, col=2)
+    fig.update_yaxes(title_text="Est. Science/Turn", row=1, col=1)
 
     return fig
 

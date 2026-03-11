@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 
 import dash
 import dash_bootstrap_components as dbc
-import pandas as pd
 import dash_cytoscape as cyto
+import pandas as pd
 from dash import Input, Output, State, callback, dcc, html
 from plotly import graph_objects as go
 
@@ -26,22 +26,25 @@ from tournament_visualizer.components.charts import (
     create_improvement_butterfly_chart,
     create_law_adoption_timeline_chart,
     create_match_legitimacy_chart,
+    create_match_yield_stacked_chart,
     create_military_power_chart,
     create_science_breakdown_chart,
     create_science_infrastructure_timeline,
+    create_science_rate_cumulative_chart,
     create_science_sources_detail_chart,
+    create_science_sources_stacked_chart,
     create_specialist_butterfly_chart,
     create_tech_completion_timeline_chart,
     create_territory_control_chart,
-    create_match_yield_stacked_chart,
-    create_units_stacked_bar_chart,
-    create_units_grouped_bar_chart,
-    create_units_waffle_chart,
-    create_units_treemap_chart,
-    create_units_icon_grid,
     create_units_army_portrait,
+    create_units_grouped_bar_chart,
+    create_units_icon_grid,
     create_units_marimekko_chart,
+    create_units_stacked_bar_chart,
+    create_units_treemap_chart,
+    create_units_waffle_chart,
 )
+from tournament_visualizer.components.game_state import create_game_state_component
 from tournament_visualizer.components.layouts import (
     create_breadcrumb,
     create_chart_card,
@@ -50,6 +53,16 @@ from tournament_visualizer.components.layouts import (
     create_metric_card,
     create_page_header,
     create_tab_layout,
+)
+from tournament_visualizer.components.match_card import (
+    analyze_match,
+    fetch_match_card_data,
+)
+from tournament_visualizer.components.match_card_layouts import create_match_card_layout
+from tournament_visualizer.components.tech_tree import (
+    TECH_TREE_STYLESHEET,
+    build_cytoscape_elements,
+    get_techs_at_turn,
 )
 from tournament_visualizer.config import (
     COGNOMEN_DISPLAY_NAMES,
@@ -64,19 +77,11 @@ from tournament_visualizer.config import (
 )
 from tournament_visualizer.data.queries import get_queries
 from tournament_visualizer.nation_colors import get_match_player_colors
+from tournament_visualizer.tech_tree import TECHS
 from tournament_visualizer.utils.event_categories import (
     get_category_color_map,
     get_event_category,
 )
-from tournament_visualizer.components.tech_tree import (
-    build_cytoscape_elements,
-    get_techs_at_turn,
-    TECH_TREE_STYLESHEET,
-)
-from tournament_visualizer.components.game_state import create_game_state_component
-from tournament_visualizer.components.match_card import analyze_match, fetch_match_card_data
-from tournament_visualizer.components.match_card_layouts import create_match_card_layout
-from tournament_visualizer.tech_tree import TECHS
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +216,9 @@ layout = html.Div(
         html.Div(id="match-details-section", style={"display": "none"}),
         # Hidden placeholder tabs for callbacks that reference match-details-tabs
         # The actual tabs are created dynamically when a match is selected
-        dbc.Tabs(id="match-details-tabs", active_tab="overview", style={"display": "none"}),
+        dbc.Tabs(
+            id="match-details-tabs", active_tab="overview", style={"display": "none"}
+        ),
         # Default empty state
         html.Div(
             id="match-empty-state",
@@ -997,67 +1004,95 @@ def update_match_details(match_id: Optional[int], url_search: Optional[str]) -> 
                             ],
                         ],
                     },
-                    # Science tab (beta) - only shown when ?beta=true in URL
-                    *(
-                        [
-                            {
-                                "label": "Science ᴮᵉᵗᵃ",
-                                "tab_id": "science",
-                                "content": [
-                                    # Row 1: Science Breakdown (full width)
-                                    dbc.Row(
+                    {
+                        "label": "Science",
+                        "tab_id": "science",
+                        "content": [
+                            # Row 1: Science Rate & Cumulative (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
                                         [
-                                            dbc.Col(
-                                                [
-                                                    create_chart_card(
-                                                        title="Science from Infrastructure",
-                                                        chart_id="match-science-breakdown",
-                                                        height="280px",
-                                                    )
-                                                ],
-                                                width=12,
-                                            ),
+                                            create_chart_card(
+                                                title="Science Rate & Cumulative",
+                                                chart_id="match-science-rate-cumulative",
+                                                height="500px",
+                                            )
                                         ],
-                                        className="mt-3 mb-3",
-                                    ),
-                                    # Row 2: Direct Science Sources (full width)
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(
-                                                [
-                                                    create_chart_card(
-                                                        title="Direct Science Sources",
-                                                        chart_id="match-science-sources",
-                                                        height="400px",
-                                                    )
-                                                ],
-                                                width=12,
-                                            ),
-                                        ],
-                                        className="mb-3",
-                                    ),
-                                    # Row 3: Timeline (full width)
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(
-                                                [
-                                                    create_chart_card(
-                                                        title="Science Infrastructure Timeline",
-                                                        chart_id="match-science-timeline",
-                                                        height="400px",
-                                                    )
-                                                ],
-                                                width=12,
-                                            ),
-                                        ],
-                                        className="mb-3",
+                                        width=12,
                                     ),
                                 ],
-                            }
-                        ]
-                        if show_beta
-                        else []
-                    ),
+                                className="mt-3 mb-3",
+                            ),
+                            # Row 2: Estimated Science by Source (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Estimated Science by Source",
+                                                chart_id="match-science-sources-stacked",
+                                                height="450px",
+                                                info_text="Projects and Empire Bonuses shown as end-game values (build timing not tracked)",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 3: Infrastructure Breakdown (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Science from Infrastructure",
+                                                chart_id="match-science-breakdown",
+                                                height="280px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 4: Direct Science Sources (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Direct Science Sources",
+                                                chart_id="match-science-sources",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Row 5: Science Infrastructure Timeline (full width)
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            create_chart_card(
+                                                title="Science Infrastructure Timeline",
+                                                chart_id="match-science-timeline",
+                                                height="400px",
+                                            )
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Reference panel
+                            _create_science_reference_panel(),
+                        ],
+                    },
                     {
                         "label": "Ambitions",
                         "tab_id": "ambitions",
@@ -2590,6 +2625,121 @@ def update_all_yield_charts(
 
 
 # =============================================================================
+# Science Tab Helpers
+# =============================================================================
+
+
+def _create_science_reference_panel() -> dbc.Accordion:
+    """Create an expandable reference panel explaining science tab methodology."""
+    text_color = "#eef2f7"
+    muted_color = "#a0aec0"
+
+    def ref_item(term: str, definition: str) -> html.Div:
+        return html.Div(
+            [
+                html.Span(term, style={"fontWeight": "bold", "color": text_color}),
+                html.Span(" – ", style={"color": muted_color}),
+                html.Span(definition, style={"color": muted_color}),
+            ],
+            className="mb-1",
+        )
+
+    def section(title: str, items: list) -> html.Div:
+        return html.Div(
+            [html.H6(title, style={"color": text_color})] + items,
+        )
+
+    glossary = section(
+        "Glossary",
+        [
+            ref_item(
+                "Science Rate",
+                "Actual science per turn recorded by the game. This is ground truth.",
+            ),
+            ref_item(
+                "Cumulative Total",
+                "Running total of all science earned from all sources — production, "
+                "events, bonuses, trade. Only available in newer save files.",
+            ),
+            ref_item(
+                "Estimated",
+                "Our reconstruction of science from map tile data. We count "
+                "specialists and improvements each turn and apply known science values. "
+                "Always lower than the actual rate because some sources can't be tracked.",
+            ),
+            ref_item(
+                "Sages Bonus",
+                "The extra +1 science/turn per specialist in Sages family cities "
+                "(Amorite, Thutmosid, Alcmaeonid). Shown as a separate category "
+                "because it depends on city assignment, not specialist type.",
+            ),
+            ref_item(
+                "Projects",
+                "Science from Archive projects (I–IV). Shown as end-game values "
+                "because we know how many were built but not when.",
+            ),
+            ref_item(
+                "Empire Bonuses",
+                "Flat science bonuses from nation abilities (Babylonia), laws "
+                "(Centralization, Constitution, Philosophy), character traits "
+                "(Intelligent, Scholar), and game settings (Competitive Mode, "
+                "No Starting Techs). Also shown as end-game values.",
+            ),
+            ref_item(
+                "Diamond markers",
+                "Turns where the cumulative total jumped more than the production "
+                "rate explains — likely science from events, ruins, or ambition rewards. "
+                "Only shown when cumulative data is available.",
+            ),
+        ],
+    )
+
+    not_estimated = section(
+        "Not Included in Estimates",
+        [
+            ref_item(
+                "City modifiers",
+                "Libraries, Musaeum, Scientific Method, Clerics steles — "
+                "these multiply per-city science but aren't in the time-series yet.",
+            ),
+            ref_item(
+                "Happiness penalty",
+                "Discontent reduces science but isn't reflected in the estimate.",
+            ),
+            ref_item(
+                "Events",
+                "One-time science grants (ruins, character study, etc.) — "
+                "detected as diamond markers on the cumulative chart but not "
+                "included in the estimate.",
+            ),
+        ],
+    )
+
+    content = html.Div(
+        [
+            dbc.Row(
+                [
+                    dbc.Col([glossary], width=7),
+                    dbc.Col([not_estimated], width=5),
+                ],
+            ),
+        ],
+        style={"fontSize": "13px"},
+    )
+
+    return dbc.Accordion(
+        [
+            dbc.AccordionItem(
+                content,
+                title="Reference",
+            ),
+        ],
+        start_collapsed=True,
+        className="mt-3 mb-3",
+    )
+
+
+# =============================================================================
 # Science Tab Callbacks
 # =============================================================================
 
@@ -2624,7 +2774,9 @@ def update_science_breakdown_chart(
             raise dash.exceptions.PreventUpdate
 
     if not match_id:
-        return create_empty_chart_placeholder("Select a match to view science breakdown")
+        return create_empty_chart_placeholder(
+            "Select a match to view science breakdown"
+        )
 
     try:
         queries = get_queries()
@@ -2639,6 +2791,128 @@ def update_science_breakdown_chart(
     except Exception as e:
         logger.error(f"Error loading science breakdown: {e}")
         return create_empty_chart_placeholder("Error loading breakdown data")
+
+
+@callback(
+    Output("match-science-rate-cumulative", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_rate_cumulative_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update science rate and cumulative chart with event spike annotations.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with rate + cumulative subplots
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view science rate")
+
+    try:
+        queries = get_queries()
+
+        # Get science rate data
+        rate_df = queries.get_yield_history_by_match(
+            match_id, yield_types=["YIELD_SCIENCE"]
+        )
+        if rate_df.empty:
+            return create_empty_chart_placeholder("No science yield data available")
+
+        # Get actual cumulative totals if available (v1.0.81366+ saves)
+        cumulative_df = None
+        if queries.has_yield_total_history(match_id):
+            all_totals = queries.get_yield_total_history_by_match(match_id)
+            if all_totals is not None and not all_totals.empty:
+                cumulative_df = all_totals[
+                    all_totals["resource_type"] == "YIELD_SCIENCE"
+                ]
+
+        # Get total turns for extending lines
+        match_df = queries.get_match_summary()
+        match_info = match_df[match_df["match_id"] == match_id]
+        total_turns = (
+            match_info.iloc[0]["total_turns"] if not match_info.empty else None
+        )
+
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_rate_cumulative_chart(
+            rate_df,
+            total_turns=total_turns,
+            player_colors=player_colors,
+            cumulative_df=cumulative_df,
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading science rate chart: {e}")
+        return create_empty_chart_placeholder("Error loading science rate data")
+
+
+@callback(
+    Output("match-science-sources-stacked", "figure"),
+    Input("match-details-tabs", "active_tab"),
+    Input("match-selector", "value"),
+    State("match-tabs-loaded-store", "data"),
+    prevent_initial_call=True,
+)
+def update_science_sources_stacked_chart(
+    active_tab: Optional[str],
+    match_id: Optional[int],
+    loaded_state: Optional[Dict[str, Any]],
+) -> go.Figure:
+    """Update per-player stacked area chart for science sources.
+
+    Args:
+        active_tab: Currently active tab
+        match_id: Selected match ID
+        loaded_state: Tab loading state from store
+
+    Returns:
+        Plotly figure with stacked area subplots per player
+    """
+    if active_tab != "science":
+        raise dash.exceptions.PreventUpdate
+
+    if loaded_state and loaded_state.get("match_id") == match_id:
+        if "science" in loaded_state.get("loaded_tabs", []):
+            raise dash.exceptions.PreventUpdate
+
+    if not match_id:
+        return create_empty_chart_placeholder("Select a match to view science sources")
+
+    try:
+        queries = get_queries()
+        df = queries.get_science_infrastructure_timeline(match_id)
+
+        if df.empty:
+            return create_empty_chart_placeholder("No science infrastructure data")
+
+        projects_df = queries.get_science_projects_summary(match_id)
+        bonuses_df = queries.get_science_bonuses_summary(match_id)
+        player_colors = get_player_colors_for_match(match_id)
+        return create_science_sources_stacked_chart(
+            df, player_colors, projects_df=projects_df, bonuses_df=bonuses_df
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading science sources: {e}")
+        return create_empty_chart_placeholder("Error loading sources data")
 
 
 @callback(
@@ -2680,8 +2954,12 @@ def update_science_sources_chart(
         if infra_df.empty:
             return create_empty_chart_placeholder("No science infrastructure data")
 
+        projects_df = queries.get_science_projects_summary(match_id)
+        bonuses_df = queries.get_science_bonuses_summary(match_id)
         player_colors = get_player_colors_for_match(match_id)
-        return create_science_sources_detail_chart(infra_df, player_colors)
+        return create_science_sources_detail_chart(
+            infra_df, player_colors, projects_df=projects_df, bonuses_df=bonuses_df
+        )
 
     except Exception as e:
         logger.error(f"Error loading science sources: {e}")
