@@ -151,7 +151,9 @@ layout = html.Div(
                                                 ),
                                                 html.Div(
                                                     [
-                                                        html.Strong("Governance (25%): "),
+                                                        html.Strong(
+                                                            "Governance (25%): "
+                                                        ),
                                                         html.Span(
                                                             "Legitimacy (33%) + Expansion rate (33%) + Law adoption rate (33%)"
                                                         ),
@@ -232,34 +234,76 @@ layout = html.Div(
                                                     [
                                                         html.Ul(
                                                             [
-                                                                html.Li([
-                                                                    html.Strong("Win Rate: "),
-                                                                    html.Span("Match win percentage"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Win Margin: "),
-                                                                    html.Span("Average victory point lead in wins"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Yields: "),
-                                                                    html.Span("Total productive output per turn"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Expansion: "),
-                                                                    html.Span("City founding rate"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Legitimacy: "),
-                                                                    html.Span("Average governance stability"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Law Rate: "),
-                                                                    html.Span("Laws adopted per 100 turns"),
-                                                                ]),
-                                                                html.Li([
-                                                                    html.Strong("Military: "),
-                                                                    html.Span("Military power, army diversity, power lead"),
-                                                                ]),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Win Rate: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Match win percentage"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Win Margin: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Average victory point lead in wins"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Yields: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Total productive output per turn"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Expansion: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "City founding rate"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Legitimacy: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Average governance stability"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Law Rate: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Laws adopted per 100 turns"
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                                html.Li(
+                                                                    [
+                                                                        html.Strong(
+                                                                            "Military: "
+                                                                        ),
+                                                                        html.Span(
+                                                                            "Military power, army diversity, power lead"
+                                                                        ),
+                                                                    ]
+                                                                ),
                                                             ],
                                                             className="small mb-0",
                                                         ),
@@ -357,14 +401,16 @@ def update_skill_rankings_table(pathname: str) -> List[Dict[str, Any]]:
         # Get civilization data from player performance
         perf_df = queries.get_player_performance()
         if not perf_df.empty:
-            civ_data = perf_df[["player_name", "civilizations_played", "favorite_civilization"]]
+            civ_data = perf_df[
+                ["player_name", "civilizations_played", "favorite_civilization"]
+            ]
             df = df.merge(civ_data, on="player_name", how="left")
 
             # Format civilizations display
             df["civilizations_display"] = df.apply(
                 lambda row: _format_civilizations_display(
                     row.get("civilizations_played", ""),
-                    row.get("favorite_civilization", "")
+                    row.get("favorite_civilization", ""),
                 ),
                 axis=1,
             )

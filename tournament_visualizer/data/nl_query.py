@@ -734,7 +734,9 @@ class NLQueryService:
         # Step 3: Extract SQL
         sql = _extract_sql(response.content)
         if sql is None:
-            logger.warning(f"Chat failed: could not extract SQL from response:\n{response.content}")
+            logger.warning(
+                f"Chat failed: could not extract SQL from response:\n{response.content}"
+            )
             return QueryResult(
                 success=False,
                 sql=response.content,
@@ -773,7 +775,9 @@ class NLQueryService:
                 success=True,
                 df=df,
                 sql=sql,
-                error_message=f"Results truncated to {row_limit} rows." if truncated else "",
+                error_message=f"Results truncated to {row_limit} rows."
+                if truncated
+                else "",
             )
 
         except Exception as e:

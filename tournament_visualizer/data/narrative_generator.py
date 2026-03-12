@@ -90,9 +90,7 @@ class NarrativeGenerator:
             Single paragraph player narrative
         """
         match_id = analysis.get("match_id")
-        logger.info(
-            f"Generating {player_key} narrative for match {match_id}"
-        )
+        logger.info(f"Generating {player_key} narrative for match {match_id}")
 
         prompt = build_player_narrative_prompt(analysis, player_key)
         messages: list[MessageParam] = [{"role": "user", "content": prompt}]
@@ -141,9 +139,7 @@ ONLY describe what the data directly shows. Do not invent causal links between s
 DO NOT include section headers, bullet points, or labels. Just write the narrative prose. Do not start with the players' names -- start with something that establishes the character of the match."""
 
 
-def build_player_narrative_prompt(
-    analysis: dict[str, Any], player_key: str
-) -> str:
+def build_player_narrative_prompt(analysis: dict[str, Any], player_key: str) -> str:
     """Build the LLM prompt for a player narrative.
 
     Args:
@@ -218,7 +214,11 @@ def serialize_analysis(analysis: dict[str, Any]) -> str:
     lines: list[str] = []
 
     # Match header
-    turns_str = f"{total_turns} turns (average {avg_turns})" if avg_turns else f"{total_turns} turns"
+    turns_str = (
+        f"{total_turns} turns (average {avg_turns})"
+        if avg_turns
+        else f"{total_turns} turns"
+    )
     lines.append(f"Match: {p1_name} ({p1_civ}) vs {p2_name} ({p2_civ}), {turns_str}")
     lines.append(f"Winner: {winner_name}")
     lines.append("")
@@ -227,7 +227,9 @@ def serialize_analysis(analysis: dict[str, Any]) -> str:
     lines.append("VP Analysis:")
     lines.append(f"  Lead changes: {vp_analysis.get('total_lead_changes', 0)}")
     perm = vp_analysis.get("permanent_lead_turn")
-    lines.append(f"  Permanent lead established: {'turn ' + str(perm) if perm else 'never'}")
+    lines.append(
+        f"  Permanent lead established: {'turn ' + str(perm) if perm else 'never'}"
+    )
     lines.append(
         f"  Max {p1_name} lead: {vp_analysis.get('max_p1_lead', 0)} VP "
         f"(turn {vp_analysis.get('max_p1_lead_turn', '?')})"
@@ -248,18 +250,22 @@ def serialize_analysis(analysis: dict[str, Any]) -> str:
 
         # Army composition (only non-zero)
         army = profile.get("army_composition", {})
-        army_parts = [
-            f"{k} {v:.0%}" for k, v in army.items() if v and v > 0
-        ]
+        army_parts = [f"{k} {v:.0%}" for k, v in army.items() if v and v > 0]
         if army_parts:
             lines.append(f"  Army: {', '.join(army_parts)}")
 
-        lines.append(f"  Military units produced: {profile.get('military_unit_count', 0)}")
+        lines.append(
+            f"  Military units produced: {profile.get('military_unit_count', 0)}"
+        )
         lines.append(f"  Peak military power: {profile.get('peak_military_power', 0)}")
-        lines.append(f"  Final military power: {profile.get('final_military_power', 0)}")
+        lines.append(
+            f"  Final military power: {profile.get('final_military_power', 0)}"
+        )
         lines.append(f"  Economy: {tags.get('economy', '?')}")
         lines.append(f"  Wonders built: {profile.get('wonders_built', 0)}")
-        lines.append(f"  Cities (end of game): {territory.get(f'{exp_key}_final_cities', 0)}")
+        lines.append(
+            f"  Cities (end of game): {territory.get(f'{exp_key}_final_cities', 0)}"
+        )
 
         # Laws from summary
         player_name = profile.get("player_name", "")
@@ -302,6 +308,8 @@ def serialize_analysis(analysis: dict[str, Any]) -> str:
             name = data.get("display_name", key)
             p1_total = data.get("p1_total", 0)
             p2_total = data.get("p2_total", 0)
-            lines.append(f"  {name}: {p1_name} {p1_total:.0f} vs {p2_name} {p2_total:.0f}")
+            lines.append(
+                f"  {name}: {p1_name} {p1_total:.0f} vs {p2_name} {p2_total:.0f}"
+            )
 
     return "\n".join(lines)

@@ -11,17 +11,17 @@ from typing import Optional
 # Source: docs/reference/color-scheme.md
 # Note: Carthage uses off-white for visibility on dark backgrounds
 NATION_COLORS: dict[str, str] = {
-    "AKSUM": "#F8A3B4",     # Pink/Rose
-    "ASSYRIA": "#FADC3B",   # Yellow
-    "BABYLONIA": "#82C83E", # Green
+    "AKSUM": "#F8A3B4",  # Pink/Rose
+    "ASSYRIA": "#FADC3B",  # Yellow
+    "BABYLONIA": "#82C83E",  # Green
     "CARTHAGE": "#F6EFE1",  # Off-white/Beige (visible on dark background)
-    "EGYPT": "#BC6304",     # Dark Orange/Brown
-    "GREECE": "#2360BC",    # Dark Blue
-    "HATTI": "#80E3E8",     # Cyan
-    "HITTITE": "#80E3E8",   # Cyan (alias for HATTI)
-    "KUSH": "#FFFFB6",      # Light Yellow
-    "PERSIA": "#C04E4A",    # Red
-    "ROME": "#880D56",      # Purple/Burgundy
+    "EGYPT": "#BC6304",  # Dark Orange/Brown
+    "GREECE": "#2360BC",  # Dark Blue
+    "HATTI": "#80E3E8",  # Cyan
+    "HITTITE": "#80E3E8",  # Cyan (alias for HATTI)
+    "KUSH": "#FFFFB6",  # Light Yellow
+    "PERSIA": "#C04E4A",  # Red
+    "ROME": "#880D56",  # Purple/Burgundy
 }
 
 # Backwards compatibility - now identical to NATION_COLORS

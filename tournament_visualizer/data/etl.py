@@ -164,7 +164,9 @@ class TournamentETL:
             logger.error(traceback.format_exc())
             return False
 
-    def _load_tournament_data(self, parsed_data: Dict[str, Any], file_path: str) -> None:
+    def _load_tournament_data(
+        self, parsed_data: Dict[str, Any], file_path: str
+    ) -> None:
         """Load parsed tournament data into the database.
 
         Winner determination priority:

@@ -100,9 +100,7 @@ class GoogleSheetsClient:
             )
 
             values = result.get("values", [])
-            logger.info(
-                f"Fetched {len(values)} rows from sheet " f"(range: {range_name})"
-            )
+            logger.info(f"Fetched {len(values)} rows from sheet (range: {range_name})")
 
             return values
 

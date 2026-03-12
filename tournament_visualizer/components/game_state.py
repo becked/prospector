@@ -208,7 +208,9 @@ def _create_winner_indicator(
     else:
         # Show winner crest + percentage
         if winner_crest:
-            children.append(_create_colored_crest(winner_crest, winner_color, icon_size))
+            children.append(
+                _create_colored_crest(winner_crest, winner_color, icon_size)
+            )
         else:
             # Fallback: colored circle
             children.append(
@@ -251,7 +253,11 @@ def _create_winner_indicator(
     }
 
     # Winner row
-    winner_icon = _create_colored_crest(winner_crest_path, winner_crest_color, tooltip_icon_size) if winner_crest_path else html.Span()
+    winner_icon = (
+        _create_colored_crest(winner_crest_path, winner_crest_color, tooltip_icon_size)
+        if winner_crest_path
+        else html.Span()
+    )
     winner_row = html.Div(
         [
             winner_icon,
@@ -263,7 +269,11 @@ def _create_winner_indicator(
     )
 
     # Loser row
-    loser_icon = _create_colored_crest(loser_crest_path, loser_crest_color, tooltip_icon_size) if loser_crest_path else html.Span()
+    loser_icon = (
+        _create_colored_crest(loser_crest_path, loser_crest_color, tooltip_icon_size)
+        if loser_crest_path
+        else html.Span()
+    )
     loser_row = html.Div(
         [
             loser_icon,
@@ -427,72 +437,90 @@ def create_game_state_component(
 
     if show_metrics:
         # All 4 metrics columns
-        header_children.extend([
-            html.Div(
-                [
-                    html.Span(
-                        [
-                            html.Img(
-                                src=YIELD_ORDERS_ICON,
-                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
-                            ),
-                            _create_styled_tooltip("Orders per Turn"),
-                        ],
-                        className="event-icon-wrapper",
-                        style={"position": "relative"},
-                    ),
-                ],
-                style=header_comparison_style,
-            ),
-            html.Div(
-                [
-                    html.Span(
-                        [
-                            html.Img(
-                                src=YIELD_TRAINING_ICON,
-                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
-                            ),
-                            _create_styled_tooltip("Military Power"),
-                        ],
-                        className="event-icon-wrapper",
-                        style={"position": "relative"},
-                    ),
-                ],
-                style=header_comparison_style,
-            ),
-            html.Div(
-                [
-                    html.Span(
-                        [
-                            html.Img(
-                                src=YIELD_SCIENCE_ICON,
-                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
-                            ),
-                            _create_styled_tooltip("Total Science"),
-                        ],
-                        className="event-icon-wrapper",
-                        style={"position": "relative"},
-                    ),
-                ],
-                style=header_comparison_style,
-            ),
-            html.Div(
-                [
-                    html.Span(
-                        [
-                            html.Img(
-                                src=YIELD_VP_ICON,
-                                style={"width": "14px", "height": "14px", "verticalAlign": "middle"},
-                            ),
-                            _create_styled_tooltip("Victory Points"),
-                        ],
-                        className="event-icon-wrapper",
-                        style={"position": "relative"},
-                    ),
-                ],
-                style=header_comparison_style,
-            ),
-        ])
+        header_children.extend(
+            [
+                html.Div(
+                    [
+                        html.Span(
+                            [
+                                html.Img(
+                                    src=YIELD_ORDERS_ICON,
+                                    style={
+                                        "width": "14px",
+                                        "height": "14px",
+                                        "verticalAlign": "middle",
+                                    },
+                                ),
+                                _create_styled_tooltip("Orders per Turn"),
+                            ],
+                            className="event-icon-wrapper",
+                            style={"position": "relative"},
+                        ),
+                    ],
+                    style=header_comparison_style,
+                ),
+                html.Div(
+                    [
+                        html.Span(
+                            [
+                                html.Img(
+                                    src=YIELD_TRAINING_ICON,
+                                    style={
+                                        "width": "14px",
+                                        "height": "14px",
+                                        "verticalAlign": "middle",
+                                    },
+                                ),
+                                _create_styled_tooltip("Military Power"),
+                            ],
+                            className="event-icon-wrapper",
+                            style={"position": "relative"},
+                        ),
+                    ],
+                    style=header_comparison_style,
+                ),
+                html.Div(
+                    [
+                        html.Span(
+                            [
+                                html.Img(
+                                    src=YIELD_SCIENCE_ICON,
+                                    style={
+                                        "width": "14px",
+                                        "height": "14px",
+                                        "verticalAlign": "middle",
+                                    },
+                                ),
+                                _create_styled_tooltip("Total Science"),
+                            ],
+                            className="event-icon-wrapper",
+                            style={"position": "relative"},
+                        ),
+                    ],
+                    style=header_comparison_style,
+                ),
+                html.Div(
+                    [
+                        html.Span(
+                            [
+                                html.Img(
+                                    src=YIELD_VP_ICON,
+                                    style={
+                                        "width": "14px",
+                                        "height": "14px",
+                                        "verticalAlign": "middle",
+                                    },
+                                ),
+                                _create_styled_tooltip("Victory Points"),
+                            ],
+                            className="event-icon-wrapper",
+                            style={"position": "relative"},
+                        ),
+                    ],
+                    style=header_comparison_style,
+                ),
+            ]
+        )
     else:
         # Turn in center when metrics disabled
         header_children.append(html.Div("Turn", style=turn_col_style))
@@ -529,17 +557,21 @@ def create_game_state_component(
 
     # P1 events - player1 color
     border_children.append(
-        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color})
+        html.Div(
+            style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player1_color}
+        )
     )
 
     if show_metrics:
         # All 4 metrics - gradient (4 x 44px = 176px)
         border_children.append(
-            html.Div(style={
-                "flex": "0 0 176px",
-                "height": "3px",
-                "background": f"linear-gradient(to right, {player1_color}, {player2_color})",
-            })
+            html.Div(
+                style={
+                    "flex": "0 0 176px",
+                    "height": "3px",
+                    "background": f"linear-gradient(to right, {player1_color}, {player2_color})",
+                }
+            )
         )
     else:
         # Turn column - no border (in center)
@@ -547,7 +579,9 @@ def create_game_state_component(
 
     # P2 events - player2 color
     border_children.append(
-        html.Div(style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player2_color})
+        html.Div(
+            style={"flex": "1 1 22%", "height": "3px", "backgroundColor": player2_color}
+        )
     )
 
     header_border = html.Div(
@@ -570,28 +604,50 @@ def create_game_state_component(
     data_rows = [header_row]
 
     # Get all unique turns from comparison and events
-    comparison_turns = set(comparison_df["turn_number"].tolist()) if not comparison_df.empty else set()
+    comparison_turns = (
+        set(comparison_df["turn_number"].tolist()) if not comparison_df.empty else set()
+    )
     event_turns = set(events_df["turn"].tolist()) if not events_df.empty else set()
     all_turns = sorted(comparison_turns | event_turns)
 
     # Create lookup for comparison data
-    comparison_by_turn = {
-        int(row["turn_number"]): row for _, row in comparison_df.iterrows()
-    } if not comparison_df.empty else {}
+    comparison_by_turn = (
+        {int(row["turn_number"]): row for _, row in comparison_df.iterrows()}
+        if not comparison_df.empty
+        else {}
+    )
 
     # Track city counts: family counts and total counts per player
-    family_city_counts: Dict[Tuple[int, str], int] = {}  # (player_id, family_name) -> count
+    family_city_counts: Dict[
+        Tuple[int, str], int
+    ] = {}  # (player_id, family_name) -> count
     player_city_counts: Dict[int, int] = {}  # player_id -> total count
 
     for row_idx, turn in enumerate(all_turns):
         # Get events for this turn
-        turn_events = events_df[events_df["turn"] == turn] if not events_df.empty else pd.DataFrame()
-        p1_events = turn_events[turn_events["player_id"] == player1_id] if not turn_events.empty else pd.DataFrame()
-        p2_events = turn_events[turn_events["player_id"] == player2_id] if not turn_events.empty else pd.DataFrame()
+        turn_events = (
+            events_df[events_df["turn"] == turn]
+            if not events_df.empty
+            else pd.DataFrame()
+        )
+        p1_events = (
+            turn_events[turn_events["player_id"] == player1_id]
+            if not turn_events.empty
+            else pd.DataFrame()
+        )
+        p2_events = (
+            turn_events[turn_events["player_id"] == player2_id]
+            if not turn_events.empty
+            else pd.DataFrame()
+        )
 
         # Build event icons (with city count tracking)
-        p1_icons = _build_event_icons(p1_events, player1_id, family_city_counts, player_city_counts, show_text)
-        p2_icons = _build_event_icons(p2_events, player2_id, family_city_counts, player_city_counts, show_text)
+        p1_icons = _build_event_icons(
+            p1_events, player1_id, family_city_counts, player_city_counts, show_text
+        )
+        p2_icons = _build_event_icons(
+            p2_events, player2_id, family_city_counts, player_city_counts, show_text
+        )
 
         # Get comparison data if available
         comp_row = comparison_by_turn.get(turn)
@@ -641,10 +697,46 @@ def create_game_state_component(
             )
         else:
             # No comparison data - show dashes
-            ord_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
-            mil_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
-            sci_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
-            vp_indicator = _create_winner_indicator(0, 0, p1_crest, p2_crest, player1_color, player2_color, player1_name, player2_name)
+            ord_indicator = _create_winner_indicator(
+                0,
+                0,
+                p1_crest,
+                p2_crest,
+                player1_color,
+                player2_color,
+                player1_name,
+                player2_name,
+            )
+            mil_indicator = _create_winner_indicator(
+                0,
+                0,
+                p1_crest,
+                p2_crest,
+                player1_color,
+                player2_color,
+                player1_name,
+                player2_name,
+            )
+            sci_indicator = _create_winner_indicator(
+                0,
+                0,
+                p1_crest,
+                p2_crest,
+                player1_color,
+                player2_color,
+                player1_name,
+                player2_name,
+            )
+            vp_indicator = _create_winner_indicator(
+                0,
+                0,
+                p1_crest,
+                p2_crest,
+                player1_color,
+                player2_color,
+                player1_name,
+                player2_name,
+            )
 
         # Build row children list
         # With metrics: Turn | P1 Events | Ord | Mil | Sci | VP | P2 Events
@@ -664,12 +756,14 @@ def create_game_state_component(
 
         if show_metrics:
             # All 4 metrics
-            row_children.extend([
-                html.Div(ord_indicator, style=comparison_col_style),
-                html.Div(mil_indicator, style=comparison_col_style),
-                html.Div(sci_indicator, style=comparison_col_style),
-                html.Div(vp_indicator, style=comparison_col_style),
-            ])
+            row_children.extend(
+                [
+                    html.Div(ord_indicator, style=comparison_col_style),
+                    html.Div(mil_indicator, style=comparison_col_style),
+                    html.Div(sci_indicator, style=comparison_col_style),
+                    html.Div(vp_indicator, style=comparison_col_style),
+                ]
+            )
         else:
             # Turn in center when metrics disabled
             row_children.append(html.Div(str(turn), style=turn_col_style))
@@ -746,7 +840,9 @@ def _build_event_icons(
             player_city_counts[player_id] = player_city_counts.get(player_id, 0) + 1
             total_count = player_city_counts[player_id]
 
-        icon_element = _create_event_icon(event_type, title, icon_emoji, details, family_count, total_count, show_text)
+        icon_element = _create_event_icon(
+            event_type, title, icon_emoji, details, family_count, total_count, show_text
+        )
         icons.append(icon_element)
 
     return icons
@@ -845,7 +941,7 @@ def _create_city_event_icons(
     if total_count is not None:
         city_badge = html.Span(
             str(total_count),
-            style={**badge_style, "backgroundColor": "#40c057"}  # Green
+            style={**badge_style, "backgroundColor": "#40c057"},  # Green
         )
     city_container = html.Div(
         [city_img] + ([city_badge] if city_badge else []),
@@ -860,7 +956,7 @@ def _create_city_event_icons(
         if family_count is not None:
             family_badge = html.Span(
                 str(family_count),
-                style={**badge_style, "backgroundColor": "#339af0"}  # Blue
+                style={**badge_style, "backgroundColor": "#339af0"},  # Blue
             )
         family_container = html.Div(
             [family_img] + ([family_badge] if family_badge else []),
@@ -1006,7 +1102,7 @@ def _create_event_icon(
         icon_path = RELIGION_ICONS.get(religion_name, RELIGION_ICON_DEFAULT)
     elif event_type == "theology":
         # Title is "Legalism (Zoroastrianism)" - extract theology name for icon lookup
-        match = re.match(r'^(\w+)\s*\(', title)
+        match = re.match(r"^(\w+)\s*\(", title)
         theology_name = match.group(1) if match else title
         icon_path = THEOLOGY_ICONS.get(theology_name)
         tooltip = title  # Show full "Legalism (Zoroastrianism)"
@@ -1072,7 +1168,9 @@ def _create_event_icon(
             icon_with_badge = html.Div(
                 [
                     img_element,
-                    html.Span(badge_text, style={**badge_style, "backgroundColor": badge_bg}),
+                    html.Span(
+                        badge_text, style={**badge_style, "backgroundColor": badge_bg}
+                    ),
                 ],
                 style=icon_container_style,
             )

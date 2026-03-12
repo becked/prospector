@@ -38,8 +38,8 @@ def get_techs_at_turn(tech_timeline_df, player_id: int, turn: int) -> Set[str]:
         return set()
 
     player_techs = tech_timeline_df[
-        (tech_timeline_df["player_id"] == player_id) &
-        (tech_timeline_df["turn_number"] <= turn)
+        (tech_timeline_df["player_id"] == player_id)
+        & (tech_timeline_df["turn_number"] <= turn)
     ]
 
     # Clean tech names (remove quotes from JSON extraction) and filter to known techs
@@ -84,23 +84,28 @@ def build_cytoscape_elements(researched: Optional[Set[str]] = None) -> List[Dict
         pos_x = col * COL_SPACING + NODE_WIDTH // 2
         pos_y = row * ROW_SPACING + NODE_HEIGHT // 2
 
-        elements.append({
-            "data": {
-                "id": tech_id,
-                "label": name,
-            },
-            "position": {
-                "x": pos_x,
-                "y": pos_y,
-            },
-            "classes": "researched" if is_researched else "locked",
-        })
+        elements.append(
+            {
+                "data": {
+                    "id": tech_id,
+                    "label": name,
+                },
+                "position": {
+                    "x": pos_x,
+                    "y": pos_y,
+                },
+                "classes": "researched" if is_researched else "locked",
+            }
+        )
 
     # Create edges - only for main techs (not bonus)
     valid_tech_ids = {
-        tech_id for tech_id, (_, col, row) in TECHS.items()
-        if col is not None and row is not None
-        and "BONUS" not in tech_id and "RESOURCE" not in tech_id
+        tech_id
+        for tech_id, (_, col, row) in TECHS.items()
+        if col is not None
+        and row is not None
+        and "BONUS" not in tech_id
+        and "RESOURCE" not in tech_id
     }
 
     for prereq, unlocks in PREREQUISITES:
@@ -110,13 +115,15 @@ def build_cytoscape_elements(researched: Optional[Set[str]] = None) -> List[Dict
 
         # Only mark edge as researched if both techs are researched
         both_researched = prereq in researched and unlocks in researched
-        elements.append({
-            "data": {
-                "source": prereq,
-                "target": unlocks,
-            },
-            "classes": "edge-researched" if both_researched else "edge-locked",
-        })
+        elements.append(
+            {
+                "data": {
+                    "source": prereq,
+                    "target": unlocks,
+                },
+                "classes": "edge-researched" if both_researched else "edge-locked",
+            }
+        )
 
     return elements
 
@@ -243,13 +250,18 @@ def create_tech_tree_card(
     total_techs = len(TECHS)
     researched_count = len(researched) if researched else 0
 
-    return html.Div([
-        html.Div([
-            html.Span(player_name, className="fw-bold"),
-            html.Span(
-                f" ({researched_count}/{total_techs} techs)",
-                className="text-muted ms-2",
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Span(player_name, className="fw-bold"),
+                    html.Span(
+                        f" ({researched_count}/{total_techs} techs)",
+                        className="text-muted ms-2",
+                    ),
+                ],
+                className="mb-2",
             ),
-        ], className="mb-2"),
-        cytoscape,
-    ])
+            cytoscape,
+        ]
+    )

@@ -102,11 +102,13 @@ def api_turn_range(match_id: int) -> tuple[Any, int]:
 
     try:
         min_turn, max_turn = queries.get_territory_turn_range(match_id)
-        return jsonify({
-            "match_id": match_id,
-            "min_turn": min_turn,
-            "max_turn": max_turn,
-        }), 200
+        return jsonify(
+            {
+                "match_id": match_id,
+                "min_turn": min_turn,
+                "max_turn": max_turn,
+            }
+        ), 200
     except Exception as e:
         logger.error(f"Error getting turn range for match {match_id}: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -130,11 +132,13 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
         df = queries.get_territory_map_full(match_id, turn_number)
 
         if df.empty:
-            return jsonify({
-                "error": "No territory data found",
-                "match_id": match_id,
-                "turn_number": turn_number,
-            }), 404
+            return jsonify(
+                {
+                    "error": "No territory data found",
+                    "match_id": match_id,
+                    "turn_number": turn_number,
+                }
+            ), 404
 
         # Calculate map dimensions from data
         max_x = int(df["x_coordinate"].max()) + 1
@@ -143,24 +147,31 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
         # Build player info with colors
         players = []
         player_colors = {}
-        for _, row in df[df["owner_player_id"].notna()].drop_duplicates(
-            subset=["owner_player_id"]
-        ).iterrows():
+        for _, row in (
+            df[df["owner_player_id"].notna()]
+            .drop_duplicates(subset=["owner_player_id"])
+            .iterrows()
+        ):
             player_id = int(row["owner_player_id"])
             civilization = row.get("civilization", "")
             color = get_nation_map_color(civilization) if civilization else "#808080"
             player_colors[player_id] = color
-            players.append({
-                "player_id": player_id,
-                "name": row.get("player_name", f"Player {player_id}"),
-                "civilization": civilization,
-                "color": color,
-            })
+            players.append(
+                {
+                    "player_id": player_id,
+                    "name": row.get("player_name", f"Player {player_id}"),
+                    "civilization": civilization,
+                    "color": color,
+                }
+            )
 
         # Handle same-nation case (player 2 gets green)
         if len(players) == 2:
             if players[0]["civilization"] and players[1]["civilization"]:
-                if players[0]["civilization"].upper() == players[1]["civilization"].upper():
+                if (
+                    players[0]["civilization"].upper()
+                    == players[1]["civilization"].upper()
+                ):
                     players[1]["color"] = "#228B22"  # Forest green
                     player_colors[players[1]["player_id"]] = "#228B22"
 
@@ -209,18 +220,22 @@ def api_territories(match_id: int, turn_number: int) -> tuple[Any, int]:
 
             tiles.append(tile)
 
-        return jsonify({
-            "match_id": match_id,
-            "turn_number": turn_number,
-            "map_info": {
-                "width": max_x,
-                "height": max_y,
-                "total_tiles": len(tiles),
-            },
-            "players": players,
-            "tiles": tiles,
-        }), 200
+        return jsonify(
+            {
+                "match_id": match_id,
+                "turn_number": turn_number,
+                "map_info": {
+                    "width": max_x,
+                    "height": max_y,
+                    "total_tiles": len(tiles),
+                },
+                "players": players,
+                "tiles": tiles,
+            }
+        ), 200
 
     except Exception as e:
-        logger.error(f"Error getting territories for match {match_id} turn {turn_number}: {e}")
+        logger.error(
+            f"Error getting territories for match {match_id} turn {turn_number}: {e}"
+        )
         return jsonify({"error": "Internal server error"}), 500

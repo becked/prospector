@@ -21,9 +21,9 @@ class ThemeColors(TypedDict):
 DARK_THEME: ThemeColors = {
     # Dark blue palette
     "bg_darkest": "#0e1b2e",  # Body background
-    "bg_dark": "#364c6b",     # Cards, containers, chart backgrounds
-    "bg_medium": "#3a5a7e",   # Inputs, headers
-    "bg_light": "#45678e",    # Hover states
+    "bg_dark": "#364c6b",  # Cards, containers, chart backgrounds
+    "bg_medium": "#3a5a7e",  # Inputs, headers
+    "bg_light": "#45678e",  # Hover states
     "text_primary": "#edf2f7",
     "text_secondary": "#c8d4e3",
     "text_muted": "#9db0c9",

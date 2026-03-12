@@ -49,7 +49,8 @@ class Config:
         "19t5AbJtQr5kZ62pw8FJ-r2b9LVkz01zl2GUNWkIrhAc",  # Default: OWT 25 Stats sheet
     )
     GOOGLE_SHEETS_GAMEDATA_GID = os.getenv(
-        "GOOGLE_SHEETS_GAMEDATA_GID", "1663493966"  # Default: GAMEDATA tab
+        "GOOGLE_SHEETS_GAMEDATA_GID",
+        "1663493966",  # Default: GAMEDATA tab
     )
 
     # Anthropic API configuration (for match narrative generation)
@@ -497,10 +498,15 @@ def format_event_type_display(event_type: str) -> str:
     """
     # Remove common prefixes
     name = event_type
-    for prefix in ["MEMORYFAMILY_", "MEMORYRELIGION_", "MEMORYTRIBE_",
-                   "MEMORYPLAYER_", "MEMORYCHARACTER_"]:
+    for prefix in [
+        "MEMORYFAMILY_",
+        "MEMORYRELIGION_",
+        "MEMORYTRIBE_",
+        "MEMORYPLAYER_",
+        "MEMORYCHARACTER_",
+    ]:
         if name.startswith(prefix):
-            name = name[len(prefix):]
+            name = name[len(prefix) :]
             break
 
     # Convert underscores to spaces and title case

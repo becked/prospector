@@ -4696,7 +4696,7 @@ class TournamentQueries:
                 yth.amount / 10.0 as cumulative_yield
             FROM player_yield_total_history yth
             WHERE yth.resource_type = $yield_type
-                AND {where_clause.replace('yh.', 'yth.')}
+                AND {where_clause.replace("yh.", "yth.")}
         ),
         -- Calculated cumulative totals for older saves (fallback)
         calculated_totals AS (
@@ -8160,9 +8160,9 @@ class TournamentQueries:
         ORDER BY turn, player_id, succession_order NULLS LAST
         """
 
-        params = [
-            match_id
-        ] * 16  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
+        params = (
+            [match_id] * 16
+        )  # 16 placeholders: tech, law, wonder(x3), city, breach(x3), ruler, death, military, ambition, religion, theology, religion_adopted
 
         with self.db.get_connection() as conn:
             df = conn.execute(query, params).df()
@@ -8214,9 +8214,9 @@ class TournamentQueries:
         ]
 
         # Detect law swaps (same class adopted twice by same player)
-        law_history: dict[tuple[int, str], str] = (
-            {}
-        )  # (player_id, class) -> previous law title
+        law_history: dict[
+            tuple[int, str], str
+        ] = {}  # (player_id, class) -> previous law title
         swap_indices = []
 
         for idx, row in df[df["event_type"] == "law"].iterrows():

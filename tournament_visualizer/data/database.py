@@ -673,8 +673,18 @@ class TournamentDatabase:
                 ),
                 # Military - Ranged
                 ("UNIT_ARCHER", "military", "ranged", "Basic ranged unit"),
-                ("UNIT_AKKADIAN_ARCHER", "military", "ranged", "Akkadian tribal archer"),
-                ("UNIT_CIMMERIAN_ARCHER", "military", "ranged", "Cimmerian tribal archer"),
+                (
+                    "UNIT_AKKADIAN_ARCHER",
+                    "military",
+                    "ranged",
+                    "Akkadian tribal archer",
+                ),
+                (
+                    "UNIT_CIMMERIAN_ARCHER",
+                    "military",
+                    "ranged",
+                    "Cimmerian tribal archer",
+                ),
                 ("UNIT_SLINGER", "military", "ranged", "Early ranged unit"),
                 ("UNIT_CROSSBOWMAN", "military", "ranged", "Advanced ranged unit"),
                 ("UNIT_LONGBOWMAN", "military", "ranged", "Long-range archer unit"),
@@ -1145,7 +1155,6 @@ class TournamentDatabase:
             self._create_participant_name_overrides_table()
 
             with self.get_connection() as conn:
-
                 # Add columns to matches table (checking if they exist first)
                 # DuckDB doesn't support IF NOT EXISTS in ALTER TABLE ADD COLUMN
                 # So we need to check manually
@@ -1280,7 +1289,6 @@ class TournamentDatabase:
             self._create_pick_order_games_table()
 
             with self.get_connection() as conn:
-
                 # Add columns to matches table (checking if they exist first)
                 matches_columns_to_add = [
                     ("first_picker_participant_id", "BIGINT"),
@@ -1930,38 +1938,39 @@ class TournamentDatabase:
             records = []
             for city in cities:
                 record = (
-                    city['city_id'],
+                    city["city_id"],
                     match_id,
-                    city['player_id'],
-                    city['city_name'],
-                    city['tile_id'],
-                    city['founded_turn'],
-                    city.get('family_name'),
-                    city.get('is_capital', False),
-                    city.get('population'),
-                    city.get('first_player_id'),
-                    city.get('governor_id'),
-                    city.get('culture_level'),
-                    city.get('religion_count')
+                    city["player_id"],
+                    city["city_name"],
+                    city["tile_id"],
+                    city["founded_turn"],
+                    city.get("family_name"),
+                    city.get("is_capital", False),
+                    city.get("population"),
+                    city.get("first_player_id"),
+                    city.get("governor_id"),
+                    city.get("culture_level"),
+                    city.get("religion_count"),
                 )
                 records.append(record)
 
             # Bulk insert
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT INTO cities (
                     city_id, match_id, player_id, city_name,
                     tile_id, founded_turn, family_name, is_capital,
                     population, first_player_id, governor_id,
                     culture_level, religion_count
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, records)
+            """,
+                records,
+            )
 
         logger.info(f"✓ Inserted {len(cities)} cities for match {match_id}")
 
     def insert_city_unit_production(
-        self,
-        match_id: int,
-        production: List[Dict[str, Any]]
+        self, match_id: int, production: List[Dict[str, Any]]
     ) -> None:
         """Insert city unit production data.
 
@@ -1973,7 +1982,9 @@ class TournamentDatabase:
             logger.debug(f"No production data to insert for match {match_id}")
             return
 
-        logger.info(f"Inserting {len(production)} production records for match {match_id}")
+        logger.info(
+            f"Inserting {len(production)} production records for match {match_id}"
+        )
 
         with self.get_connection() as conn:
             # Prepare data for bulk insert
@@ -1987,25 +1998,26 @@ class TournamentDatabase:
                 record = (
                     production_id,
                     match_id,
-                    prod['city_id'],
-                    prod['unit_type'],
-                    prod['count']
+                    prod["city_id"],
+                    prod["unit_type"],
+                    prod["count"],
                 )
                 records.append(record)
 
             # Bulk insert
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT INTO city_unit_production (
                     production_id, match_id, city_id, unit_type, count
                 ) VALUES (?, ?, ?, ?, ?)
-            """, records)
+            """,
+                records,
+            )
 
         logger.info(f"✓ Inserted {len(production)} production records")
 
     def insert_city_projects(
-        self,
-        match_id: int,
-        projects: List[Dict[str, Any]]
+        self, match_id: int, projects: List[Dict[str, Any]]
     ) -> None:
         """Insert city project data.
 
@@ -2031,18 +2043,21 @@ class TournamentDatabase:
                 record = (
                     project_id,
                     match_id,
-                    proj['city_id'],
-                    proj['project_type'],
-                    proj['count']
+                    proj["city_id"],
+                    proj["project_type"],
+                    proj["count"],
                 )
                 records.append(record)
 
             # Bulk insert
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT INTO city_projects (
                     project_id, match_id, city_id, project_type, count
                 ) VALUES (?, ?, ?, ?, ?)
-            """, records)
+            """,
+                records,
+            )
 
         logger.info(f"✓ Inserted {len(projects)} project records")
 
@@ -2264,23 +2279,17 @@ class TournamentDatabase:
             conn.execute(
                 "DELETE FROM religion_opinion_history WHERE match_id = ?", [match_id]
             )
-            conn.execute(
-                "DELETE FROM player_statistics WHERE match_id = ?", [match_id]
-            )
+            conn.execute("DELETE FROM player_statistics WHERE match_id = ?", [match_id])
             conn.execute(
                 "DELETE FROM technology_progress WHERE match_id = ?", [match_id]
             )
-            conn.execute(
-                "DELETE FROM units_produced WHERE match_id = ?", [match_id]
-            )
+            conn.execute("DELETE FROM units_produced WHERE match_id = ?", [match_id])
 
             # City-related tables
             conn.execute(
                 "DELETE FROM city_unit_production WHERE match_id = ?", [match_id]
             )
-            conn.execute(
-                "DELETE FROM city_projects WHERE match_id = ?", [match_id]
-            )
+            conn.execute("DELETE FROM city_projects WHERE match_id = ?", [match_id])
             conn.execute("DELETE FROM cities WHERE match_id = ?", [match_id])
 
             # Other match-level tables

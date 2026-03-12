@@ -163,13 +163,9 @@ def _extract_ilike_or_eq(sql: str, column_name: str) -> list[str]:
       column_name ILIKE "VALUE"
     """
     # Match single-quoted values
-    pattern_single = (
-        r"(?:\w+\.)?" + column_name + r"\s+(?:=|ILIKE)\s+'([^']+)'"
-    )
+    pattern_single = r"(?:\w+\.)?" + column_name + r"\s+(?:=|ILIKE)\s+'([^']+)'"
     # Match double-quoted values
-    pattern_double = (
-        r"(?:\w+\.)?" + column_name + r'\s+(?:=|ILIKE)\s+"([^"]+)"'
-    )
+    pattern_double = r"(?:\w+\.)?" + column_name + r'\s+(?:=|ILIKE)\s+"([^"]+)"'
     matches = re.findall(pattern_single, sql, re.IGNORECASE)
     matches += re.findall(pattern_double, sql, re.IGNORECASE)
     return list(dict.fromkeys(matches))  # deduplicate, preserve order

@@ -1461,7 +1461,7 @@ def create_nation_popularity_chart(df: pd.DataFrame) -> go.Figure:
 
     # Create hover text with detailed stats
     hover_text = [
-        f"<b>{row['nation']}</b><br>" f"Games Played: {row['total_matches']}"
+        f"<b>{row['nation']}</b><br>Games Played: {row['total_matches']}"
         for _, row in df_sorted.iterrows()
     ]
 
@@ -1967,7 +1967,7 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
                 marker_color=Config.PRIMARY_COLORS[0],
                 boxmean="sd",  # Show mean and standard deviation
                 hovertemplate=(
-                    "<b>4 Laws Milestone</b><br>" "Turn: %{y}<br>" "<extra></extra>"
+                    "<b>4 Laws Milestone</b><br>Turn: %{y}<br><extra></extra>"
                 ),
             )
         )
@@ -1981,7 +1981,7 @@ def create_law_milestone_distribution_chart(df: pd.DataFrame) -> go.Figure:
                 marker_color=Config.PRIMARY_COLORS[1],
                 boxmean="sd",
                 hovertemplate=(
-                    "<b>7 Laws Milestone</b><br>" "Turn: %{y}<br>" "<extra></extra>"
+                    "<b>7 Laws Milestone</b><br>Turn: %{y}<br><extra></extra>"
                 ),
             )
         )
@@ -4236,7 +4236,7 @@ def create_ruler_trait_win_rates_chart(df: pd.DataFrame, top_n: int = 10) -> go.
 
     # Color bars based on win rate (green for high, red for low)
     colors = [
-        f"rgb({int(255 * (1 - rate/100))}, {int(200 * rate/100)}, 50)"
+        f"rgb({int(255 * (1 - rate / 100))}, {int(200 * rate / 100)}, 50)"
         for rate in df_top["win_rate"]
     ]
 
@@ -4305,7 +4305,7 @@ def create_ruler_archetype_trait_combinations_chart(df: pd.DataFrame) -> go.Figu
 
     # Create hover text
     hover_text = [
-        f"<b>{row['combo']}</b><br>" f"Times Chosen: {int(row['count'])}"
+        f"<b>{row['combo']}</b><br>Times Chosen: {int(row['count'])}"
         for _, row in df_sorted.iterrows()
     ]
 
@@ -4557,9 +4557,7 @@ def create_ruler_survival_chart(df: pd.DataFrame) -> go.Figure:
             name="Winners",
             line=dict(color="#2ca02c", width=2),
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Winners: %{y:.1f}% still ruling<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>Winners: %{y:.1f}% still ruling<br><extra></extra>"
             ),
         ),
         secondary_y=False,
@@ -4574,9 +4572,7 @@ def create_ruler_survival_chart(df: pd.DataFrame) -> go.Figure:
             name="Losers",
             line=dict(color="#d62728", width=2),
             hovertemplate=(
-                "<b>Turn %{x}</b><br>"
-                "Losers: %{y:.1f}% still ruling<br>"
-                "<extra></extra>"
+                "<b>Turn %{x}</b><br>Losers: %{y:.1f}% still ruling<br><extra></extra>"
             ),
         ),
         secondary_y=False,
@@ -4670,9 +4666,7 @@ def create_science_progression_chart(df: pd.DataFrame) -> go.Figure:
             mode="lines",
             line=dict(color="#1f77b4", width=2),
             name="Median",
-            hovertemplate=(
-                "<b>Turn %{x}</b><br>" "Median: %{y:.1f}<br>" "<extra></extra>"
-            ),
+            hovertemplate=("<b>Turn %{x}</b><br>Median: %{y:.1f}<br><extra></extra>"),
         )
     )
 
@@ -4992,9 +4986,7 @@ def create_orders_progression_chart(df: pd.DataFrame) -> go.Figure:
             mode="lines",
             line=dict(color="#ff7f0e", width=2),
             name="Median",
-            hovertemplate=(
-                "<b>Turn %{x}</b><br>" "Median: %{y:.1f}<br>" "<extra></extra>"
-            ),
+            hovertemplate=("<b>Turn %{x}</b><br>Median: %{y:.1f}<br><extra></extra>"),
         )
     )
 
@@ -5057,9 +5049,7 @@ def create_military_progression_chart(df: pd.DataFrame) -> go.Figure:
             mode="lines",
             line=dict(color="#2ca02c", width=2),
             name="Median",
-            hovertemplate=(
-                "<b>Turn %{x}</b><br>" "Median: %{y:.0f}<br>" "<extra></extra>"
-            ),
+            hovertemplate=("<b>Turn %{x}</b><br>Median: %{y:.0f}<br><extra></extra>"),
         )
     )
 
@@ -5122,9 +5112,7 @@ def create_legitimacy_progression_chart(df: pd.DataFrame) -> go.Figure:
             mode="lines",
             line=dict(color="#d62728", width=2),
             name="Median",
-            hovertemplate=(
-                "<b>Turn %{x}</b><br>" "Median: %{y:.0f}<br>" "<extra></extra>"
-            ),
+            hovertemplate=("<b>Turn %{x}</b><br>Median: %{y:.0f}<br><extra></extra>"),
         )
     )
 
@@ -5694,7 +5682,7 @@ def create_tournament_founding_distribution_chart(df: pd.DataFrame) -> go.Figure
             ],
             textposition="outside",
             marker_color=Config.PRIMARY_COLORS[0],
-            hovertemplate=("Turn Range: %{x}<br>" "Cities: %{y}<br>" "<extra></extra>"),
+            hovertemplate=("Turn Range: %{x}<br>Cities: %{y}<br><extra></extra>"),
         )
     )
 
@@ -6699,9 +6687,7 @@ def create_units_marimekko_chart(df: pd.DataFrame) -> go.Figure:
                     name=role.title(),
                     marker_color=ROLE_COLORS.get(role, "#808080"),
                     hovertemplate=(
-                        f"<b>{player}</b><br>"
-                        f"{role.title()}: {count}<br>"
-                        f"<extra></extra>"
+                        f"<b>{player}</b><br>{role.title()}: {count}<br><extra></extra>"
                     ),
                     showlegend=bool(x_pos == 0),  # Only show legend for first player
                     legendgroup=role,
@@ -7306,7 +7292,8 @@ def create_family_class_combo_chart(df: pd.DataFrame, top_n: int = 15) -> go.Fig
 
     # Use a gradient based on win percentage
     colors = [
-        f"rgba(76, 175, 80, {max(0.4, pct/100)})" for pct in df_sorted["win_percentage"]
+        f"rgba(76, 175, 80, {max(0.4, pct / 100)})"
+        for pct in df_sorted["win_percentage"]
     ]
 
     hover_text = [
@@ -7527,7 +7514,7 @@ def create_family_opinion_scatter_chart(df: pd.DataFrame) -> go.Figure:
                 jitter=0.3,
                 pointpos=0,
                 hovertemplate=(
-                    "<b>%{x}</b><br>" "Family Opinion: %{y:.1f}<br>" "<extra></extra>"
+                    "<b>%{x}</b><br>Family Opinion: %{y:.1f}<br><extra></extra>"
                 ),
             )
         )
@@ -7832,7 +7819,7 @@ def create_specialist_butterfly_chart(
             textposition="inside",
             textfont=dict(color=text_color2, size=11),
             hovertemplate=(
-                f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
+                f"<b>{player2}</b><br>%{{y}}<br>Count: %{{x}}<br><extra></extra>"
             ),
         )
     )
@@ -8031,7 +8018,7 @@ def create_improvement_butterfly_chart(
             textposition="inside",
             textfont=dict(color=text_color2, size=11),
             hovertemplate=(
-                f"<b>{player2}</b><br>" "%{y}<br>" "Count: %{x}<br>" "<extra></extra>"
+                f"<b>{player2}</b><br>%{{y}}<br>Count: %{{x}}<br><extra></extra>"
             ),
         )
     )
@@ -8543,22 +8530,22 @@ def create_science_breakdown_chart(
                 avg_mod = tooltip_data.get("avg_modifier", 0)
                 detail = f"{city_count} cities × 1.0 base"
                 if avg_mod > 0:
-                    detail += f" × {1 + avg_mod/100:.2f} avg modifier"
+                    detail += f" × {1 + avg_mod / 100:.2f} avg modifier"
             elif col == "specialists_science":
                 avg_mod = tooltip_data.get("avg_modifier", 0)
                 detail = "Philosophers, Scribes, rural specialists"
                 if avg_mod > 0:
-                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+                    detail += f"<br>× {1 + avg_mod / 100:.2f} avg modifier"
             elif col == "improvements_science":
                 avg_mod = tooltip_data.get("avg_modifier", 0)
                 detail = "Watermills, Windmills, Monasteries, Shrines"
                 if avg_mod > 0:
-                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+                    detail += f"<br>× {1 + avg_mod / 100:.2f} avg modifier"
             elif col == "projects_science":
                 avg_mod = tooltip_data.get("avg_modifier", 0)
                 detail = "Archives, Sages family bonus"
                 if avg_mod > 0:
-                    detail += f"<br>× {1 + avg_mod/100:.2f} avg modifier"
+                    detail += f"<br>× {1 + avg_mod / 100:.2f} avg modifier"
             elif col == "bonuses_science":
                 bonuses = tooltip_data.get("bonuses", [])
                 if bonuses:
@@ -8773,7 +8760,7 @@ def create_science_modifiers_chart(
                 dict(
                     x=total + 3,
                     y=player,
-                    text=f"= ×{1 + total/100:.2f}",
+                    text=f"= ×{1 + total / 100:.2f}",
                     showarrow=False,
                     font=dict(size=11, color=CHART_THEME["font_color"]),
                     xanchor="left",
@@ -9041,7 +9028,7 @@ def create_science_rate_cumulative_chart(
                 line=dict(color=color, width=2),
                 marker=dict(size=6),
                 hovertemplate=(
-                    f"<b>{player}</b><br>" "Turn %{x}: %{y:.1f}/turn<extra></extra>"
+                    f"<b>{player}</b><br>Turn %{{x}}: %{{y:.1f}}/turn<extra></extra>"
                 ),
                 legendgroup=player,
             ),
@@ -9059,7 +9046,7 @@ def create_science_rate_cumulative_chart(
                 line=dict(color=color, width=2),
                 marker=dict(size=6),
                 hovertemplate=(
-                    f"<b>{player}</b><br>" "Turn %{x}: %{y:,.0f} total<extra></extra>"
+                    f"<b>{player}</b><br>Turn %{{x}}: %{{y:,.0f}} total<extra></extra>"
                 ),
                 legendgroup=player,
                 showlegend=False,
@@ -9308,7 +9295,7 @@ def create_science_sources_stacked_chart(
                     fillcolor=category_colors.get(cat, "#888888"),
                     line=dict(width=0.5, color=category_colors.get(cat, "#888888")),
                     hovertemplate=(
-                        f"<b>{cat}</b><br>" "Turn %{x}: %{y:.1f}/turn<extra></extra>"
+                        f"<b>{cat}</b><br>Turn %{{x}}: %{{y:.1f}}/turn<extra></extra>"
                     ),
                     legendgroup=cat,
                     showlegend=(col_idx == 1),
@@ -9444,7 +9431,7 @@ def create_skill_radar_chart(
     fig = go.Figure()
 
     for i, player in enumerate(players_data):
-        player_name = player.get("player_name", f"Player {i+1}")
+        player_name = player.get("player_name", f"Player {i + 1}")
 
         # Get normalized values for each dimension
         values = [

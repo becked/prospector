@@ -339,7 +339,9 @@ FAMILY_TO_ARCHETYPE: dict[str, str] = {
 }
 
 
-def get_family_crest_icon_path(family_name: str, is_seat: bool = False) -> Optional[str]:
+def get_family_crest_icon_path(
+    family_name: str, is_seat: bool = False
+) -> Optional[str]:
     """Get icon path for a family crest based on archetype.
 
     Args:

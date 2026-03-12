@@ -121,16 +121,12 @@ def analyze_vp_lead(
     # Find max leads
     max_p1_lead = pivot["lead"].max()
     max_p1_lead_turn = (
-        int(pivot.loc[pivot["lead"].idxmax(), "turn_number"])
-        if max_p1_lead > 0
-        else 0
+        int(pivot.loc[pivot["lead"].idxmax(), "turn_number"]) if max_p1_lead > 0 else 0
     )
 
     max_p2_lead = abs(pivot["lead"].min())
     max_p2_lead_turn = (
-        int(pivot.loc[pivot["lead"].idxmin(), "turn_number"])
-        if max_p2_lead > 0
-        else 0
+        int(pivot.loc[pivot["lead"].idxmin(), "turn_number"]) if max_p2_lead > 0 else 0
     )
 
     # Track lead changes (sign changes)
@@ -785,7 +781,9 @@ def generate_empire_profile(
             peak_military_power = int(player_mil["military_power"].max())
             max_turn = player_mil["turn_number"].max()
             final_military_power = int(
-                player_mil[player_mil["turn_number"] == max_turn]["military_power"].iloc[0]
+                player_mil[player_mil["turn_number"] == max_turn][
+                    "military_power"
+                ].iloc[0]
             )
 
     # Military unit count (excluding support/civilian/religious)
@@ -1308,9 +1306,7 @@ def classify_match_archetype(
                         primary_factor = "comeback"
                         key_differentiator = f"took lead turn {permanent_lead_turn}"
                     # 5. Late-game Grind
-                    elif (
-                        total_turns > 100 and vp_analysis["total_lead_changes"] > 5
-                    ):
+                    elif total_turns > 100 and vp_analysis["total_lead_changes"] > 5:
                         archetype = ARCHETYPE_LATE_GRIND
                         primary_factor = "persistence"
                         lead_changes = vp_analysis["total_lead_changes"]
@@ -1376,9 +1372,7 @@ def _check_comeback(vp_analysis: dict[str, Any]) -> bool:
     winner_positive = final_lead > 0
 
     # Count turns winner was behind
-    turns_behind = sum(
-        1 for _, lead in sparkline_data if (lead < 0) == winner_positive
-    )
+    turns_behind = sum(1 for _, lead in sparkline_data if (lead < 0) == winner_positive)
     total_turns = len(sparkline_data)
 
     return total_turns > 0 and turns_behind / total_turns > 0.6

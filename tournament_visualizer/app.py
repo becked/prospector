@@ -221,7 +221,14 @@ app.layout = dbc.Container(
                         ),
                         dbc.NavItem(
                             dbc.NavLink(
-                                ["Chat", html.Sup("beta", className="ms-1", style={"fontSize": "0.6em"})],
+                                [
+                                    "Chat",
+                                    html.Sup(
+                                        "beta",
+                                        className="ms-1",
+                                        style={"fontSize": "0.6em"},
+                                    ),
+                                ],
                                 href="/chat",
                                 active="exact",
                             )
@@ -283,8 +290,6 @@ def update_database_status(pathname: str) -> tuple[str, str]:
     except Exception as e:
         logger.error(f"Database status check failed: {e}")
         return "DB Error", "danger"
-
-
 
 
 def create_error_page(error_message: str) -> html.Div:

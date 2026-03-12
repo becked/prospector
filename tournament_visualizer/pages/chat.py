@@ -225,8 +225,7 @@ def handle_chat_query(
                     html.Details(
                         [
                             html.Summary(
-                                f"Evidence: {panel.title}"
-                                f" ({len(panel.df)} records)",
+                                f"Evidence: {panel.title} ({len(panel.df)} records)",
                                 style={
                                     "cursor": "pointer",
                                     "color": DARK_THEME["text_muted"],
@@ -257,9 +256,7 @@ def handle_chat_query(
                                     "fontSize": "0.85em",
                                     "backgroundColor": DARK_THEME["bg_dark"],
                                     "color": DARK_THEME["text_primary"],
-                                    "border": (
-                                        f"1px solid {DARK_THEME['bg_light']}"
-                                    ),
+                                    "border": (f"1px solid {DARK_THEME['bg_light']}"),
                                     "maxWidth": "300px",
                                     "overflow": "hidden",
                                     "textOverflow": "ellipsis",
@@ -268,25 +265,19 @@ def handle_chat_query(
                                     "backgroundColor": DARK_THEME["bg_medium"],
                                     "fontWeight": "bold",
                                     "color": DARK_THEME["text_primary"],
-                                    "border": (
-                                        f"1px solid {DARK_THEME['bg_light']}"
-                                    ),
+                                    "border": (f"1px solid {DARK_THEME['bg_light']}"),
                                     "fontSize": "0.85em",
                                 },
                                 style_filter={
                                     "backgroundColor": DARK_THEME["bg_dark"],
                                     "color": DARK_THEME["text_primary"],
-                                    "border": (
-                                        f"1px solid {DARK_THEME['bg_light']}"
-                                    ),
+                                    "border": (f"1px solid {DARK_THEME['bg_light']}"),
                                     "fontSize": "0.85em",
                                 },
                                 style_data_conditional=[
                                     {
                                         "if": {"row_index": "odd"},
-                                        "backgroundColor": DARK_THEME[
-                                            "bg_medium"
-                                        ],
+                                        "backgroundColor": DARK_THEME["bg_medium"],
                                     },
                                 ],
                             ),

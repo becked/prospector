@@ -11,7 +11,11 @@ import dash_bootstrap_components as dbc
 from dash import html
 
 from tournament_visualizer.components.layouts import create_empty_state
-from tournament_visualizer.data.game_constants import get_tech_icon_path, get_law_icon_path, ARCHETYPE_ICONS
+from tournament_visualizer.data.game_constants import (
+    get_tech_icon_path,
+    get_law_icon_path,
+    ARCHETYPE_ICONS,
+)
 
 
 def create_timeline_component(
@@ -195,7 +199,9 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
     death_events = events_df[events_df["event_type"] == "death"]
     ruler_events = events_df[events_df["event_type"] == "ruler"]
     crowned_events = ruler_events[ruler_events["title"].str.startswith("Crowned ")]
-    starting_events = ruler_events[ruler_events["title"].str.startswith("Starting Ruler:")]
+    starting_events = ruler_events[
+        ruler_events["title"].str.startswith("Starting Ruler:")
+    ]
     other_events = events_df[~events_df["event_type"].isin(["death", "ruler"])]
 
     event_items = []
@@ -215,7 +221,9 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
             details = ruler_row.get("details", "")
 
             # Create archetype icon for the new ruler
-            icon_element = _create_icon_element("ruler", ruler_row.get("title", ""), "👑", details)
+            icon_element = _create_icon_element(
+                "ruler", ruler_row.get("title", ""), "👑", details
+            )
 
             # Format: "OldRuler Died → NewRuler {icon} Crowned"
             css_class = "timeline-event timeline-event-ruler"
@@ -253,7 +261,7 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
             for _, row in group.iterrows():
                 title = row.get("title", "")
                 if title.startswith(prefix):
-                    items.append(title[len(prefix):])
+                    items.append(title[len(prefix) :])
                 else:
                     items.append(title)
 
@@ -267,7 +275,12 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
                         src=get_tech_icon_path(name),
                         className="timeline-icon",
                         title=name,
-                        style={"width": "36px", "height": "36px", "verticalAlign": "middle", "marginRight": "2px"},
+                        style={
+                            "width": "36px",
+                            "height": "36px",
+                            "verticalAlign": "middle",
+                            "marginRight": "2px",
+                        },
                     )
                     for name in items
                 ]
@@ -280,12 +293,21 @@ def _build_event_list(events_df: pd.DataFrame) -> list:
                         src=get_law_icon_path(name),
                         className="timeline-icon",
                         title=f"Adopted: {name}",
-                        style={"width": "36px", "height": "36px", "verticalAlign": "middle", "marginRight": "2px"},
+                        style={
+                            "width": "36px",
+                            "height": "36px",
+                            "verticalAlign": "middle",
+                            "marginRight": "2px",
+                        },
                     )
                     for name in items
                 ]
                 event_items.append(
-                    html.Div(icons + [f"  {consolidated_title}"], className=css_class, style={"color": "#edf2f7"})
+                    html.Div(
+                        icons + [f"  {consolidated_title}"],
+                        className=css_class,
+                        style={"color": "#edf2f7"},
+                    )
                 )
             else:
                 event_items.append(

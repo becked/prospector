@@ -738,7 +738,7 @@ The chat page's natural language SQL system has an eval suite (`scripts/eval_nl_
 **Before committing, always run:**
 ```bash
 # Format code
-uv run black tournament_visualizer/
+uv run ruff format tournament_visualizer/
 
 # Lint code
 uv run ruff check tournament_visualizer/

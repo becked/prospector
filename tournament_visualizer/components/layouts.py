@@ -239,7 +239,8 @@ def create_data_table_card(
     return dbc.Card(
         [
             dbc.CardBody(
-                header_section + [
+                header_section
+                + [
                     dash_table.DataTable(
                         id=table_id,
                         columns=columns,

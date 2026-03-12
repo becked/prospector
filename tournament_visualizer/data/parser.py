@@ -256,7 +256,9 @@ class OldWorldSaveParser:
                 civilization = nation.replace("NATION_", "").replace("_", " ").title()
 
             # Get player name and normalize it for consistent matching
-            original_name = player_elem.get("Name", f"Player {len(players)+1}").strip()
+            original_name = player_elem.get(
+                "Name", f"Player {len(players) + 1}"
+            ).strip()
 
             from .name_normalizer import normalize_name
 
@@ -637,7 +639,9 @@ class OldWorldSaveParser:
         text = text_elem.text if text_elem is not None else None
 
         # Build event_data based on event type
-        event_data = self._build_logdata_event_data(event_type, data1, data2, data3, text)
+        event_data = self._build_logdata_event_data(
+            event_type, data1, data2, data3, text
+        )
 
         # Build description
         description = self._format_logdata_event(event_type, event_data, text)
@@ -692,7 +696,7 @@ class OldWorldSaveParser:
             # Extract family archetype from raw text like:
             # 'Founded ... name="CREST_ARCHETYPE_CLERICS" ... Nisibis'
             # The archetype tells us which family the city belongs to
-            match = re.search(r'CREST_ARCHETYPE_(\w+)', raw_text)
+            match = re.search(r"CREST_ARCHETYPE_(\w+)", raw_text)
             if match:
                 return {"family_archetype": match.group(1)}
 
@@ -885,7 +889,9 @@ class OldWorldSaveParser:
 
             # Extract improvement
             improvement_elem = tile_elem.find("Improvement")
-            improvement = improvement_elem.text if improvement_elem is not None else None
+            improvement = (
+                improvement_elem.text if improvement_elem is not None else None
+            )
 
             # Extract specialist
             specialist_elem = tile_elem.find("Specialist")
@@ -2021,7 +2027,11 @@ class OldWorldSaveParser:
                     ruler_name = self._format_context_value(first_name)
                 else:
                     custom_name_elem = char_elem.find("CustomName")
-                    ruler_name = custom_name_elem.text if custom_name_elem is not None and custom_name_elem.text else None
+                    ruler_name = (
+                        custom_name_elem.text
+                        if custom_name_elem is not None and custom_name_elem.text
+                        else None
+                    )
 
                 # Extract cognomen (e.g., COGNOMEN_LION -> "Lion")
                 cognomen_elem = char_elem.find("Cognomen")
@@ -2150,10 +2160,10 @@ class OldWorldSaveParser:
             Dictionary with city data
         """
         # Extract required attributes
-        city_id = self._safe_int(city_elem.get('ID'))
-        tile_id = self._safe_int(city_elem.get('TileID'))
-        player_xml_id = self._safe_int(city_elem.get('Player'))
-        founded_turn = self._safe_int(city_elem.get('Founded'))
+        city_id = self._safe_int(city_elem.get("ID"))
+        tile_id = self._safe_int(city_elem.get("TileID"))
+        player_xml_id = self._safe_int(city_elem.get("Player"))
+        founded_turn = self._safe_int(city_elem.get("Founded"))
 
         # Convert player ID: XML is 0-based, database is 1-based
         # Skip cities with invalid player IDs (barbarian cities, ruins, etc.)
@@ -2162,35 +2172,39 @@ class OldWorldSaveParser:
         player_id = player_xml_id + 1
 
         # Extract optional attributes
-        family_name = city_elem.get('Family')
+        family_name = city_elem.get("Family")
 
         # Extract child elements
         # City name comes from <NameType> (standard names like CITYNAME_WASET)
         # or <Name> (custom player-given names like "Wonderland")
-        name_type_elem = city_elem.find('NameType')
-        custom_name_elem = city_elem.find('Name')
+        name_type_elem = city_elem.find("NameType")
+        custom_name_elem = city_elem.find("Name")
         if name_type_elem is not None and name_type_elem.text:
             city_name = name_type_elem.text
         elif custom_name_elem is not None and custom_name_elem.text:
             city_name = custom_name_elem.text
         else:
-            city_name = 'UNKNOWN'
+            city_name = "UNKNOWN"
 
         # Population (optional)
-        citizens_elem = city_elem.find('Citizens')
-        population = self._safe_int(citizens_elem.text) if citizens_elem is not None else None
+        citizens_elem = city_elem.find("Citizens")
+        population = (
+            self._safe_int(citizens_elem.text) if citizens_elem is not None else None
+        )
 
         # Governor (optional)
-        governor_elem = city_elem.find('GovernorID')
-        governor_id = self._safe_int(governor_elem.text) if governor_elem is not None else None
+        governor_elem = city_elem.find("GovernorID")
+        governor_id = (
+            self._safe_int(governor_elem.text) if governor_elem is not None else None
+        )
 
         # Capital flag (present = capital, absent = not capital)
-        capital_elem = city_elem.find('Capital')
+        capital_elem = city_elem.find("Capital")
         is_capital = capital_elem is not None
 
         # First and last player (for conquest detection)
-        first_player_elem = city_elem.find('FirstPlayer')
-        last_player_elem = city_elem.find('LastPlayer')
+        first_player_elem = city_elem.find("FirstPlayer")
+        last_player_elem = city_elem.find("LastPlayer")
 
         # Convert first/last player IDs (also 0-based in XML)
         first_player_id = None
@@ -2201,42 +2215,42 @@ class OldWorldSaveParser:
         # Extract culture level from TeamCulture element
         # Format: <TeamCulture><T.{player_xml_id}>CULTURE_LEVEL</T.{player_xml_id}></TeamCulture>
         culture_level = None
-        team_culture_elem = city_elem.find('TeamCulture')
+        team_culture_elem = city_elem.find("TeamCulture")
         if team_culture_elem is not None:
             # Look for the culture level for this city's owner
             culture_tag = f"T.{player_xml_id}"
             culture_value_elem = team_culture_elem.find(culture_tag)
             if culture_value_elem is not None and culture_value_elem.text:
                 culture_map = {
-                    'CULTURE_WEAK': 1,
-                    'CULTURE_DEVELOPING': 2,
-                    'CULTURE_STRONG': 3,
-                    'CULTURE_LEGENDARY': 4,
+                    "CULTURE_WEAK": 1,
+                    "CULTURE_DEVELOPING": 2,
+                    "CULTURE_STRONG": 3,
+                    "CULTURE_LEGENDARY": 4,
                 }
                 culture_level = culture_map.get(culture_value_elem.text)
 
         # Extract religion count from Religion element
         # Format: <Religion><RELIGION_FOO /><RELIGION_BAR /></Religion>
         religion_count = None
-        religion_elem = city_elem.find('Religion')
+        religion_elem = city_elem.find("Religion")
         if religion_elem is not None:
             # Count non-empty child elements (each represents a religion)
             religion_count = len(list(religion_elem))
 
         # Build city dictionary
         city_data = {
-            'city_id': city_id,
-            'city_name': city_name,
-            'tile_id': tile_id,
-            'player_id': player_id,
-            'founded_turn': founded_turn,
-            'family_name': family_name,
-            'is_capital': is_capital,
-            'population': population,
-            'governor_id': governor_id,
-            'first_player_id': first_player_id,
-            'culture_level': culture_level,
-            'religion_count': religion_count,
+            "city_id": city_id,
+            "city_name": city_name,
+            "tile_id": tile_id,
+            "player_id": player_id,
+            "founded_turn": founded_turn,
+            "family_name": family_name,
+            "is_capital": is_capital,
+            "population": population,
+            "governor_id": governor_id,
+            "first_player_id": first_player_id,
+            "culture_level": culture_level,
+            "religion_count": religion_count,
         }
 
         return city_data
@@ -2255,10 +2269,10 @@ class OldWorldSaveParser:
 
         for city_elem in self.root.findall("City"):
             try:
-                city_id = self._safe_int(city_elem.get('ID'))
+                city_id = self._safe_int(city_elem.get("ID"))
 
                 # Find UnitProductionCounts element
-                production_elem = city_elem.find('UnitProductionCounts')
+                production_elem = city_elem.find("UnitProductionCounts")
                 if production_elem is None:
                     continue
 
@@ -2268,11 +2282,9 @@ class OldWorldSaveParser:
                     count = self._safe_int(unit_elem.text)
 
                     if count > 0:  # Only record non-zero production
-                        production_records.append({
-                            'city_id': city_id,
-                            'unit_type': unit_type,
-                            'count': count
-                        })
+                        production_records.append(
+                            {"city_id": city_id, "unit_type": unit_type, "count": count}
+                        )
 
             except Exception as e:
                 logger.warning(f"Failed to parse production for city {city_id}: {e}")
@@ -2295,10 +2307,10 @@ class OldWorldSaveParser:
 
         for city_elem in self.root.findall("City"):
             try:
-                city_id = self._safe_int(city_elem.get('ID'))
+                city_id = self._safe_int(city_elem.get("ID"))
 
                 # Find ProjectCount element
-                projects_elem = city_elem.find('ProjectCount')
+                projects_elem = city_elem.find("ProjectCount")
                 if projects_elem is None:
                     continue
 
@@ -2308,11 +2320,13 @@ class OldWorldSaveParser:
                     count = self._safe_int(project_elem.text)
 
                     if count > 0:  # Only record non-zero counts
-                        project_records.append({
-                            'city_id': city_id,
-                            'project_type': project_type,
-                            'count': count
-                        })
+                        project_records.append(
+                            {
+                                "city_id": city_id,
+                                "project_type": project_type,
+                                "count": count,
+                            }
+                        )
 
             except Exception as e:
                 logger.warning(f"Failed to parse projects for city {city_id}: {e}")

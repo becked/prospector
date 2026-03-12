@@ -683,7 +683,9 @@ def create_playstyle_badges(tags: dict[str, str], player_id: int) -> html.Div:
             color = BADGE_COLORS.get(value, "secondary")
             tooltip_text = badge_tooltips.get(f"{category}:{value}", "")
 
-            badge_id = f"badge-p{player_id}-{category}-{value.lower().replace(' ', '-')}"
+            badge_id = (
+                f"badge-p{player_id}-{category}-{value.lower().replace(' ', '-')}"
+            )
             badge = dbc.Badge(
                 [
                     html.Small(f"{label}: ", className="fw-normal"),
@@ -746,9 +748,9 @@ def create_army_composition_bar(
 
         # Use full name if segment is wide enough, otherwise abbreviate
         if width_pct > 25:
-            label = f"{role} {int(pct*100)}%"
+            label = f"{role} {int(pct * 100)}%"
         else:
-            label = f"{role[:3]} {int(pct*100)}%"
+            label = f"{role[:3]} {int(pct * 100)}%"
 
         segment = html.Div(
             html.Span(
@@ -770,7 +772,7 @@ def create_army_composition_bar(
                 "justifyContent": "center",
                 "color": "#fff",
             },
-            title=f"{role}: {int(pct*100)}%",
+            title=f"{role}: {int(pct * 100)}%",
         )
         segments.append(segment)
 
@@ -935,7 +937,14 @@ def create_yield_comparison_card(
     text_color = "#eef2f7"
 
     # Order of metrics to display
-    metric_order = ["victory_points", "training", "science", "civics", "orders", "improvements"]
+    metric_order = [
+        "victory_points",
+        "training",
+        "science",
+        "civics",
+        "orders",
+        "improvements",
+    ]
 
     charts = []
     for metric_key in metric_order:
@@ -1464,7 +1473,9 @@ def create_reference_panel() -> dbc.Accordion:
 
     military_refs = html.Div(
         [
-            ref_item("Aggressive", "Captured at least 1 city and military growth >5%/turn"),
+            ref_item(
+                "Aggressive", "Captured at least 1 city and military growth >5%/turn"
+            ),
             ref_item("Defensive", "No captures or losses and military growth <3%/turn"),
             ref_item("Passive", "Neither aggressive nor defensive"),
         ]
@@ -1472,9 +1483,17 @@ def create_reference_panel() -> dbc.Accordion:
 
     economy_refs = html.Div(
         [
-            ref_item("Science-focused", "Cumulative science at least 20% higher than next yield"),
-            ref_item("Training-focused", "Cumulative training at least 20% higher than next yield"),
-            ref_item("Money-focused", "Cumulative money at least 20% higher than next yield"),
+            ref_item(
+                "Science-focused",
+                "Cumulative science at least 20% higher than next yield",
+            ),
+            ref_item(
+                "Training-focused",
+                "Cumulative training at least 20% higher than next yield",
+            ),
+            ref_item(
+                "Money-focused", "Cumulative money at least 20% higher than next yield"
+            ),
             ref_item("Balanced", "No single yield 20% higher than next"),
         ]
     )
@@ -1488,8 +1507,13 @@ def create_reference_panel() -> dbc.Accordion:
 
     events_refs = html.Div(
         [
-            ref_item("Science lead", "First to have 50% more cumulative science than opponent"),
-            ref_item("Military lead", "First to have 50% more military power than opponent"),
+            ref_item(
+                "Science lead",
+                "First to have 50% more cumulative science than opponent",
+            ),
+            ref_item(
+                "Military lead", "First to have 50% more military power than opponent"
+            ),
             ref_item("Major battle", "Total military dropped 30% over 3 turns"),
             ref_item("4th/7th law", "Player enacted their 4th or 7th law"),
         ]
