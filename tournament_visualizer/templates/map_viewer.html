@@ -281,6 +281,156 @@
         .legend-name {
             font-size: 13px;
         }
+
+        /* Content Area (holds game log + map side by side) */
+        #content-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Game Log Panel */
+        #game-log-panel {
+            width: 0;
+            min-width: 0;
+            max-width: 33%;
+            overflow: hidden;
+            transition: width 0.3s ease, min-width 0.3s ease;
+            background: #1a2d47;
+            border-right: 1px solid #2d4a6f;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        #game-log-panel.open {
+            width: 33%;
+            min-width: 240px;
+        }
+
+        .log-header {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #9db0c9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #2d4a6f;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .log-entries {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0;
+        }
+
+        /* Scrollbar styling for log panel */
+        .log-entries::-webkit-scrollbar {
+            width: 6px;
+        }
+        .log-entries::-webkit-scrollbar-track {
+            background: #0e1b2e;
+        }
+        .log-entries::-webkit-scrollbar-thumb {
+            background: #2d4a6f;
+            border-radius: 3px;
+        }
+        .log-entries::-webkit-scrollbar-thumb:hover {
+            background: #4a6fa5;
+        }
+
+        .log-turn-group {
+            border-bottom: 1px solid #1e3350;
+        }
+
+        .log-turn-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64b5f6;
+            background: #142336;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .log-turn-header:hover {
+            background: #1a2d47;
+        }
+
+        .log-turn-group.active .log-turn-header {
+            background: #1e3a5c;
+            color: #90caf9;
+        }
+
+        .log-event {
+            padding: 3px 14px 3px 14px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #c8d4e3;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-event-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .log-event-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-turn-group.active .log-event {
+            background: rgba(100, 181, 246, 0.05);
+        }
+
+        .log-empty {
+            padding: 20px 14px;
+            color: #5a7a9b;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        /* Toggle Tab - absolute within map-container */
+        #log-toggle-tab {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 60;
+            width: 20px;
+            height: 64px;
+            background: #1a2d47;
+            border: 1px solid #2d4a6f;
+            border-left: none;
+            border-radius: 0 6px 6px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9db0c9;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        #log-toggle-tab:hover {
+            background: #2d4a6f;
+            color: #edf2f7;
+        }
     </style>
 </head>
 <body>
@@ -309,8 +459,8 @@
                 background: #2d4a6f; border: 1px solid #4a6fa5; color: #edf2f7;
                 padding: 3px 6px; border-radius: 4px; font-size: 12px;
             ">
-                <option value="750">Slow</option>
-                <option value="300" selected>Normal</option>
+                <option value="800">Slow</option>
+                <option value="450" selected>Normal</option>
                 <option value="100">Fast</option>
             </select>
         </div>
@@ -348,33 +498,47 @@
         </div>
     </div>
 
-    <!-- Map Container -->
-    <div id="map-container">
-        <canvas id="map-canvas"></canvas>
-
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="loading-overlay">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Loading map...</div>
+    <!-- Content Area (game log + map) -->
+    <div id="content-area">
+        <!-- Game Log Panel -->
+        <div id="game-log-panel">
+            <div class="log-header">Game Log</div>
+            <div class="log-entries" id="log-entries">
+                <div class="log-empty">Loading events...</div>
+            </div>
         </div>
 
-        <!-- Tooltip -->
-        <div id="tooltip" class="tooltip">
-            <div class="tooltip-title"></div>
-            <div class="tooltip-content"></div>
-        </div>
+        <!-- Map Container -->
+        <div id="map-container">
+            <canvas id="map-canvas"></canvas>
 
-        <!-- Player Legend -->
-        <div id="player-legend" class="player-legend" style="display: none;">
-            <div class="legend-title">Players</div>
-            <div id="legend-items"></div>
-        </div>
+            <!-- Toggle Tab for Game Log -->
+            <div id="log-toggle-tab" title="Toggle game log">&#9654;</div>
 
-        <!-- Zoom Controls -->
-        <div class="zoom-controls">
-            <button class="zoom-btn" id="zoom-in">+</button>
-            <button class="zoom-btn" id="zoom-out">-</button>
-            <button class="zoom-btn" id="zoom-reset" title="Reset view">R</button>
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="loading-overlay">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Loading map...</div>
+            </div>
+
+            <!-- Tooltip -->
+            <div id="tooltip" class="tooltip">
+                <div class="tooltip-title"></div>
+                <div class="tooltip-content"></div>
+            </div>
+
+            <!-- Player Legend -->
+            <div id="player-legend" class="player-legend" style="display: none;">
+                <div class="legend-title">Players</div>
+                <div id="legend-items"></div>
+            </div>
+
+            <!-- Zoom Controls -->
+            <div class="zoom-controls">
+                <button class="zoom-btn" id="zoom-in">+</button>
+                <button class="zoom-btn" id="zoom-out">-</button>
+                <button class="zoom-btn" id="zoom-reset" title="Reset view">R</button>
+            </div>
         </div>
     </div>
 
@@ -439,6 +603,12 @@
         let playbackTimer = null;
         let isPlaying = false;
 
+        // Game log state
+        let gameLogEvents = [];           // All events from API
+        let gameLogByTurn = new Map();    // turn -> [events]
+        let gameLogPanelOpen = false;
+        let lastHighlightedTurn = null;
+
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', init);
 
@@ -465,6 +635,9 @@
 
                 // Set up event listeners
                 setupEventListeners();
+
+                // Fetch game log events (non-blocking, runs after map loads)
+                fetchGameLogEvents();
 
                 // Hide loading overlay
                 document.getElementById('loading-overlay').classList.add('hidden');
@@ -604,6 +777,9 @@
 
                 if (overlayTimer) clearTimeout(overlayTimer);
                 document.getElementById('loading-overlay').classList.add('hidden');
+
+                // Update game log highlight
+                updateGameLogHighlight(turn);
 
                 // Prefetch adjacent turns in background
                 prefetchAdjacentTurns(turn);
@@ -1638,6 +1814,114 @@
                 .replace(/\b\w/g, l => l.toUpperCase());
         }
 
+        // ── Game Log Functions ──────────────────────────────────
+
+        async function fetchGameLogEvents() {
+            try {
+                const response = await fetch(`${CONFIG.apiBase}/events/${CONFIG.matchId}`);
+                if (!response.ok) throw new Error('Failed to fetch events');
+                const data = await response.json();
+                gameLogEvents = data.events || [];
+
+                // Group by turn
+                gameLogByTurn = new Map();
+                for (const evt of gameLogEvents) {
+                    const turn = evt.turn_number;
+                    if (!gameLogByTurn.has(turn)) {
+                        gameLogByTurn.set(turn, []);
+                    }
+                    gameLogByTurn.get(turn).push(evt);
+                }
+
+                renderGameLog();
+            } catch (err) {
+                console.error('Error fetching game log events:', err);
+                document.getElementById('log-entries').innerHTML =
+                    '<div class="log-empty">Failed to load events</div>';
+            }
+        }
+
+        function getPlayerColor(playerId) {
+            if (playerId == null || !mapData || !mapData.players) return '#5a7a9b';
+            const player = mapData.players.find(p => p.player_id === playerId);
+            return player ? player.color : '#5a7a9b';
+        }
+
+        function renderGameLog() {
+            const container = document.getElementById('log-entries');
+
+            if (gameLogEvents.length === 0) {
+                container.innerHTML = '<div class="log-empty">No events recorded</div>';
+                return;
+            }
+
+            // Events are already sorted by turn DESC from API
+            // Get unique turns in order (desc)
+            const turns = [...gameLogByTurn.keys()];
+
+            let html = '';
+            for (const turn of turns) {
+                const events = gameLogByTurn.get(turn);
+                html += `<div class="log-turn-group" id="log-turn-${turn}" data-turn="${turn}">`;
+                html += `<div class="log-turn-header">Turn ${turn}</div>`;
+                for (const evt of events) {
+                    const color = getPlayerColor(evt.player_id);
+                    const desc = evt.description || evt.event_type;
+                    html += `<div class="log-event">`;
+                    html += `<span class="log-event-dot" style="background:${color}"></span>`;
+                    html += `<span class="log-event-text" title="${desc}">${desc}</span>`;
+                    html += `</div>`;
+                }
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
+
+            // Highlight current turn
+            updateGameLogHighlight(currentTurn);
+        }
+
+        function updateGameLogHighlight(turn) {
+            // Remove previous highlight
+            if (lastHighlightedTurn !== null) {
+                const prev = document.getElementById(`log-turn-${lastHighlightedTurn}`);
+                if (prev) prev.classList.remove('active');
+            }
+
+            // Add new highlight
+            const group = document.getElementById(`log-turn-${turn}`);
+            if (group) {
+                group.classList.add('active');
+                // Scroll to the highlighted group
+                group.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            lastHighlightedTurn = turn;
+        }
+
+        function toggleGameLogPanel() {
+            const panel = document.getElementById('game-log-panel');
+            const tab = document.getElementById('log-toggle-tab');
+            gameLogPanelOpen = !gameLogPanelOpen;
+
+            if (gameLogPanelOpen) {
+                panel.classList.add('open');
+                tab.innerHTML = '&#9664;';  // ◀
+            } else {
+                panel.classList.remove('open');
+                tab.innerHTML = '&#9654;';  // ▶
+            }
+
+            // Resize Pixi after CSS transition completes
+            panel.addEventListener('transitionend', function onEnd() {
+                panel.removeEventListener('transitionend', onEnd);
+                const container = document.getElementById('map-container');
+                if (app) {
+                    app.renderer.resize(container.clientWidth, container.clientHeight);
+                }
+            });
+        }
+
         function showError(message) {
             document.getElementById('loading-overlay').classList.add('hidden');
             const container = document.getElementById('map-container');
@@ -1743,6 +2027,25 @@
             });
 
             document.getElementById('zoom-reset').addEventListener('click', centerMap);
+
+            // Game log toggle
+            document.getElementById('log-toggle-tab').addEventListener('click', toggleGameLogPanel);
+
+            // Game log turn header click -> jump to that turn
+            document.getElementById('log-entries').addEventListener('click', (e) => {
+                const header = e.target.closest('.log-turn-header');
+                if (header) {
+                    const group = header.closest('.log-turn-group');
+                    const turn = parseInt(group.dataset.turn);
+                    if (!isNaN(turn) && turn !== currentTurn) {
+                        stopPlayback();
+                        currentTurn = turn;
+                        document.getElementById('turn-slider').value = turn;
+                        document.getElementById('turn-value').textContent = `${turn}`;
+                        loadMapData(turn);
+                    }
+                }
+            });
 
             // Playback controls
             document.getElementById('play-pause').addEventListener('click', () => {

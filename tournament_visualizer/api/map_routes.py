@@ -4,6 +4,7 @@ Provides:
 - /map/viewer/{match_id} - HTML page with Pixi.js map viewer
 - /api/map/territories/{match_id}/{turn} - JSON territory data
 - /api/map/turn-range/{match_id} - JSON turn range for a match
+- /api/map/events/{match_id} - JSON game log events for a match
 """
 
 import logging
@@ -111,6 +112,85 @@ def api_turn_range(match_id: int) -> tuple[Any, int]:
         ), 200
     except Exception as e:
         logger.error(f"Error getting turn range for match {match_id}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@map_api.route("/api/map/events/<int:match_id>")
+def api_events(match_id: int) -> tuple[Any, int]:
+    """Get game log events for a match.
+
+    Returns all notable events (techs, laws, cities, etc.) excluding noisy
+    MEMORYPLAYER_* events. Used by the map viewer's game log panel.
+
+    Args:
+        match_id: The match ID
+
+    Returns:
+        JSON with events list ordered by turn DESC, priority ASC
+    """
+    queries = get_queries()
+
+    try:
+        query = """
+        SELECT
+            e.turn_number,
+            e.player_id,
+            p.player_name,
+            e.event_type,
+            e.description
+        FROM events e
+        LEFT JOIN players p ON e.player_id = p.player_id AND e.match_id = p.match_id
+        WHERE e.match_id = ?
+            AND e.event_type NOT LIKE 'MEMORYPLAYER_%'
+            AND e.event_type NOT LIKE 'MEMORYTRIBE_%'
+            AND e.event_type NOT LIKE 'MEMORYFAMILY_%'
+            AND e.event_type NOT LIKE 'MEMORYRELIGION_%'
+            AND e.event_type NOT LIKE 'MEMORYNATION_%'
+            AND e.event_type NOT LIKE 'MEMORYCHARACTER_%'
+        ORDER BY e.turn_number DESC,
+            CASE
+                WHEN e.event_type = 'LAW_ADOPTED' THEN 1
+                WHEN e.event_type = 'TECH_DISCOVERED' THEN 2
+                WHEN e.event_type = 'GOAL_STARTED' THEN 3
+                WHEN e.event_type = 'GOAL_FINISHED' THEN 4
+                WHEN e.event_type = 'CITY_FOUNDED' THEN 5
+                WHEN e.event_type = 'WONDER_ACTIVITY' THEN 6
+                WHEN e.event_type = 'CHARACTER_BIRTH' THEN 7
+                WHEN e.event_type = 'CHARACTER_DEATH' THEN 8
+                WHEN e.event_type = 'RELIGION_FOUNDED' THEN 9
+                WHEN e.event_type = 'THEOLOGY_ESTABLISHED' THEN 10
+                WHEN e.event_type LIKE 'TRIBE_%' THEN 11
+                ELSE 99
+            END,
+            e.event_type,
+            p.player_name
+        """
+
+        with queries.db.get_connection() as conn:
+            df = conn.execute(query, [match_id]).df()
+
+        events = []
+        for _, row in df.iterrows():
+            event: dict[str, Any] = {
+                "turn_number": int(row["turn_number"]),
+                "event_type": row["event_type"],
+                "description": (
+                    row["description"] if pd.notna(row["description"]) else ""
+                ),
+            }
+            if pd.notna(row["player_id"]):
+                event["player_id"] = int(row["player_id"])
+            else:
+                event["player_id"] = None
+            event["player_name"] = (
+                row["player_name"] if pd.notna(row["player_name"]) else None
+            )
+            events.append(event)
+
+        return jsonify({"match_id": match_id, "events": events}), 200
+
+    except Exception as e:
+        logger.error(f"Error getting events for match {match_id}: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
