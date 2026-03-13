@@ -88,7 +88,6 @@
             font-size: 14px;
             font-weight: 600;
             color: #64b5f6;
-            min-width: 60px;
         }
 
         /* Layer Toggles */
@@ -96,6 +95,7 @@
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
+            margin-left: auto;
         }
 
         .layer-toggle {
@@ -294,10 +294,25 @@
     <!-- Control Panel -->
     <div class="controls">
         <!-- Turn Slider -->
-        <div class="control-group turn-slider-container">
+        <div class="control-group turn-slider-container" style="gap: 12px;">
+            <button id="play-pause" class="control-btn" title="Play/Pause" style="
+                background: #2d4a6f; border: 1px solid #4a6fa5; color: #edf2f7;
+                min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px;
+                padding: 0 0 0 2px; border-radius: 4px; cursor: pointer;
+                font-size: 13px; line-height: 30px; text-align: center;
+                align-self: center; flex-shrink: 0;
+            ">&#9654;</button>
             <label for="turn-slider">Turn:</label>
             <input type="range" id="turn-slider" class="turn-slider" min="0" max="100" value="100">
             <span id="turn-value" class="turn-value">100</span>
+            <select id="playback-speed" title="Playback speed" style="
+                background: #2d4a6f; border: 1px solid #4a6fa5; color: #edf2f7;
+                padding: 3px 6px; border-radius: 4px; font-size: 12px;
+            ">
+                <option value="750">Slow</option>
+                <option value="300" selected>Normal</option>
+                <option value="100">Fast</option>
+            </select>
         </div>
 
         <!-- Layer Toggles -->
@@ -407,6 +422,23 @@
         // Layer visibility state
         const layerVisibility = { ...CONFIG.defaultLayers };
 
+        // Performance: avoid re-rendering static layers and re-fetching data
+        let isFirstRender = true;
+        let staticLayersRendered = false;
+        const turnDataCache = new Map();   // turn -> API response
+        const MAX_CACHE_SIZE = 30;
+        let currentTileMap = new Map();    // "x,y" -> tile (for tooltip lookups)
+
+        // In-place sprite updates for dynamic layers
+        const persistentSprites = {
+            improvements: new Map(),  // "x,y" -> { sprite, type }
+            specialists: new Map(),   // "x,y" -> { sprite, type }
+        };
+
+        // Playback state
+        let playbackTimer = null;
+        let isPlaying = false;
+
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', init);
 
@@ -453,6 +485,26 @@
             const response = await fetch(`${CONFIG.apiBase}/territories/${CONFIG.matchId}/${turn}`);
             if (!response.ok) throw new Error('Failed to fetch territories');
             return response.json();
+        }
+
+        async function getCachedOrFetch(turn) {
+            if (turnDataCache.has(turn)) {
+                return turnDataCache.get(turn);
+            }
+            const data = await fetchTerritories(turn);
+            // LRU eviction
+            if (turnDataCache.size >= MAX_CACHE_SIZE) {
+                const oldestKey = turnDataCache.keys().next().value;
+                turnDataCache.delete(oldestKey);
+            }
+            turnDataCache.set(turn, data);
+            return data;
+        }
+
+        function prefetchAdjacentTurns(turn) {
+            [turn - 1, turn + 1]
+                .filter(t => t >= minTurn && t <= maxTurn && !turnDataCache.has(t))
+                .forEach(t => getCachedOrFetch(t).catch(() => {}));
         }
 
         async function initPixi() {
@@ -523,11 +575,26 @@
         }
 
         async function loadMapData(turn) {
-            document.getElementById('loading-overlay').classList.remove('hidden');
-            document.querySelector('.loading-text').textContent = 'Loading map data...';
+            const isCached = turnDataCache.has(turn);
+            let overlayTimer = null;
+
+            // Only show overlay if fetch takes >200ms (skip for cached turns)
+            if (!isCached) {
+                overlayTimer = setTimeout(() => {
+                    document.getElementById('loading-overlay').classList.remove('hidden');
+                    document.querySelector('.loading-text').textContent = 'Loading map data...';
+                }, 200);
+            }
 
             try {
-                mapData = await fetchTerritories(turn);
+                mapData = await getCachedOrFetch(turn);
+
+                // Build tile lookup for tooltip freshness (static sprites persist
+                // across turns, so tooltips look up current-turn data here)
+                currentTileMap = new Map();
+                mapData.tiles.forEach(tile => {
+                    currentTileMap.set(`${tile.x},${tile.y}`, tile);
+                });
 
                 // Update player legend
                 updatePlayerLegend(mapData.players);
@@ -535,72 +602,61 @@
                 // Render all layers
                 await renderMap();
 
+                if (overlayTimer) clearTimeout(overlayTimer);
                 document.getElementById('loading-overlay').classList.add('hidden');
 
+                // Prefetch adjacent turns in background
+                prefetchAdjacentTurns(turn);
+
             } catch (error) {
+                if (overlayTimer) clearTimeout(overlayTimer);
                 console.error('Error loading map data:', error);
                 showError('Failed to load map data: ' + error.message);
+            }
+        }
+
+        function destroyLayerChildren(layer) {
+            while (layer.children.length > 0) {
+                const child = layer.children[0];
+                layer.removeChild(child);
+                child.destroy({ children: true, texture: false, baseTexture: false });
             }
         }
 
         async function renderMap() {
             if (!mapData) return;
 
-            console.log('Rendering map with data:', {
-                tiles: mapData.tiles.length,
-                players: mapData.players,
-                ownedTiles: mapData.tiles.filter(t => t.owner !== null).length,
-                heights: mapData.tiles.filter(t => t.height && t.height !== 'HEIGHT_FLAT' && t.height !== 'HEIGHT_OCEAN' && t.height !== 'HEIGHT_COAST' && t.height !== 'HEIGHT_LAKE').length,
-                cities: mapData.tiles.filter(t => t.city !== null).length,
-                improvements: mapData.tiles.filter(t => t.improvement !== null).length,
-                resources: mapData.tiles.filter(t => t.resource !== null).length,
-                specialists: mapData.tiles.filter(t => t.specialist !== null).length,
-                roads: mapData.tiles.filter(t => t.road).length,
-            });
+            if (!staticLayersRendered) {
+                // First render: build static layers (terrain, height, resources never change between turns)
+                await loadTerrainTextures();
+                await loadLayerTextures();
 
-            // Clear all layers
-            Object.values(layers).forEach(layer => {
-                if (layer instanceof PIXI.Container && layer !== layers.mapContainer) {
-                    layer.removeChildren();
-                }
-            });
+                renderTerrainLayer();
+                renderHeightLayer();
+                renderResourcesLayer();
 
-            // Pre-load terrain textures
-            await loadTerrainTextures();
+                staticLayersRendered = true;
+            } else {
+                // Subsequent renders: only load textures for new improvement/specialist types
+                await loadLayerTextures();
+            }
 
-            // Pre-load improvement/resource/specialist textures
-            await loadLayerTextures();
+            // Always re-render dynamic layers (ownership, improvements, specialists, roads, cities)
+            // Must destroy() children to free WebGL resources, not just removeChildren()
+            destroyLayerChildren(layers.ownership);
+            destroyLayerChildren(layers.roads);
+            destroyLayerChildren(layers.cities);
 
-            // Render terrain layer (always visible)
-            renderTerrainLayer();
-            console.log('Terrain layer rendered:', layers.terrain.children.length, 'sprites');
-
-            // Render height layer (hills, mountains, volcanoes)
-            renderHeightLayer();
-            console.log('Height layer rendered:', layers.height.children.length, 'items');
-
-            // Render ownership layer
             renderOwnershipLayer();
-            console.log('Ownership layer rendered:', layers.ownership.children.length, 'items');
-
-            // Render other layers
             renderImprovementsLayer();
-            console.log('Improvements layer rendered:', layers.improvements.children.length, 'items');
-
-            renderResourcesLayer();
-            console.log('Resources layer rendered:', layers.resources.children.length, 'items');
-
             renderSpecialistsLayer();
-            console.log('Specialists layer rendered:', layers.specialists.children.length, 'items');
-
             renderRoadsLayer();
-            console.log('Roads layer rendered:', layers.roads.children.length, 'items');
-
             await renderCitiesLayer();
-            console.log('Cities layer rendered:', layers.cities.children.length, 'items');
 
-            // Center the map initially
-            centerMap();
+            if (isFirstRender) {
+                centerMap();
+                isFirstRender = false;
+            }
         }
 
         async function loadTerrainTextures() {
@@ -757,10 +813,13 @@
                     sprite.x = centerX;
                     sprite.y = centerY;
 
-                    // Store tile data for hover
-                    sprite.tileData = tile;
+                    // Tooltip looks up current-turn data via currentTileMap so it
+                    // stays fresh even though this sprite persists across turns
                     sprite.interactive = true;
-                    sprite.on('pointerover', (e) => showTooltip(e, tile));
+                    sprite.on('pointerover', (e) => {
+                        const currentTile = currentTileMap.get(`${tile.x},${tile.y}`) || tile;
+                        showTooltip(e, currentTile);
+                    });
                     sprite.on('pointerout', hideTooltip);
 
                     layers.terrain.addChild(sprite);
@@ -770,9 +829,11 @@
                     graphics.beginFill(getTerrainColor(terrain));
                     drawHex(graphics, centerX, centerY, CONFIG.hexRadius);
                     graphics.endFill();
-                    graphics.tileData = tile;
                     graphics.interactive = true;
-                    graphics.on('pointerover', (e) => showTooltip(e, tile));
+                    graphics.on('pointerover', (e) => {
+                        const currentTile = currentTileMap.get(`${tile.x},${tile.y}`) || tile;
+                        showTooltip(e, currentTile);
+                    });
                     graphics.on('pointerout', hideTooltip);
                     layers.terrain.addChild(graphics);
                 }
@@ -915,17 +976,6 @@
                 }
             });
 
-            // Helper to draw a filled hex
-            function drawFilledHex(graphics, cx, cy, rx, ry) {
-                const points = [];
-                for (let i = 0; i < 6; i++) {
-                    const angle = (Math.PI / 3) * i - Math.PI / 2;
-                    points.push(cx + rx * Math.cos(angle));
-                    points.push(cy + ry * Math.sin(angle));
-                }
-                graphics.drawPolygon(points);
-            }
-
             // Draw territory fill first (underneath borders)
             Object.entries(territoryTilesByPlayer).forEach(([playerId, tiles]) => {
                 const color = playerColors[playerId] || 0x808080;
@@ -1029,62 +1079,84 @@
             });
         }
 
+        function createImprovementSprite(tile, iconX, iconY) {
+            const spriteKey = `imp_${tile.improvement}`;
+            const texture = spriteTextures[spriteKey];
+
+            if (texture) {
+                const sprite = new PIXI.Sprite(texture);
+                sprite.anchor.set(0.5);
+                sprite.x = iconX;
+                sprite.y = iconY;
+                const targetSize = CONFIG.hexWidth * 0.5;
+                const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                sprite.scale.set(scale);
+                return sprite;
+            } else {
+                // Fallback: colored indicator
+                let color = 0xFFD700;
+                const imp = tile.improvement.toUpperCase();
+                if (imp.includes('FARM') || imp.includes('PASTURE') || imp.includes('GROVE')) {
+                    color = 0x4CAF50;
+                } else if (imp.includes('MINE') || imp.includes('QUARRY')) {
+                    color = 0x795548;
+                } else if (imp.includes('BARRACKS') || imp.includes('GARRISON') || imp.includes('FORT')) {
+                    color = 0xF44336;
+                } else if (imp.includes('TEMPLE') || imp.includes('SHRINE') || imp.includes('MONASTERY')) {
+                    color = 0x9C27B0;
+                } else if (imp.includes('MARKET') || imp.includes('HARBOR')) {
+                    color = 0xFF9800;
+                }
+
+                const size = CONFIG.hexWidth * 0.25;
+                const graphics = new PIXI.Graphics();
+                graphics.beginFill(0x000000, 0.4);
+                graphics.drawRoundedRect(iconX - size/2 - 2, iconY - size/2 - 2, size + 4, size + 4, 4);
+                graphics.endFill();
+                graphics.beginFill(color, 0.9);
+                graphics.drawRoundedRect(iconX - size/2, iconY - size/2, size, size, 3);
+                graphics.endFill();
+                return graphics;
+            }
+        }
+
         function renderImprovementsLayer() {
+            const currentKeys = new Set();
+
             mapData.tiles.forEach(tile => {
                 if (!tile.improvement) return;
 
-                const pos = hexToPixel(tile.x, tile.y);
-                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
-                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+                const key = `${tile.x},${tile.y}`;
+                currentKeys.add(key);
 
-                // Position improvement in center-bottom of hex (leaves room for specialist in upper-left)
-                const iconX = centerX;
-                const iconY = centerY + 20;
+                const existing = persistentSprites.improvements.get(key);
 
-                // Try to use actual sprite
-                const spriteKey = `imp_${tile.improvement}`;
-                const texture = spriteTextures[spriteKey];
+                // Same improvement as last turn — no work needed
+                if (existing && existing.type === tile.improvement) return;
 
-                if (texture) {
-                    // Create sprite for the improvement (no mask - masks cause lag)
-                    const sprite = new PIXI.Sprite(texture);
-                    sprite.anchor.set(0.5);
-                    sprite.x = iconX;
-                    sprite.y = iconY;
-                    // Scale sprites to fit within the hex (50% of hex width)
-                    const targetSize = CONFIG.hexWidth * 0.5;
-                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
-                    sprite.scale.set(scale);
-                    layers.improvements.addChild(sprite);
-                } else {
-                    // Fallback: colored indicator
-                    let color = 0xFFD700;  // Default gold
-                    const imp = tile.improvement.toUpperCase();
-                    if (imp.includes('FARM') || imp.includes('PASTURE') || imp.includes('GROVE')) {
-                        color = 0x4CAF50;  // Green for agriculture
-                    } else if (imp.includes('MINE') || imp.includes('QUARRY')) {
-                        color = 0x795548;  // Brown for mining
-                    } else if (imp.includes('BARRACKS') || imp.includes('GARRISON') || imp.includes('FORT')) {
-                        color = 0xF44336;  // Red for military
-                    } else if (imp.includes('TEMPLE') || imp.includes('SHRINE') || imp.includes('MONASTERY')) {
-                        color = 0x9C27B0;  // Purple for religious
-                    } else if (imp.includes('MARKET') || imp.includes('HARBOR')) {
-                        color = 0xFF9800;  // Orange for commerce
-                    }
-
-                    // Draw fallback improvement indicator (rounded rect)
-                    const size = CONFIG.hexWidth * 0.25;
-                    const graphics = new PIXI.Graphics();
-                    graphics.beginFill(0x000000, 0.4);
-                    graphics.drawRoundedRect(iconX - size/2 - 2, iconY - size/2 - 2, size + 4, size + 4, 4);
-                    graphics.endFill();
-                    graphics.beginFill(color, 0.9);
-                    graphics.drawRoundedRect(iconX - size/2, iconY - size/2, size, size, 3);
-                    graphics.endFill();
-
-                    layers.improvements.addChild(graphics);
+                // Different or new improvement — remove old sprite if present
+                if (existing) {
+                    layers.improvements.removeChild(existing.sprite);
+                    existing.sprite.destroy();
                 }
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const iconX = pos.x + CONFIG.hexHorizontalSpacing / 2;
+                const iconY = pos.y + CONFIG.hexVerticalSpacing / 2 + 20;
+
+                const sprite = createImprovementSprite(tile, iconX, iconY);
+                layers.improvements.addChild(sprite);
+                persistentSprites.improvements.set(key, { sprite, type: tile.improvement });
             });
+
+            // Remove sprites for tiles that no longer have improvements
+            for (const [key, entry] of persistentSprites.improvements) {
+                if (!currentKeys.has(key)) {
+                    layers.improvements.removeChild(entry.sprite);
+                    entry.sprite.destroy();
+                    persistentSprites.improvements.delete(key);
+                }
+            }
         }
 
         function renderResourcesLayer() {
@@ -1141,46 +1213,68 @@
             });
         }
 
+        function createSpecialistSprite(tile, iconX, iconY) {
+            const spriteKey = `spec_${tile.specialist}`;
+            const texture = spriteTextures[spriteKey];
+
+            if (texture) {
+                const sprite = new PIXI.Sprite(texture);
+                sprite.anchor.set(0.5);
+                sprite.x = iconX;
+                sprite.y = iconY;
+                const targetSize = CONFIG.hexWidth * 0.4;
+                const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
+                sprite.scale.set(scale);
+                return sprite;
+            } else {
+                const graphics = new PIXI.Graphics();
+                graphics.beginFill(0x000000, 0.5);
+                graphics.drawRoundedRect(iconX - 8, iconY - 8, 16, 16, 3);
+                graphics.endFill();
+                graphics.beginFill(0x9C27B0, 0.9);
+                graphics.drawRoundedRect(iconX - 6, iconY - 6, 12, 12, 2);
+                graphics.endFill();
+                return graphics;
+            }
+        }
+
         function renderSpecialistsLayer() {
+            const currentKeys = new Set();
+
             mapData.tiles.forEach(tile => {
                 if (!tile.specialist) return;
 
-                const pos = hexToPixel(tile.x, tile.y);
-                const centerX = pos.x + CONFIG.hexHorizontalSpacing / 2;
-                const centerY = pos.y + CONFIG.hexVerticalSpacing / 2;
+                const key = `${tile.x},${tile.y}`;
+                currentKeys.add(key);
 
-                // Position specialist icons in upper-left of hex (opposite from resources)
-                const iconX = centerX - 35;
-                const iconY = centerY - 25;
+                const existing = persistentSprites.specialists.get(key);
 
-                // Try to use actual sprite
-                const spriteKey = `spec_${tile.specialist}`;
-                const texture = spriteTextures[spriteKey];
+                // Same specialist as last turn — no work needed
+                if (existing && existing.type === tile.specialist) return;
 
-                if (texture) {
-                    // Create sprite for the specialist
-                    const sprite = new PIXI.Sprite(texture);
-                    sprite.anchor.set(0.5);
-                    sprite.x = iconX;
-                    sprite.y = iconY;
-                    // Scale specialist sprites to 40% of hex width
-                    const targetSize = CONFIG.hexWidth * 0.4;
-                    const scale = Math.min(targetSize / sprite.width, targetSize / sprite.height);
-                    sprite.scale.set(scale);
-                    layers.specialists.addChild(sprite);
-                } else {
-                    // Fallback: colored square indicator
-                    const graphics = new PIXI.Graphics();
-                    graphics.beginFill(0x000000, 0.5);
-                    graphics.drawRoundedRect(iconX - 8, iconY - 8, 16, 16, 3);
-                    graphics.endFill();
-                    graphics.beginFill(0x9C27B0, 0.9);
-                    graphics.drawRoundedRect(iconX - 6, iconY - 6, 12, 12, 2);
-                    graphics.endFill();
-
-                    layers.specialists.addChild(graphics);
+                // Different or new specialist — remove old if present
+                if (existing) {
+                    layers.specialists.removeChild(existing.sprite);
+                    existing.sprite.destroy();
                 }
+
+                const pos = hexToPixel(tile.x, tile.y);
+                const iconX = pos.x + CONFIG.hexHorizontalSpacing / 2 - 35;
+                const iconY = pos.y + CONFIG.hexVerticalSpacing / 2 - 25;
+
+                const sprite = createSpecialistSprite(tile, iconX, iconY);
+                layers.specialists.addChild(sprite);
+                persistentSprites.specialists.set(key, { sprite, type: tile.specialist });
             });
+
+            // Remove sprites for tiles that no longer have specialists
+            for (const [key, entry] of persistentSprites.specialists) {
+                if (!currentKeys.has(key)) {
+                    layers.specialists.removeChild(entry.sprite);
+                    entry.sprite.destroy();
+                    persistentSprites.specialists.delete(key);
+                }
+            }
         }
 
         function renderRoadsLayer() {
@@ -1410,6 +1504,17 @@
             graphics.drawPolygon(points);
         }
 
+        // Pointy-top elliptical hex fill (matches terrain sprite mask radii)
+        function drawFilledHex(graphics, cx, cy, rx, ry) {
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i - Math.PI / 2;
+                points.push(cx + rx * Math.cos(angle));
+                points.push(cy + ry * Math.sin(angle));
+            }
+            graphics.drawPolygon(points);
+        }
+
         function getTerrainColor(terrain) {
             const colors = {
                 'TERRAIN_WATER': 0x4A90E2,
@@ -1539,12 +1644,57 @@
             container.innerHTML = `<div class="error-message"><h2>Error</h2><p>${message}</p></div>`;
         }
 
+        function startPlayback() {
+            if (isPlaying) return;
+
+            // If at the last turn, restart from the beginning
+            if (currentTurn >= maxTurn) {
+                currentTurn = minTurn;
+                document.getElementById('turn-slider').value = currentTurn;
+                document.getElementById('turn-value').textContent = `${currentTurn}`;
+                loadMapData(currentTurn);
+            }
+
+            isPlaying = true;
+            document.getElementById('play-pause').innerHTML = '&#9646;&#9646;';
+
+            const speed = parseInt(document.getElementById('playback-speed').value);
+
+            async function advanceTurn() {
+                if (!isPlaying || currentTurn >= maxTurn) {
+                    stopPlayback();
+                    return;
+                }
+                currentTurn++;
+                document.getElementById('turn-slider').value = currentTurn;
+                document.getElementById('turn-value').textContent = `${currentTurn}`;
+                await loadMapData(currentTurn);
+                // Chain next turn after render completes (not setInterval)
+                if (isPlaying) {
+                    const speed = parseInt(document.getElementById('playback-speed').value);
+                    playbackTimer = setTimeout(advanceTurn, speed);
+                }
+            }
+
+            playbackTimer = setTimeout(advanceTurn, speed);
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            if (playbackTimer) {
+                clearTimeout(playbackTimer);
+                playbackTimer = null;
+            }
+            document.getElementById('play-pause').innerHTML = '&#9654;';
+        }
+
         function setupEventListeners() {
             // Turn slider
             const slider = document.getElementById('turn-slider');
             let sliderTimeout = null;
 
             slider.addEventListener('input', (e) => {
+                stopPlayback();
                 const turn = parseInt(e.target.value);
                 document.getElementById('turn-value').textContent = `${turn}`;
 
@@ -1593,6 +1743,15 @@
             });
 
             document.getElementById('zoom-reset').addEventListener('click', centerMap);
+
+            // Playback controls
+            document.getElementById('play-pause').addEventListener('click', () => {
+                if (isPlaying) {
+                    stopPlayback();
+                } else {
+                    startPlayback();
+                }
+            });
 
             // Pan with mouse drag
             const mapContainer = document.getElementById('map-container');
