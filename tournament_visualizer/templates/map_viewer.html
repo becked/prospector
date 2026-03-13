@@ -675,7 +675,11 @@
         }
 
         function prefetchAdjacentTurns(turn) {
-            [turn - 1, turn + 1]
+            // During playback, prefetch more turns ahead to stay ahead of latency
+            const ahead = isPlaying ? 5 : 1;
+            const targets = [turn - 1];
+            for (let i = 1; i <= ahead; i++) targets.push(turn + i);
+            targets
                 .filter(t => t >= minTurn && t <= maxTurn && !turnDataCache.has(t))
                 .forEach(t => getCachedOrFetch(t).catch(() => {}));
         }
@@ -1928,7 +1932,7 @@
             container.innerHTML = `<div class="error-message"><h2>Error</h2><p>${message}</p></div>`;
         }
 
-        function startPlayback() {
+        async function startPlayback() {
             if (isPlaying) return;
 
             // If at the last turn, restart from the beginning
@@ -1936,11 +1940,26 @@
                 currentTurn = minTurn;
                 document.getElementById('turn-slider').value = currentTurn;
                 document.getElementById('turn-value').textContent = `${currentTurn}`;
-                loadMapData(currentTurn);
+                await loadMapData(currentTurn);
+            }
+
+            // Buffer ahead before starting playback
+            const BUFFER_SIZE = 5;
+            const playBtn = document.getElementById('play-pause');
+            playBtn.innerHTML = '&#8987;';  // ⏳ hourglass while buffering
+            const bufferTargets = [];
+            for (let i = 1; i <= BUFFER_SIZE; i++) {
+                const t = currentTurn + i;
+                if (t <= maxTurn && !turnDataCache.has(t)) {
+                    bufferTargets.push(t);
+                }
+            }
+            if (bufferTargets.length > 0) {
+                await Promise.all(bufferTargets.map(t => getCachedOrFetch(t).catch(() => {})));
             }
 
             isPlaying = true;
-            document.getElementById('play-pause').innerHTML = '&#9646;&#9646;';
+            playBtn.innerHTML = '&#9646;&#9646;';
 
             const speed = parseInt(document.getElementById('playback-speed').value);
 
